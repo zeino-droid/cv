@@ -40,25 +40,6 @@ st.markdown(
         --muted: #94a3b8;
         --brand: #60a5fa;
         --brand-2: #38bdf8;
-        --good: #22c55e;
-        --warn: #f59e0b;
-        --bad: #ef4444;
-    }
-
-    html, body, [class*="css"] {
-        font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
-
-    .stApp {
-        background:
-            radial-gradient(circle at top left, rgba(96,165,250,0.16), transparent 35%),
-            radial-gradient(circle at top right, rgba(56,189,248,0.12), transparent 30%),
-            linear-gradient(180deg, #08101e 0%, #0b1220 100%);
-        color: var(--text);
-    }
-
-    [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #0f172a 0%, #111827 100%);
         border-right: 1px solid rgba(148, 163, 184, 0.12);
     }
 
@@ -306,44 +287,40 @@ if page == "🏠 Dashboard":
     if "today_only" not in st.session_state:
         st.session_state["today_only"] = False
 
-    # Header avec bouton de Scan
-    h1, h2 = st.columns([4, 1])
-    with h1:
-        st.markdown(
-            """
-            <div class="hero">
-                <div class="hero-title">Tableau de bord candidature</div>
-                <div class="hero-subtitle">Contrôle tes candidatures, analyse le marché et propulse ta recherche.</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    with h2:
+    # Hero Section Premium
+    st.markdown('<div class="hero-container">', unsafe_allow_html=True)
+    h1_col, scan_col = st.columns([4, 1.2])
+    with h1_col:
+        st.markdown('<div class="hero-h1">Job Intelligence</div>', unsafe_allow_html=True)
+        st.markdown('<div class="hero-h2">Ta plateforme stratégique pour cibler les meilleures opportunités CDI en 2026.</div>', unsafe_allow_html=True)
+    with scan_col:
+        st.markdown("<br><br>", unsafe_allow_html=True) # Alignement vertical
         if st.button("🔍 SCAN OFFRES", use_container_width=True, type="primary"):
-            with st.status("Recherche en cours...", expanded=True) as status:
+            with st.status("Extraction des opportunités...", expanded=True) as status:
                 from engine.sourcing_jobspy import scan_all_france
                 new_jobs = scan_all_france()
                 db.upsert_jobs(new_jobs)
-                status.update(label="Scan terminé !", state="complete", expanded=False)
+                status.update(label="Analyse terminée !", state="complete", expanded=False)
                 st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
 
+    # --- KPIs Pills ---
     c1, c2, c3, c4, c5 = st.columns(5)
     kpis = [
-        (stats["total"], "Sourcing", "#38bdf8", "Flux", "Toutes"),
-        (stats["by_status"].get("new", 0), "Sélection", "#f59e0b", "Tri", "new"),
-        (stats["by_status"].get("generated", 0), "Production", "#60a5fa", "CVs", "generated"),
-        (stats["sent"], "Envoi", "#22c55e", "Postulé", "sent"),
-        (stats["interviews"], "Résultat", "#a855f7", "Entretiens", "interview"),
+        (stats["total"], "Flux", "#38bdf8", "Sourcing", "Toutes"),
+        (stats["by_status"].get("new", 0), "Tri", "#f59e0b", "Sélection", "new"),
+        (stats["by_status"].get("generated", 0), "CVs", "#60a5fa", "Production", "generated"),
+        (stats["sent"], "Postulé", "#22c55e", "Envoi", "sent"),
+        (stats["interviews"], "Entretiens", "#a855f7", "Résultat", "interview"),
     ]
     
-    for col, (val, label, color, kicker, status_key) in zip([c1, c2, c3, c4, c5], kpis):
+    for col, (val, kicker, color, label, status_key) in zip([c1, c2, c3, c4, c5], kpis):
         with col:
-            # On utilise une carte stylée mais avec un bouton masqué pour l'interaction
-            active_border = "3px solid " + color if st.session_state["dashboard_filter"] == status_key else "1px solid rgba(148,163,184,0.14)"
+            active_style = f"border-color: {color}; background: rgba(56, 189, 248, 0.1);" if st.session_state["dashboard_filter"] == status_key else ""
             st.markdown(
-                f"""<div class="metric-card" style="border: {active_border}; cursor: pointer;">
-                <div class="metric-kicker">{kicker}</div>
-                <div class="metric-value" style="color:{color}">{val}</div>
+                f"""<div class="metric-pill" style="{active_style}">
+                <div style="font-size:10px; color:{color}; font-weight:700; text-transform:uppercase; margin-bottom:8px;">{kicker}</div>
+                <div class="metric-value">{val}</div>
                 <div class="metric-label">{label}</div>
             </div>""",
                 unsafe_allow_html=True,
@@ -354,12 +331,13 @@ if page == "🏠 Dashboard":
                 st.rerun()
 
     if st.session_state["dashboard_filter"] != "Toutes" or st.session_state["location_filter"]:
+        st.markdown("<br>", unsafe_allow_html=True)
         if st.button("🔄 RÉINITIALISER TOUS LES FILTRES", type="primary", use_container_width=True):
             st.session_state["dashboard_filter"] = "Toutes"
             st.session_state["location_filter"] = None
             st.rerun()
 
-    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("<br><br>", unsafe_allow_html=True)
     col_l, col_r = st.columns([1.8, 1])
 
     with col_l:
