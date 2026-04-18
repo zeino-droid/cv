@@ -350,7 +350,14 @@ if page == "🏠 Dashboard":
             )
             if st.button(f"VOIR {label.upper()}", key=f"btn_{status_key}", use_container_width=True):
                 st.session_state["dashboard_filter"] = status_key
+                st.session_state["location_filter"] = None
                 st.rerun()
+
+    if st.session_state["dashboard_filter"] != "Toutes" or st.session_state["location_filter"]:
+        if st.button("🔄 RÉINITIALISER TOUS LES FILTRES", type="primary", use_container_width=True):
+            st.session_state["dashboard_filter"] = "Toutes"
+            st.session_state["location_filter"] = None
+            st.rerun()
 
     st.markdown("<br>", unsafe_allow_html=True)
     col_l, col_r = st.columns([1.8, 1])
