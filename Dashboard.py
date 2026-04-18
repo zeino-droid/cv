@@ -548,9 +548,9 @@ if page == "🏠 Dashboard":
 elif page == "🔍 Scanner":
     st.markdown(
         """
-        <div class="hero">
-            <div class="hero-title">Scanner le marché</div>
-            <div class="hero-subtitle">
+        <div class="hero-container">
+            <div class="hero-h1">Scanner le marché</div>
+            <div class="hero-h2">
                 Recherche multi-sources pour trouver les meilleures opportunités en France, avec un tri orienté pertinence.
             </div>
         </div>
@@ -710,9 +710,9 @@ elif page == "🔍 Scanner":
 elif page == "📋 Offres":
     st.markdown(
         """
-        <div class="hero">
-            <div class="hero-title">Offres disponibles</div>
-            <div class="hero-subtitle">
+        <div class="hero-container">
+            <div class="hero-h1">Offres disponibles</div>
+            <div class="hero-h2">
                 Une vue claire, premium et orientée action pour identifier rapidement les meilleurs postes.
             </div>
         </div>
@@ -854,9 +854,9 @@ elif page == "📋 Offres":
 elif page == "⚡ Générer":
     st.markdown(
         """
-        <div class="hero">
-            <div class="hero-title">Génération de candidature</div>
-            <div class="hero-subtitle">
+        <div class="hero-container">
+            <div class="hero-h1">Génération de candidature</div>
+            <div class="hero-h2">
                 Génère un CV adapté, propre et prêt à l'envoi, avec un aperçu clair avant téléchargement.
             </div>
         </div>
@@ -1099,9 +1099,9 @@ elif page == "⚡ Générer":
 elif page == "📊 Tracker":
     st.markdown(
         """
-        <div class="hero">
-            <div class="hero-title">Suivi des candidatures</div>
-            <div class="hero-subtitle">
+        <div class="hero-container">
+            <div class="hero-h1">Suivi des candidatures</div>
+            <div class="hero-h2">
                 Vue claire et rapide pour piloter les envois, les retours et les prochaines actions.
             </div>
         </div>
@@ -1220,9 +1220,9 @@ elif page == "📊 Tracker":
 elif page == "👤 Profil":
     st.markdown(
         """
-        <div class="hero">
-            <div class="hero-title">Mon profil</div>
-            <div class="hero-subtitle">
+        <div class="hero-container">
+            <div class="hero-h1">Mon profil</div>
+            <div class="hero-h2">
                 Mets à jour ton identité, ton positionnement et tes informations de candidature sans toucher au JSON manuellement.
             </div>
         </div>
