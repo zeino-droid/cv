@@ -142,7 +142,7 @@
             if exp.keys().contains("achievements") {
                 for ach in exp.achievements {
                   let clean = ach
-                  if type(ach) == str and ach.starts-with("•") { clean = ach.slice(1).trim() }
+                  if type(ach) == str and ach.starts-with("•") { clean = ach.slice(3).trim() }
                   grid(
                     columns: (12pt, 1fr),
                     text(fill: primary, "•"),

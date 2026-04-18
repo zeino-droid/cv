@@ -19,6 +19,11 @@ class CVPromptBuilder:
         return f"""Tu es un Chasseur de Têtes (Headhunter) spécialisé en ingénierie de pointe.
 Ta mission : Vendre le profil de {self.master["identity"]["name"]} pour le poste de {job.get('title')} chez {job.get('company')}.
 
+CANDIDAT:
+- Nom: {self.master["identity"]["name"]}
+- Statut Actuel: Ingénieur en 3ème et dernière année (Apprentissage) chez ArcelorMittal R&D.
+- Expérience : Près de 3 ans d'expertise industrielle continue chez le leader mondial de l'acier.
+
 PROFIL SOURCE:
 {context_extra}
 
