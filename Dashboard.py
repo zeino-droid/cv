@@ -1113,105 +1113,103 @@ elif page == "📊 Tracker":
     sent = stats["sent"]
     inter = stats["interviews"]
     off = stats["offers"]
+    taux = round(inter / sent * 100, 1) if sent > 0 else 0
 
-    with c1:
-        st.markdown(
-            '<div class="metric-card"><div class="metric-kicker">Pipeline</div>',
-            unsafe_allow_html=True,
-        )
-        st.metric("📤 Envoyées", sent)
-        st.markdown("</div>", unsafe_allow_html=True)
-    with c2:
-        st.metric("🎤 Entretiens", inter)
-    with c3:
-        st.metric("🎉 Offres", off)
-    with c4:
-        taux = round(inter / sent * 100, 1) if sent > 0 else 0
-        st.metric("📈 Taux entretien", f"{taux}%")
+    kpis_tracker = [
+        (sent, "Envoyées", "#38bdf8", "Pipeline", "sent_btn"),
+        (inter, "Entretiens", "#a855f7", "Progression", "inter_btn"),
+        (off, "Offres", "#4ade80", "Succès", "off_btn"),
+        (f"{taux}%", "Conversion", "#f59e0b", "Performance", "conv_btn"),
+    ]
 
-    st.divider()
+    for col, (val, label, color, kicker, key) in zip([c1, c2, c3, c4], kpis_tracker):
+        with col:
+            st.markdown(
+                f"""<div class="metric-pill" style="min-height: 140px; border-color: {color}; background: rgba(15, 23, 42, 0.4);">
+                <div style="font-size:11px; color:{color}; font-weight:800; text-transform:uppercase; margin-bottom:12px; letter-spacing:0.1em;">{kicker}</div>
+                <div class="metric-value">{val}</div>
+                <div class="metric-label">{label}</div>
+            </div>""",
+                unsafe_allow_html=True,
+            )
 
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.subheader("🔍 Gestion des candidatures")
+
+    # Filtre style "Pills" avec st.radio horizontal
     filter_tab = st.radio(
-        "Filtrer",
-        [
-            "Tous",
-            "sent",
-            "applied",
-            "interview",
-            "offer",
-            "rejected",
-            "generated",
-            "new",
-        ],
+        "Filtre rapide",
+        ["Tous", "sent", "applied", "interview", "offer", "rejected", "generated", "new"],
         horizontal=True,
-        format_func=lambda x: (
-            f"{STATUS_EMOJI.get(x, '•')} {x}" if x != "Tous" else "📋 Tous"
-        ),
+        label_visibility="collapsed",
+        format_func=lambda x: f"{STATUS_EMOJI.get(x, '•')} {x.capitalize()}" if x != "Tous" else "📋 Tout voir"
     )
 
-    tracker_jobs = db.get_jobs(
-        status=filter_tab if filter_tab != "Tous" else None,
-        limit=200,
-    )
+    tracker_jobs = db.get_jobs(status=filter_tab if filter_tab != "Tous" else None, limit=200)
 
     if not tracker_jobs:
-        st.info("Aucune candidature ici pour l'instant.")
+        st.info("Aucune candidature ici pour l'instant. Le pipeline est vide.")
     else:
-        st.markdown(f"**{len(tracker_jobs)} candidature(s)**")
+        st.caption(f"**{len(tracker_jobs)} itération(s)** dans ce tableau.")
         for j in tracker_jobs:
-            label = (
-                f"{STATUS_EMOJI.get(j['status'], '•')} "
-                f"[{j['fit_score']}%] {j['title']} — "
-                f"{j.get('company', '?')} | {j.get('location', '?')}"
-            )
+            # Score premium icon
+            s = j['fit_score']
+            score_icon = "🟢" if s >= 70 else "🟡" if s >= 50 else "🔴"
+            
+            label = f"{STATUS_EMOJI.get(j['status'], '•')} {j['title']} — {j.get('company', 'Entreprise inconnue')}"
+            
             with st.expander(label, expanded=False):
-                ci, cu = st.columns([2, 1])
+                # En-tête interne stylé
+                st.markdown(f"""
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                    <div>
+                        <span style="background:rgba(56, 189, 248, 0.1); color:#38bdf8; padding:4px 10px; border-radius:8px; font-size:12px; font-weight:700;">{score_icon} FIT : {s}%</span>
+                        <span style="color:var(--muted); font-size:13px; margin-left:10px;">📍 {j.get('location', '?')}</span>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                ci, cu = st.columns([1.8, 1])
 
                 with ci:
-                    if j.get("url"):
-                        st.markdown(f"🔗 [Voir l'offre]({j['url']})")
-                    if j.get("applied_date"):
-                        st.markdown(f"📅 Postulé le : {j['applied_date']}")
-                    if j.get("response_date"):
-                        st.markdown(f"📬 Réponse le : {j['response_date']}")
-                    if j.get("notes"):
-                        st.markdown(f"📝 {j['notes']}")
+                    # Informations
+                    if j.get("applied_date"): st.markdown(f"**📅 Postulé le :** `{j['applied_date']}`")
+                    if j.get("response_date"): st.markdown(f"**📬 Réponse :** `{j['response_date']}`")
+                    if j.get("notes"): st.markdown(f"**📝 Mémo :** {j['notes']}")
 
-                    cv_p = j.get("cv_path", "")
-                    if cv_p and Path(cv_p).exists():
-                        with open(cv_p, "rb") as f:
-                            st.download_button(
-                                "📄 CV",
-                                data=f.read(),
-                                file_name=Path(cv_p).name,
-                                key=f"trk_dl_{j['id']}",
-                            )
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    # Actions rapides en ligne
+                    btn_cols = st.columns(3)
+                    with btn_cols[0]:
+                        if j.get("url"):
+                            st.link_button("🌐 Voir l'offre", j["url"], use_container_width=True)
+                    with btn_cols[1]:
+                        cv_p = j.get("cv_path", "")
+                        if cv_p and Path(cv_p).exists():
+                            with open(cv_p, "rb") as f:
+                                st.download_button("📄 Mon CV", f.read(), file_name=Path(cv_p).name, key=f"trk_dl_{j['id']}", use_container_width=True)
 
                 with cu:
+                    # Zone de mise à jour (Panneau droit)
+                    st.markdown('<div class="section-card" style="padding: 15px; margin-bottom:0;">', unsafe_allow_html=True)
                     ns = st.selectbox(
-                        "Statut",
+                        "Mettre à jour le statut",
                         VALID_STATUSES,
-                        index=VALID_STATUSES.index(j["status"])
-                        if j["status"] in VALID_STATUSES
-                        else 0,
+                        index=VALID_STATUSES.index(j["status"]) if j["status"] in VALID_STATUSES else 0,
                         key=f"trk_s_{j['id']}",
+                        label_visibility="collapsed"
                     )
                     nn = st.text_input(
-                        "Notes",
+                        "Note rapide",
                         value=j.get("notes", "") or "",
                         key=f"trk_n_{j['id']}",
+                        placeholder="Ex: Refus, Entretien prévu..."
                     )
-                    if st.button(
-                        "💾 Mettre à jour",
-                        key=f"trk_b_{j['id']}",
-                        use_container_width=True,
-                    ):
+                    if st.button("💾 Enregistrer", key=f"trk_b_{j['id']}", use_container_width=True, type="primary"):
                         db.update_status(j["id"], ns, nn)
-                        st.success("✅")
+                        st.success("Synchronisé ⚡")
                         st.rerun()
-
-                    if j.get("url"):
-                        st.link_button("🌐 Offre", j["url"], use_container_width=True)
+                    st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ═══════════════════════════════════════════════════════════════
