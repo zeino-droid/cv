@@ -1,0 +1,215 @@
+{
+  // ========================================
+  // CUSTOM KEYBINDINGS - CV Project
+  // ========================================
+  // These keybindings enhance productivity for Python and Web development
+  // Place this file in .vscode/keybindings.json
+
+  // ========================================
+  // PYTHON-SPECIFIC KEYBINDINGS
+  // ========================================
+  {
+    "key": "shift+cmd+f",
+    "command": "editor.action.formatDocument",
+    "when": "editorLangId == python && editorTextFocus"
+  },
+  {
+    "key": "shift+cmd+l",
+    "command": "editor.action.codeAction",
+    "args": {
+      "kind": "source.organizeImports",
+      "apply": "first"
+    },
+    "when": "editorLangId == python && editorTextFocus"
+  },
+  {
+    "key": "cmd+shift+t",
+    "command": "workbench.action.tasks.runTask",
+    "args": "Python: Run Tests"
+  },
+  {
+    "key": "cmd+shift+r",
+    "command": "workbench.action.tasks.runTask",
+    "args": "Python: Run Main Script"
+  },
+  {
+    "key": "cmd+shift+d",
+    "command": "workbench.action.tasks.runTask",
+    "args": "FastAPI: Start Server"
+  },
+
+  // ========================================
+  // WEB DEVELOPMENT KEYBINDINGS
+  // ========================================
+  {
+    "key": "shift+cmd+f",
+    "command": "editor.action.formatDocument",
+    "when": "editorLangId == javascript && editorTextFocus"
+  },
+  {
+    "key": "shift+cmd+f",
+    "command": "editor.action.formatDocument",
+    "when": "editorLangId == typescript && editorTextFocus"
+  },
+  {
+    "key": "shift+cmd+f",
+    "command": "editor.action.formatDocument",
+    "when": "editorLangId == typescriptreact && editorTextFocus"
+  },
+  {
+    "key": "shift+cmd+f",
+    "command": "editor.action.formatDocument",
+    "when": "editorLangId == javascriptreact && editorTextFocus"
+  },
+  {
+    "key": "cmd+shift+e",
+    "command": "workbench.action.tasks.runTask",
+    "args": "Node: Web Dev Server"
+  },
+  {
+    "key": "cmd+shift+b",
+    "command": "workbench.action.tasks.runTask",
+    "args": "Node: Build Web App"
+  },
+
+  // ========================================
+  // GIT & VERSION CONTROL
+  // ========================================
+  {
+    "key": "cmd+shift+g",
+    "command": "workbench.view.scm",
+    "when": "workbench.scm.active"
+  },
+  {
+    "key": "ctrl+shift+g",
+    "command": "gitlens.showCommitSearch"
+  },
+  {
+    "key": "shift+cmd+c",
+    "command": "git.commitStaged"
+  },
+
+  // ========================================
+  // TESTING & DEBUGGING
+  // ========================================
+  {
+    "key": "f5",
+    "command": "workbench.action.debug.start",
+    "when": "!inDebugMode"
+  },
+  {
+    "key": "shift+f5",
+    "command": "workbench.action.debug.stop",
+    "when": "inDebugMode"
+  },
+  {
+    "key": "f9",
+    "command": "editor.debug.action.toggleBreakpoint"
+  },
+  {
+    "key": "f10",
+    "command": "workbench.action.debug.stepOver"
+  },
+  {
+    "key": "f11",
+    "command": "workbench.action.debug.stepInto"
+  },
+
+  // ========================================
+  // NAVIGATION ENHANCEMENTS
+  // ========================================
+  {
+    "key": "cmd+k cmd+g",
+    "command": "workbench.action.gotoLine"
+  },
+  {
+    "key": "cmd+k cmd+f",
+    "command": "editor.action.quickOutline"
+  },
+  {
+    "key": "cmd+k cmd+x",
+    "command": "editor.action.deleteLines"
+  },
+
+  // ========================================
+  // TERMINAL & OUTPUT
+  // ========================================
+  {
+    "key": "ctrl+grave",
+    "command": "workbench.action.terminal.toggleTerminal"
+  },
+  {
+    "key": "cmd+alt+n",
+    "command": "workbench.action.terminal.new"
+  },
+  {
+    "key": "cmd+alt+w",
+    "command": "workbench.action.terminal.kill"
+  },
+
+  // ========================================
+  // SEARCH & REPLACE
+  // ========================================
+  {
+    "key": "cmd+h",
+    "command": "editor.action.startFindReplaceAction"
+  },
+  {
+    "key": "cmd+shift+h",
+    "command": "editor.action.replaceAll",
+    "when": "findWidgetVisible"
+  },
+
+  // ========================================
+  // EDITOR ENHANCEMENTS
+  // ========================================
+  {
+    "key": "cmd+alt+up",
+    "command": "editor.action.moveLinesUpAction"
+  },
+  {
+    "key": "cmd+alt+down",
+    "command": "editor.action.moveLinesDownAction"
+  },
+  {
+    "key": "cmd+shift+k",
+    "command": "editor.action.deleteLines"
+  },
+  {
+    "key": "cmd+l",
+    "command": "expandLineSelection"
+  },
+  {
+    "key": "cmd+/",
+    "command": "editor.action.commentLine",
+    "when": "editorTextFocus && !editorReadonly"
+  },
+
+  // ========================================
+  // REFACTORING
+  // ========================================
+  {
+    "key": "f2",
+    "command": "editor.action.rename",
+    "when": "editorHasRenameProvider && editorTextFocus && !editorReadonly"
+  },
+  {
+    "key": "cmd+shift+r",
+    "command": "editor.action.refactor",
+    "when": "editorTextFocus && editorHasCodeActionsProvider"
+  },
+
+  // ========================================
+  // CUSTOM SHORTCUTS FOR PROJECT-SPECIFIC TASKS
+  // ========================================
+  {
+    "key": "cmd+shift+m",
+    "command": "workbench.action.tasks.runTask",
+    "args": "Format: Python (Black)"
+  },
+  {
+    "key": "cmd+shift+i",
+    "command": "workbench.action.tasks.runTask",
+    "args": "Lint: Python (Ruff)"
+  }
+}

@@ -1,0 +1,71 @@
+search:
+  keywords:
+    - "Ingénieur R&D simulation"
+    - "Ingénieur simulation numérique"
+    - "Ingénieur modélisation numérique"
+    - "Ingénieur thermique énergie"
+    - "Ingénieur CFD"
+    - "Ingénieur calcul mécanique"
+    - "Ingénieur R&D énergie"
+    - "Ingénieur procédés industriels"
+    - "Ingénieur éléments finis"
+    - "Ingénieur R&D Python"
+  locations:
+    - "Paris, France"
+    - "Lyon, France"
+    - "Marseille, France"
+    - "Toulouse, France"
+    - "Bordeaux, France"
+    - "Nice, France"
+    - "Montpellier, France"
+    - "Aix-en-Provence, France"
+    - "Grenoble, France"
+    - "Sophia Antipolis, France"
+    - "France"
+  hours_old: 168
+  results_per_query: 20
+  job_type: "fulltime"
+
+filters:
+  min_score: 40
+  exclude_keywords:
+    - "stage"
+    - "stagiaire"
+    - "alternance"
+    - "apprenti"
+    - "doctorat"
+    - "thèse"
+    - "PhD"
+
+scoring:
+  base_score: 20
+  per_skill_match: 8
+  premium_keywords:
+    simulation: 5
+    modélisation: 5
+    thermique: 4
+    CFD: 5
+    énergie: 4
+    Python: 4
+    Abaqus: 6
+    Ansys: 5
+    Fluent: 5
+    mécanique: 3
+    thermomécanique: 5
+    décarbonation: 4
+    procédés: 3
+    Matlab: 3
+    Metafor: 6
+  preferred_locations:
+    - paris
+    - lyon
+    - marseille
+    - toulouse
+    - bordeaux
+    - nice
+    - montpellier
+    - aix
+    - sophia
+    - grenoble
+  location_bonus: 5
+  stage_penalty: -50

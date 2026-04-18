@@ -1,0 +1,73 @@
+{
+  "recommendations": [
+    // ========================================
+    // 🐍 PYTHON DEVELOPMENT
+    // ========================================
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "ms-python.debugpy",
+    "charliermarsh.ruff",
+    "ms-python.black-formatter",
+    "esbena.prettier-eslint",
+
+    // ========================================
+    // 📝 JAVASCRIPT/TYPESCRIPT
+    // ========================================
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "typescript-vue.vue",
+    "bradlc.vscode-tailwindcss",
+    "unifiedjs.vscode-mdx",
+
+    // ========================================
+    // 🎨 FRONTEND (React/Vite)
+    // ========================================
+    "msjsdiag.debugger-for-chrome",
+    "ritwickdey.liveserver",
+    "gruntfuggly.todo-tree",
+
+    // ========================================
+    // 📋 DOCUMENTATION & MARKUP
+    // ========================================
+    "naumovs.color-highlight",
+    "mhutchie.git-graph",
+    "redhat.vscode-yaml",
+    "tamasfe.even-better-toml",
+    "ms-vscode.makefile-tools",
+
+    // ========================================
+    // 🔧 GENERAL PRODUCTIVITY
+    // ========================================
+    "eamodio.gitlens",
+    "ms-vscode.remote-explorer",
+    "ms-vscode-remote.remote-ssh",
+    "ms-vscode.remote-repositories",
+    "github.copilot",
+    "github.copilot-chat",
+    "ms-vscode.vscode-serial-monitor",
+
+    // ========================================
+    // 🧪 TESTING & DEBUGGING
+    // ========================================
+    "hbenl.vscode-test-explorer",
+    "littlefoxteam.vscode-python-test-adapter",
+
+    // ========================================
+    // 🐳 DOCKER & DEVOPS
+    // ========================================
+    "ms-vscode-remote.remote-containers",
+    "ms-azuretools.vscode-docker",
+
+    // ========================================
+    // 💾 VERSION CONTROL
+    // ========================================
+    "donjayamanne.githistory",
+    "waderyan.gitblame",
+
+    // ========================================
+    // 🔐 SECURITY & ENV
+    // ========================================
+    "ms-vscode.remote-server",
+    "ms-vscode.makefile-tools"
+  ]
+}
