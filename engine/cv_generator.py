@@ -170,6 +170,21 @@ class PersonalCVGenerator:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M")
         output_base = DEFAULT_OUTPUT_DIR / f"cv_{slug}_{timestamp}"
 
+        # --- DOUBLE SÉCURITÉ 1 PAGE (Data Truncation) ---
+        # On limite physiquement le nombre d'items AVANT le rendu
+        if "experiences" in cv_data:
+            for exp in cv_data["experiences"]:
+                if "achievements" in exp and len(exp["achievements"]) > 3:
+                    exp["achievements"] = exp["achievements"][:3]
+        
+        if "projects" in cv_data and len(cv_data["projects"]) > 2:
+            cv_data["projects"] = cv_data["projects"][:2]
+            
+        if "summary" in cv_data:
+            summary_lines = cv_data["summary"].split(".")
+            if len(summary_lines) > 4:
+                cv_data["summary"] = ".".join(summary_lines[:3]) + "."
+
         results = {}
         for fmt, renderer in self.renderers.items():
             path = renderer.render(cv_data, output_base)
@@ -183,7 +198,6 @@ class PersonalCVGenerator:
                 elif fmt == "pdf":
                     results["pdf"] = path_str
 
-        print("   ✅ CV généré dans vault/resumes/")
         return {"cv_data": cv_data, **results}
 
     async def generate_batch(
