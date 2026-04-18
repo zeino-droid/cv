@@ -129,6 +129,9 @@
       #section-title("RÉSUMÉ")
       #text(size: 10pt, fill: secondary, weight: "medium", cv.summary)
       
+      #v(0.6em)
+      
+      #v(0.2fr) // Dynamic space
       #section-title("EXPÉRIENCES")
       #{
         if cv.keys().contains("experiences") {
@@ -163,6 +166,7 @@
         }
       }
       
+      #v(0.2fr) // Dynamic space
       #section-title("FORMATION")
       #{
         if cv.keys().contains("education") {
@@ -183,6 +187,7 @@
         }
       }
       
+      #v(0.2fr) // Dynamic space
       #section-title("PROJETS")
       #{
         if cv.keys().contains("projects") {
