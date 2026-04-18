@@ -4,6 +4,11 @@ from pathlib import Path
 from typing import Dict, Optional, List
 from datetime import datetime
 import re
+import unicodedata
+try:
+    import typst
+except ImportError:
+    typst = None
 
 DEFAULT_OUTPUT_DIR = Path("vault/resumes")
 TYPST_TEMPLATE_PATH = Path("templates/cv_template.typ")
@@ -21,11 +26,7 @@ class TypstRenderer(Renderer):
         self.available = self._check_typst()
 
     def _check_typst(self) -> bool:
-        try:
-            import typst
-            return True
-        except ImportError:
-            return False
+        return typst is not None
 
     def render(self, cv_data: Dict, output_path: Path) -> Optional[Path]:
         if not self.available or not self.template_path.exists():
@@ -36,19 +37,26 @@ class TypstRenderer(Renderer):
         with open(data_path, "w", encoding="utf-8") as f:
             json.dump(cv_data, f, ensure_ascii=False, indent=2)
         try:
-            import typst
+            if typst is None:
+                raise ImportError("Le module python 'typst' n'est pas installé.")
+            
             pdf_path = output_path.with_suffix(".pdf")
             
-            # Utilisation de sys_inputs pour passer le chemin du JSON
-            # et root pour que les images (photo.jpg) soient trouvées
+            # On passe tout en chemins absolus pour éviter les doutes
+            template_abs = str(self.template_path.resolve())
+            pdf_abs = str(pdf_path.resolve())
+            root_abs = str(template_dir.resolve())
+            
             typst.compile(
-                str(self.template_path.resolve()), 
-                output=str(pdf_path.resolve()),
-                root=str(template_dir.resolve()),
+                template_abs, 
+                output=pdf_abs,
+                root=root_abs,
                 sys_inputs={"data-path": "_cv_data.json"}
             )
             return pdf_path
         except Exception as e:
+            # On tente de remonter l'erreur pour le debug dashboard
+            cv_data["_last_error"] = str(e)
             print(f"   ⚠️  Erreur Typst: {e}")
         finally:
             data_path.unlink(missing_ok=True)

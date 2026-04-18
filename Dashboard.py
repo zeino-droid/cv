@@ -1013,6 +1013,11 @@ elif page == "⚡ Générer":
                         db.save_generation(job["id"], cv_path, letter_path)
 
                         st.success("✅ Candidature générée !")
+                        
+                        # Debug PDF failure
+                        if not cv_result.get("pdf_path") and cv_result.get("cv_data", {}).get("_last_error"):
+                            st.warning(f"⚠️ Le PDF n'a pas pu être généré (Fallback Markdown) : {cv_result['cv_data']['_last_error']}")
+
                         st.session_state["last_gen"] = {
                             "cv_result": cv_result,
                             "letter_text": letter_text,
