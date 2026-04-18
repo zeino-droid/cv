@@ -27,185 +27,258 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ─── CSS ─────────────────────────────────────────────────────────
+# ─── CSS PREMIUM (APPLE/NIKE STYLE) ──────────────────────────────
 st.markdown(
     """
-<style>
-    :root {
-        --bg: #0b1220;
-        --panel: rgba(15, 23, 42, 0.72);
-        --panel-strong: #111827;
-        --stroke: rgba(148, 163, 184, 0.18);
-        --text: #e5eefb;
-        --muted: #94a3b8;
-        --brand: #60a5fa;
-        --brand-2: #38bdf8;
-        border-right: 1px solid rgba(148, 163, 184, 0.12);
-    }
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        /* Variables Globales */
+        :root {
+            --brand: #38bdf8;
+            --brand-glow: rgba(56, 189, 248, 0.3);
+            --bg: #020617;
+            --card-bg: rgba(30, 41, 59, 0.4);
+            --border: rgba(148, 163, 184, 0.1);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --radius: 20px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
 
-    [data-testid="stSidebar"] * {
-        color: #f8fafc !important;
-    }
+        /* Reset Streamlit */
+        .main {
+            background-color: var(--bg);
+            color: var(--text-main);
+            font-family: 'Outfit', sans-serif;
+        }
+        .stApp { background: var(--bg); }
+        
+        [data-testid="stHeader"] { background: transparent; }
+        
+        /* Correction Sidebar visible */
+        [data-testid="stSidebar"] {
+            background: linear-gradient(180deg, #020617 0%, #0f172a 100%);
+            border-right: 1px solid var(--border);
+        }
+        [data-testid="stSidebar"] * {
+            color: #f8fafc !important;
+            font-family: 'Outfit', sans-serif;
+        }
 
-    .hero {
-        background: linear-gradient(135deg, rgba(15,23,42,0.92), rgba(17,24,39,0.86));
-        border: 1px solid rgba(148,163,184,0.16);
-        border-radius: 24px;
-        padding: 28px 30px;
-        margin: 0 0 18px 0;
-        box-shadow: 0 20px 50px rgba(0,0,0,0.28);
-    }
+        /* Typography */
+        h1, h2, h3, h4 {
+            font-family: 'Outfit', sans-serif !important;
+            font-weight: 800 !important;
+            letter-spacing: -0.02em !important;
+        }
+        
+        /* Typography overrides */
+        .hero-title {
+            font-size: 4rem;
+            font-weight: 800;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(to right, #ffffff, #94a3b8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            line-height: 1.1;
+        }
+        .hero-subtitle {
+            font-size: 1.25rem;
+            color: var(--text-muted);
+            max-width: 800px;
+            font-weight: 300;
+            line-height: 1.6;
+        }
+        .hero-container {
+            padding: 40px 0 60px 0;
+            text-align: left;
+        }
+        .hero-h1 {
+            font-size: 64px !important;
+            background: linear-gradient(to bottom, #ffffff 0%, #94a3b8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 15px;
+            line-height: 1.1;
+            font-family: 'Outfit', sans-serif !important;
+            font-weight: 800;
+        }
+        .hero-h2 {
+            font-size: 20px !important;
+            color: var(--text-muted);
+            font-weight: 300 !important;
+            max-width: 600px;
+            font-family: 'Outfit', sans-serif !important;
+        }
 
-    .hero-title {
-        font-size: 2.2rem;
-        font-weight: 800;
-        line-height: 1.05;
-        letter-spacing: -0.04em;
-        color: white;
-        margin-bottom: 0.25rem;
-    }
+        /* Premium Cards */
+        .section-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 32px;
+            margin-bottom: 24px;
+            transition: var(--transition);
+        }
+        .section-card:hover {
+            border-color: rgba(56, 189, 248, 0.3);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
 
-    .hero-subtitle {
-        font-size: 1.0rem;
-        color: var(--muted);
-        line-height: 1.45;
-    }
+        /* Metric Cards (KPIs) - Old vs New overrides */
+        .metric-card {
+            background: rgba(15, 23, 42, 0.5);
+            border-radius: 20px;
+            padding: 24px 20px;
+            text-align: left;
+            border: 1px solid var(--border);
+            margin-bottom: 12px;
+            transition: var(--transition);
+            min-height: 120px;
+            cursor: pointer;
+        }
+        .metric-card:hover {
+            background: rgba(30, 41, 59, 0.6);
+            border-color: var(--brand);
+            transform: translateY(-2px);
+        }
+        .metric-pill {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 24px;
+            text-align: center;
+            transition: var(--transition);
+            cursor: pointer;
+        }
+        .metric-pill:hover {
+            background: rgba(148, 163, 184, 0.05);
+            border-color: var(--brand);
+        }
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: 800;
+            line-height: 1;
+            color: white;
+            font-family: 'Outfit', sans-serif;
+            margin-bottom: 8px;
+        }
+        .metric-label {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+        .metric-kicker {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
 
-    .section-card {
-        background: rgba(15, 23, 42, 0.7);
-        border: 1px solid rgba(148,163,184,0.14);
-        border-radius: 20px;
-        padding: 18px;
-        box-shadow: 0 14px 35px rgba(0,0,0,0.18);
-    }
+        /* Job Cards */
+        .job-card {
+            background: rgba(15, 23, 42, 0.3);
+            border-left: 4px solid transparent;
+            border-radius: 16px;
+            padding: 24px;
+            margin: 16px 0;
+            transition: var(--transition);
+            border: 1px solid var(--border);
+        }
+        .job-card:hover {
+            background: rgba(15, 23, 42, 0.5);
+            border-left: 4px solid var(--brand);
+            transform: translateX(6px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .job-card strong {
+            font-size: 1.15rem;
+            letter-spacing: -0.01em;
+            color: white;
+        }
 
-    .metric-card {
-        background: linear-gradient(180deg, rgba(17,24,39,0.92), rgba(15,23,42,0.88));
-        border-radius: 18px;
-        padding: 18px 16px;
-        text-align: left;
-        border: 1px solid rgba(148,163,184,0.14);
-        margin-bottom: 10px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-        min-height: 112px;
-    }
+        /* Score Tags */
+        .score-high {
+            background: rgba(34,197,94,0.1);
+            color: #4ade80;
+            padding: 4px 12px;
+            border-radius: 99px;
+            font-weight: 700;
+            font-size: 0.85rem;
+            border: 1px solid rgba(34,197,94,0.2);
+        }
+        .score-mid {
+            background: rgba(245,158,11,0.1);
+            color: #fcd34d;
+            padding: 4px 12px;
+            border-radius: 99px;
+            font-weight: 700;
+            font-size: 0.85rem;
+            border: 1px solid rgba(245,158,11,0.2);
+        }
+        .score-low {
+            background: rgba(239,68,68,0.1);
+            color: #fca5a5;
+            padding: 4px 12px;
+            border-radius: 99px;
+            font-weight: 700;
+            font-size: 0.85rem;
+            border: 1px solid rgba(239,68,68,0.2);
+        }
 
-    .metric-kicker {
-        font-size: 0.76rem;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        color: var(--muted);
-        margin-bottom: 4px;
-    }
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: rgba(15,23,42,0.8);
+            color: var(--text-main);
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
 
-    .metric-value {
-        font-size: 2.1rem;
-        line-height: 1;
-        font-weight: 800;
-        color: white;
-    }
+        /* Custom Buttons */
+        div.stButton > button {
+            background: var(--text-main) !important;
+            color: var(--bg) !important;
+            border-radius: 12px !important;
+            font-weight: 700 !important;
+            padding: 12px 24px !important;
+            border: none !important;
+            transition: var(--transition) !important;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        div.stButton > button:hover {
+            background: var(--brand) !important;
+            transform: scale(1.02);
+            box-shadow: 0 0 20px var(--brand-glow);
+        }
+        
+        /* Form inputs overides */
+        .stTextInput input, .stTextArea textarea {
+            border-radius: 12px !important;
+        }
 
-    .metric-label {
-        font-size: 0.85rem;
-        color: var(--muted);
-        margin-top: 6px;
-    }
-
-    .pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 6px 12px;
-        border-radius: 999px;
-        border: 1px solid rgba(148,163,184,0.16);
-        background: rgba(15,23,42,0.75);
-        color: #dbeafe;
-        font-size: 0.82rem;
-        font-weight: 600;
-    }
-
-    .job-card {
-        background: linear-gradient(180deg, rgba(17,24,39,0.92), rgba(15,23,42,0.84));
-        border-radius: 18px;
-        padding: 16px 18px;
-        margin: 10px 0;
-        border: 1px solid rgba(148,163,184,0.14);
-        box-shadow: 0 10px 30px rgba(0,0,0,0.18);
-    }
-
-    .job-card strong {
-        font-size: 1.02rem;
-        letter-spacing: -0.01em;
-        color: white;
-    }
-
-    .score-high {
-        background: rgba(34,197,94,0.15);
-        color: #86efac;
-        padding: 4px 10px;
-        border-radius: 999px;
-        font-weight: 700;
-        font-size: 0.82rem;
-        border: 1px solid rgba(34,197,94,0.24);
-    }
-
-    .score-mid {
-        background: rgba(245,158,11,0.15);
-        color: #fbbf24;
-        padding: 4px 10px;
-        border-radius: 999px;
-        font-weight: 700;
-        font-size: 0.82rem;
-        border: 1px solid rgba(245,158,11,0.24);
-    }
-
-    .score-low {
-        background: rgba(239,68,68,0.14);
-        color: #fca5a5;
-        padding: 4px 10px;
-        border-radius: 999px;
-        font-weight: 700;
-        font-size: 0.82rem;
-        border: 1px solid rgba(239,68,68,0.24);
-    }
-
-    .stButton > button {
-        border-radius: 14px;
-        font-weight: 700;
-        padding: 0.8rem 1rem;
-        border: 1px solid rgba(148,163,184,0.14);
-        background: linear-gradient(135deg, #1d4ed8 0%, #0284c7 100%);
-        color: white;
-        transition: transform 0.15s ease, box-shadow 0.15s ease;
-    }
-
-    .stButton > button:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 12px 28px rgba(37,99,235,0.28);
-    }
-
-    .stMetric {
-        background: transparent;
-    }
-
-    [data-testid="stDataFrame"] {
-        border-radius: 18px;
-        overflow: hidden;
-        border: 1px solid rgba(148,163,184,0.14);
-        box-shadow: 0 12px 30px rgba(0,0,0,0.16);
-    }
-
-    [data-testid="stExpander"] {
-        border-radius: 16px;
-        border: 1px solid rgba(148,163,184,0.12);
-        background: rgba(15,23,42,0.62);
-    }
-
-    #MainMenu { visibility: hidden; }
-    footer { visibility: hidden; }
-    header { visibility: hidden; }
-</style>
-""",
+        /* Hide Streamlit components gently */
+        #MainMenu { visibility: hidden; }
+        footer { visibility: hidden; }
+        /* DO NOT HIDE HEADER -> It hides the mobile sidebar toggle! */
+        /* header { visibility: hidden; } */
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
     unsafe_allow_html=True,
 )
 
