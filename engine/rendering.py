@@ -38,7 +38,15 @@ class TypstRenderer(Renderer):
         try:
             import typst
             pdf_path = output_path.with_suffix(".pdf")
-            typst.compile(str(self.template_path.resolve()), output=str(pdf_path.resolve()))
+            
+            # Utilisation de sys_inputs pour passer le chemin du JSON
+            # et root pour que les images (photo.jpg) soient trouvées
+            typst.compile(
+                str(self.template_path.resolve()), 
+                output=str(pdf_path.resolve()),
+                root=str(template_dir.resolve()),
+                sys_inputs={"data-path": "_cv_data.json"}
+            )
             return pdf_path
         except Exception as e:
             print(f"   ⚠️  Erreur Typst: {e}")
