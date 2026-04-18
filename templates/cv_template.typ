@@ -1,19 +1,19 @@
 // Template CV Premium — Style Moderne (Apple / Nike / Minimal)
 #set page(
   paper: "a4",
-  margin: (top: 1.5cm, bottom: 1.5cm, left: 1.2cm, right: 1.5cm),
+  margin: (top: 0.8cm, bottom: 0.8cm, left: 1cm, right: 1cm),
 )
 
 #set text(
   font: ("Inter", "Helvetica Neue", "Helvetica", "Arial", "sans-serif"),
-  size: 9.5pt,
+  size: 8.8pt,
   lang: "fr",
   fill: rgb("#334155")
 )
 
 #set par(
   justify: false,
-  leading: 0.6em,
+  leading: 0.4em,
 )
 
 // ─── Données JSON ───
@@ -37,17 +37,17 @@
 }
 
 #let section-title(title) = {
-  v(1.2em)
-  text(size: 11pt, weight: "bold", fill: primary, tracking: 1pt, upper(title))
-  v(-0.5em)
-  line(length: 100%, stroke: 0.5pt + divider-color)
   v(0.6em)
+  text(size: 10pt, weight: "bold", fill: primary, tracking: 1pt, upper(title))
+  v(-0.6em)
+  line(length: 100%, stroke: 0.4pt + divider-color)
+  v(0.2em)
 }
 
 #let sidebar-title(title) = {
-  v(1em)
-  text(size: 10pt, weight: "bold", fill: primary, tracking: 0.5pt, upper(title))
-  v(0.4em)
+  v(0.6em)
+  text(size: 9pt, weight: "bold", fill: primary, tracking: 0.5pt, upper(title))
+  v(0.2em)
 }
 
 // ─── Structure ───
@@ -61,7 +61,7 @@
     #box(
       clip: true,
       radius: 8pt,
-      image("photo.jpg", width: 4.8cm)
+      image("photo.jpg", width: 4.2cm)
     )
     
     #set align(left)
@@ -115,9 +115,9 @@
   // ── COLONNE DROITE (CONTENU PRINCIPAL) ──
   [
     #v(0.5em)
-    #text(size: 32pt, weight: "black", fill: primary, tracking: -1pt, upper(cv.identity.name))
-    #v(-0.4em)
-    #text(size: 13pt, weight: "medium", fill: secondary, cv.headline)
+    #text(size: 26pt, weight: "black", fill: primary, tracking: -1pt, upper(cv.identity.name))
+    #v(-0.5em)
+    #text(size: 11pt, weight: "medium", fill: secondary, cv.headline)
     
     #section-title("RÉSUMÉ")
     #text(size: 10pt, fill: secondary, cv.summary)
@@ -140,7 +140,7 @@
             v(0.4em)
             
             if exp.keys().contains("achievements") {
-                for ach in exp.achievements {
+                for ach in exp.achievements.slice(0, calc.min(exp.achievements.len(), 4)) {
                   let clean = ach
                   if type(ach) == str and ach.starts-with("•") { clean = ach.slice(3).trim() }
                   grid(
@@ -179,7 +179,7 @@
     #section-title("PROJETS")
     #{
       if cv.keys().contains("projects") {
-          for proj in cv.projects {
+          for proj in cv.projects.slice(0, calc.min(cv.projects.len(), 2)) {
             text(size: 10.5pt, weight: "bold", fill: primary, proj.name)
             v(0.2em)
             set par(spacing: 5pt)

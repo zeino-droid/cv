@@ -30,10 +30,9 @@ PROFIL SOURCE:
 DIRECTIVES DE RÉDACTION (STYLE APPLE/CONSULTING):
 1. INTERDICTION FORMELLE : Ne mentionne JAMAIS la date de disponibilité ou le statut d'étudiant/apprenti. On vend un EXPERT qui apporte de la valeur IMMEDIATEMENT.
 2. TON : Autoritaire, technique, axé sur les résultats industriels. Pas de "passionné", "motivé" ou "je cherche".
-3. CONTENU : 3 phrases maximum. 
-   - Phrase 1: Expertise métier + Expérience chez des leaders (ArcelorMittal).
-   - Phrase 2: Ton plus grand accomplissement technique chiffré (ex: corrélation 95%, optimisation temps de calcul, décarbonation).
-   - Phrase 3: Valeur ajoutée précise pour l'offre {job.get('title')}.
+3. IMPACT ET CONCISION (1 PAGE MAX): 
+   - Résumé : 3 lignes maximum, ultra-dense.
+   - Supprime tout verbiage. Va droit au but.
 4. MOTS-CLÉS : Intègre chirurgicalement : {skills}.
 
 RÉDIGE LE RÉSUMÉ (EN FRANÇAIS UNIQUEMENT):"""
@@ -67,10 +66,10 @@ RÈGLES D'OR:
 1. FORMULE : [Verbe d'Action Fort] + [Projet Technique] + [RÉSULTAT CHIFFRÉ OU IMPACT BUSINESS].
 2. CHIFFRES : Si un chiffre n'est pas présent, déduis l'impact logique (ex: fiabilisation, réduction de cycles, automatisation).
 3. TECH : Précise l'outil (Abaqus, Metafor, Fluent, Python) comme un levier de performance, pas une fin en soi.
-4. STYLE : Perforant, concis, technique.
-5. FORMAT : Exactement 4 puces commençant par "• ".
+4. STYLE : Perforant, concis, technique (Impératif 1 page).
+5. FORMAT : Exactement 3 puces d'impact commençant par "• ".
 
-RÉDIGE LES 4 RÉALISATIONS (EN FRANÇAIS):"""
+RÉDIGE LES 3 RÉALISATIONS (EN FRANÇAIS):"""
 
     def build_education_prompt(self, job: Dict, edu: Dict) -> str:
         return f"""Réécris cette formation pour qu'elle renforce la crédibilité technique pour le poste de {job.get("title")}.
@@ -80,6 +79,12 @@ Français uniquement."""
 
     def build_review_prompt(self, job: Dict, cv_data: Dict) -> str:
         return f"""Analyse ce Headline et ce Summary. 
+IMPACT ET CONCISION (IMPÉRATIF 1 PAGE):
+   - Le CV DOIT tenir sur une seule page.
+   - Supprime tout verbiage. Va droit au but.
+   - Limite chaque expérience à 3-4 points d'impact maximum.
+   - Chaque ligne doit rapporter du business ou de la performance technique.
+   - Résumé : 3 lignes maximum, ultra-dense.
 Supprime TOUT ce qui fait "junior", "scolaire" ou "disponible tard". 
 Rends le tout "agressif" commercialement pour un recruteur technique.
 Sortie au format JSON: {{"improved_headline": "...", "improved_summary": "..."}}"""
