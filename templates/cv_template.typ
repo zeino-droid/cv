@@ -6,7 +6,7 @@
 
 #set text(
   font: ("Inter", "Helvetica Neue", "Helvetica", "Arial", "sans-serif"),
-  size: 8.8pt,
+  size: 8.4pt,
   lang: "fr",
   fill: rgb("#334155")
 )
@@ -37,17 +37,17 @@
 }
 
 #let section-title(title) = {
-  v(0.6em)
-  text(size: 10pt, weight: "bold", fill: primary, tracking: 1pt, upper(title))
-  v(-0.6em)
+  v(0.3em)
+  text(size: 9pt, weight: "bold", fill: primary, tracking: 1pt, upper(title))
+  v(-0.7em)
   line(length: 100%, stroke: 0.4pt + divider-color)
-  v(0.2em)
+  v(0.1em)
 }
 
 #let sidebar-title(title) = {
-  v(0.6em)
-  text(size: 9pt, weight: "bold", fill: primary, tracking: 0.5pt, upper(title))
-  v(0.2em)
+  v(0.4em)
+  text(size: 8.5pt, weight: "bold", fill: primary, tracking: 0.5pt, upper(title))
+  v(0.1em)
 }
 
 // ─── Structure ───
@@ -61,7 +61,7 @@
     #box(
       clip: true,
       radius: 8pt,
-      image("photo.jpg", width: 4.2cm)
+      image("photo.jpg", width: 3.5cm)
     )
     
     #set align(left)
@@ -115,12 +115,14 @@
   // ── COLONNE DROITE (CONTENU PRINCIPAL) ──
   [
     #v(0.5em)
-    #text(size: 26pt, weight: "black", fill: primary, tracking: -1pt, upper(cv.identity.name))
-    #v(-0.5em)
-    #text(size: 11pt, weight: "medium", fill: secondary, cv.headline)
-    
-    #section-title("RÉSUMÉ")
-    #text(size: 10pt, fill: secondary, cv.summary)
+    #text(size: 24pt, weight: "black", fill: primary, tracking: -1pt, upper(cv.identity.name))
+    #v(-0.6em)
+    #grid(
+      columns: (1fr),
+      text(size: 10.5pt, weight: "medium", fill: secondary, cv.headline),
+      v(-0.3em),
+      text(size: 8.2pt, fill: secondary, style: "italic", cv.summary)
+    )
     
     #section-title("EXPÉRIENCES")
     #{
@@ -148,10 +150,10 @@
                     text(fill: primary, "•"),
                     text(size: 9.5pt, fill: secondary, clean)
                   )
-                  v(0.2em)
+                  v(0.1em)
                 }
             }
-            v(0.8em)
+            v(0.4em)
           }
       }
     }
@@ -171,7 +173,7 @@
             if edu.keys().contains("details") {
                 text(size: 9.5pt, fill: secondary, edu.details)
             }
-            v(0.8em)
+            v(0.3em)
           }
       }
     }
@@ -193,7 +195,7 @@
             if proj.keys().contains("description") {
                 text(size: 9.5pt, fill: secondary, proj.description)
             }
-            v(0.8em)
+            v(0.3em)
           }
       }
     }
