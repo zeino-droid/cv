@@ -956,7 +956,7 @@ elif page == "⚡ Générer":
             st.markdown("### ⚙️ Options")
             gen_cv = st.checkbox("📄 CV PDF (Typst)", value=True)
             gen_letter = st.checkbox("✉️ Lettre de motivation", value=True)
-            use_llm = st.checkbox("🤖 LLM (lent, meilleur)", value=False)
+            use_llm = st.checkbox("🤖 Lettre IA Premium (Gemini Cloud)", value=True)
 
             if st.button("🚀 GÉNÉRER", type="primary", use_container_width=True):
                 with st.spinner("Génération en cours..."):

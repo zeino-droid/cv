@@ -18,19 +18,14 @@ class TypstRenderer(Renderer):
 
     def __init__(self, template_path: Path = TYPST_TEMPLATE_PATH):
         self.template_path = template_path
-        self.typst_cmd = "typst"
         self.available = self._check_typst()
 
     def _check_typst(self) -> bool:
-        for cmd in ["/opt/homebrew/bin/typst", "typst"]:
-            try:
-                result = subprocess.run([cmd, "--version"], capture_output=True, text=True, timeout=5)
-                if result.returncode == 0:
-                    self.typst_cmd = cmd
-                    return True
-            except (FileNotFoundError, subprocess.TimeoutExpired):
-                continue
-        return False
+        try:
+            import typst
+            return True
+        except ImportError:
+            return False
 
     def render(self, cv_data: Dict, output_path: Path) -> Optional[Path]:
         if not self.available or not self.template_path.exists():
@@ -41,14 +36,10 @@ class TypstRenderer(Renderer):
         with open(data_path, "w", encoding="utf-8") as f:
             json.dump(cv_data, f, ensure_ascii=False, indent=2)
         try:
+            import typst
             pdf_path = output_path.with_suffix(".pdf")
-            result = subprocess.run(
-                [self.typst_cmd, "compile", str(self.template_path.resolve()), str(pdf_path.resolve())],
-                capture_output=True, text=True, timeout=30
-            )
-            if result.returncode == 0:
-                return pdf_path
-            print(f"   ⚠️  Échec compilation Typst: {result.stderr.strip() or result.stdout.strip()}")
+            typst.compile(str(self.template_path.resolve()), output=str(pdf_path.resolve()))
+            return pdf_path
         except Exception as e:
             print(f"   ⚠️  Erreur Typst: {e}")
         finally:
