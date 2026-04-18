@@ -19,7 +19,6 @@ numpy==2.4.4
 packaging==26.1
 pandas==2.3.3
 pillow==12.2.0
-protobuf==7.34.1
 pyarrow==23.0.1
 pydantic==2.13.2
 pydantic_core==2.46.2
@@ -44,4 +43,4 @@ typing_extensions==4.15.0
 tzdata==2026.1
 urllib3==2.6.3
 typst
-google-generativeai
+google-generativeai==0.4.1
