@@ -975,7 +975,7 @@ elif page == "⚡ Générer":
                         if gen_letter:
                             if use_llm and cv_result.get("cv_data"):
                                 try:
-                                    from batch_apply import generate_cover_letter_llm
+                                    from Pipeline import generate_cover_letter_llm
                                     from engine.cv_generator import (
                                         PersonalCVGenerator as _CG,
                                     )
@@ -992,7 +992,7 @@ elif page == "⚡ Générer":
                                     pass
 
                             if not letter_text:
-                                from batch_apply import generate_cover_letter_heuristic
+                                from Pipeline import generate_cover_letter_heuristic
 
                                 letter_text = generate_cover_letter_heuristic(
                                     profile, job
