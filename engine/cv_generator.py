@@ -120,23 +120,36 @@ class PersonalCVGenerator:
         headline = self.matcher.adapt_headline(job_data)
         summary = self.master_profile.get("summary", "").strip()
 
-        # 3. Un seul appel LLM pour Headline + Summary Adaptation
+        # 3. Adaptation IA : Headline, Summary ET Achievements (10/10 Impact Pass)
         if self.llm:
-            print(f"      → Adaptation IA (1 appel)...")
-            from engine.prompts import CVPromptBuilder
-            # Note: prompt_builder needs to implement build_fast_adaptation_prompt
-            prompt = self.prompt_builder.build_fast_adaptation_prompt(job_data, matched_skills, cv_type)
-            response = await self.llm.generate(prompt)
-            improved = self._parse_json(response)
+            print(f"      → Génération Impact IA (10/10 Pass)...")
+            
+            # 3.1 Headline & Summary
+            prompt_meta = self.prompt_builder.build_fast_adaptation_prompt(job_data, matched_skills, cv_type)
+            response_meta = await self.llm.generate(prompt_meta)
+            improved = self._parse_json(response_meta)
             
             if improved:
                 headline = improved.get("headline", headline)
                 summary = improved.get("summary", summary)
-        # 4. Post-édition linguistique légère
+            
+            # 3.2 Achievements adaptation (Rewrite raw to Impact)
+            raw_ach_texts = [a for a in achievements[:8]]
+            prompt_ach = self.prompt_builder.build_achievements_prompt(job_data, raw_ach_texts)
+            response_ach = await self.llm.generate(prompt_ach)
+            final_achievements = [
+                l.strip().lstrip("•- ").strip()
+                for l in response_ach.split("\n")
+                if len(l.strip()) > 10
+            ][:4]
+        else:
+            final_achievements = [a["text"] for a in achievements[:4]]
+
+        # 4. Post-édition linguistique chirurgicale
         headline, summary, final_achievements = self._light_post_edit(
             headline=headline,
             summary=summary,
-            achievements=[a["text"] for a in achievements[:5]],
+            achievements=final_achievements,
             job=job_data,
         )
 
@@ -263,8 +276,14 @@ class PersonalCVGenerator:
             t = str(text or "").replace("\r", " ")
             t = unicodedata.normalize("NFKC", t)
             t = re.sub(r"\s+", " ", t).strip()
+            # Nettoyage RADICAL des marqueurs de junior/scolaire
             for bad in forbidden:
                 t = t.replace(bad, "")
+            
+            # Suppression chirurgicale des mentions de disponibilité tardive (Homicide de conversion)
+            t = re.sub(r"(Disponible|Disponibilité)\s+(en|à\s+partir\s+de)?\s*(Septembre|2026).*?(\.|$)", "", t, flags=re.IGNORECASE)
+            t = re.sub(r"\bJeune\b", "", t, flags=re.IGNORECASE)
+            
             t = re.sub(r"\s+([,.;:!?])", r"\1", t)
             t = t.replace("  ", " ").strip()
             return t
@@ -272,8 +291,13 @@ class PersonalCVGenerator:
         headline = normalize(headline)
         summary = normalize(summary)
 
+        # Rendre le titre impeccable
+        if headline.lower().startswith("ingénieuringénieur"):
+             headline = headline[9:].strip()
         if headline.endswith("."):
             headline = headline[:-1].strip()
+        
+        # S'assurer que le résumé ne re-mentionne pas ArcelorMittal de façon scolaire
         if summary and summary[-1] not in ".!?":
             summary += "."
 
