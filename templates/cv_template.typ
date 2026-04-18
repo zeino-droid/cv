@@ -1,207 +1,200 @@
-// ──────────────────────────────────────────────────────────────
-// Template CV Premium — Deux Colonnes — Typst (v3)
-// Optimisé pour : Remplissage visuel, Lisibilité, Professionnalisme
-// ──────────────────────────────────────────────────────────────
-
+// Template CV Premium — Style Moderne (Apple / Nike / Minimal)
 #set page(
   paper: "a4",
-  margin: (top: 1cm, bottom: 0.8cm, left: 1cm, right: 1cm),
+  margin: (top: 1.5cm, bottom: 1.5cm, left: 1.2cm, right: 1.5cm),
 )
 
 #set text(
-  font: "New Computer Modern",
-  size: 9pt,
+  font: ("Inter", "Helvetica Neue", "Helvetica", "Arial", "sans-serif"),
+  size: 9.5pt,
   lang: "fr",
+  fill: rgb("#334155")
 )
 
 #set par(
-  justify: true,
-  leading: 0.45em,
+  justify: false,
+  leading: 0.6em,
 )
 
 // ─── Données JSON ───
 #let data-path = sys.inputs.at("data-path", default: "_cv_data.json")
 #let cv = json(data-path)
 
-// ─── Couleurs ───
-#let primary-color = rgb("#1a365d")
-#let secondary-color = rgb("#2b6cb0")
-#let sidebar-gray = rgb("#f8fafc")
-#let text-dark = rgb("#1e293b")
-#let text-light = rgb("#64748b")
-#let accent-light = rgb("#e2e8f0")
+// ─── Couleurs Premium ───
+#let primary = rgb("#0f172a") // Deep slate (almost black)
+#let secondary = rgb("#475569") // slate-600
+#let light-bg = rgb("#f1f5f9") // slate-100 for pills
+#let divider-color = rgb("#e2e8f0")
 
-// ─── Composants Visuels ───
-
-// Barre de niveau (Skill Progress Bar)
-#let skill-bar(name, level) = {
-  v(0.1em)
-  grid(
-    columns: (1fr, 40pt),
-    gutter: 5pt,
-    text(size: 8pt, weight: "medium", name),
-    box(width: 40pt, height: 4pt, fill: accent-light, radius: 2pt, {
-      box(width: (level / 5 * 40pt), height: 4pt, fill: secondary-color, radius: 2pt)
-    })
-  )
-}
-
-// Badge compact
-#let compact-badge(name) = {
+// ─── Composants ───
+#let pill(text-content) = {
   box(
-    inset: (x: 4pt, y: 1.5pt),
-    radius: 2pt,
-    fill: white,
-    stroke: 0.5pt + accent-light,
-    text(size: 7.5pt, fill: primary-color, name)
+    inset: (x: 8pt, y: 4pt),
+    radius: 4pt,
+    fill: light-bg,
+    text(size: 8pt, weight: "medium", fill: primary, text-content)
   )
 }
 
-// Titre de section (Sidebar)
-#let sidebar-title(title) = {
+#let section-title(title) = {
+  v(1.2em)
+  text(size: 11pt, weight: "bold", fill: primary, tracking: 1pt, upper(title))
+  v(-0.5em)
+  line(length: 100%, stroke: 0.5pt + divider-color)
   v(0.6em)
-  text(size: 9pt, weight: "bold", fill: primary-color, upper(title))
-  v(-0.35em)
-  line(length: 100%, stroke: 1.5pt + secondary-color)
-  v(0.3em)
 }
 
-// Titre de section (Main)
-#let main-title(title) = {
+#let sidebar-title(title) = {
+  v(1em)
+  text(size: 10pt, weight: "bold", fill: primary, tracking: 0.5pt, upper(title))
   v(0.4em)
-  text(size: 11pt, weight: "bold", fill: primary-color, upper(title))
-  v(-0.4em)
-  line(length: 100%, stroke: 0.8pt + secondary-color)
-  v(0.2em)
 }
 
-// ─────────────────────────────────────────────────────────────
-// ── STRUCTURE PRINCIPALE ──
-// ─────────────────────────────────────────────────────────────
-
+// ─── Structure ───
 #grid(
-  columns: (190pt, 1fr),
-  gutter: 20pt,
-  
+  columns: (180pt, 1fr),
+  gutter: 35pt,
   // ── COLONNE GAUCHE (SIDEBAR) ──
   [
     #set align(center)
     #v(0.5em)
     #box(
       clip: true,
-      radius: 50%,
-      stroke: 2pt + secondary-color,
-      image("photo.jpg", width: 4.5cm)
+      radius: 8pt,
+      image("photo.jpg", width: 4.8cm)
     )
     
     #set align(left)
     #v(1em)
     
-    #sidebar-title("Contact")
-    #set text(size: 8pt, fill: text-dark)
-    📞 #cv.identity.phone \
-    📧 #text(size: 7.5pt, cv.identity.email) \
-    📍 #cv.identity.location \
-    🔗 #if cv.identity.linkedin != none { cv.identity.linkedin } else { "linkedin.com/in/zein-elajamy" }
+    #sidebar-title("CONTACT")
+    #set text(size: 9pt, fill: secondary)
+    #text(weight: "medium", fill: primary, "Email") \
+    #cv.identity.email \
+    #v(0.3em)
+    #text(weight: "medium", fill: primary, "Téléphone") \
+    #cv.identity.phone \
+    #v(0.3em)
+    #text(weight: "medium", fill: primary, "Localisation") \
+    #cv.identity.location \
+    #v(0.3em)
+    #text(weight: "medium", fill: primary, "LinkedIn") \
+    #if cv.identity.linkedin != none { cv.identity.linkedin } else { "linkedin.com/in/zein-elajamy" }
     
-    #sidebar-title("Expertise Technique")
+    #sidebar-title("COMPÉTENCES")
     #{
-      for skill in cv.grouped_skills.at("Expertise Technique") {
-        skill-bar(skill.name, skill.level)
+      let all_skills = ()
+      if cv.keys().contains("grouped_skills") {
+        for (group, skills) in cv.grouped_skills {
+            for s in skills {
+              all_skills.push(s.name)
+            }
+        }
+      }
+      
+      set par(spacing: 5pt)
+      for s in all_skills {
+        pill(s) 
+        h(3pt)
       }
     }
     
-    #sidebar-title("Outils & Digital")
+    #sidebar-title("LANGUES")
     #{
-      for skill in cv.grouped_skills.at("Outils & Digital") {
-        skill-bar(skill.name, skill.level)
+      if cv.keys().contains("languages") {
+          for l in cv.languages {
+            text(size: 9pt, weight: "bold", fill: primary, l.name)
+            v(-0.6em)
+            text(size: 8.5pt, fill: secondary, l.level)
+            v(0.3em)
+          }
       }
     }
-    
-    #sidebar-title("Langues")
-    #{
-      for l in cv.languages {
-        let level_int = if l.level.contains("C1") or l.level.contains("maternelle") { 5 } else { 4 }
-        skill-bar(l.name, level_int)
-      }
-    }
-    
-    #sidebar-title("Certifications")
-    #set text(size: 7.5pt)
-    #{
-      for cert in cv.certifications {
-        [• *#cert.name* (#cert.date) \ ]
-      }
-    }
-    
-    #sidebar-title("Centres d'intérêt")
-    #set text(size: 8pt)
-    🏀 Basketball (Compétition) \
-    🎸 Guitare & Musique \
-    🚗 Sport Automobile & Tech \
-    🌍 Voyages & Diversité Cult.
   ],
   
-  // ── COLONNE DROITE (CONTENU) ──
+  // ── COLONNE DROITE (CONTENU PRINCIPAL) ──
   [
-    #v(0.2em)
-    #text(size: 24pt, weight: "bold", fill: primary-color, upper(cv.identity.name))
+    #v(0.5em)
+    #text(size: 32pt, weight: "black", fill: primary, tracking: -1pt, upper(cv.identity.name))
     #v(-0.4em)
-    #text(size: 11pt, weight: "bold", fill: secondary-color, hyphenate: false, cv.headline)
+    #text(size: 13pt, weight: "medium", fill: secondary, cv.headline)
     
-    #main-title("Résumé Professionnel")
-    #text(size: 8.8pt, cv.summary)
+    #section-title("RÉSUMÉ")
+    #text(size: 10pt, fill: secondary, cv.summary)
     
-    #main-title("Expériences Professionnelles")
+    #section-title("EXPÉRIENCES")
     #{
-      for exp in cv.experiences {
-        // Ligne 1 : Titre du poste (Pleine largeur)
-        text(size: 10pt, weight: "bold", fill: primary-color, hyphenate: false, exp.position)
-        v(-0.35em)
-        
-        // Ligne 2 : Entreprise (Gauche) et Dates (Droite)
-        grid(
-          columns: (1fr, auto),
-          text(size: 9pt, weight: "bold", style: "italic", fill: secondary-color, exp.company),
-          text(size: 8.5pt, fill: text-light, weight: "bold", exp.start_date + " — " + exp.end_date)
-        )
-        
-        v(0.1em)
-        for ach in exp.achievements {
-          let clean = if ach.starts-with("•") { ach } else { "• " + ach }
-          text(size: 8.5pt, clean)
-          v(0.15em)
-        }
-        v(0.4em)
+      if cv.keys().contains("experiences") {
+          for exp in cv.experiences {
+            grid(
+              columns: (1fr, auto),
+              text(size: 11.5pt, weight: "bold", fill: primary, exp.position),
+              text(size: 9.5pt, weight: "medium", fill: secondary, exp.start_date + " — " + exp.end_date)
+            )
+            v(-0.35em)
+            text(size: 10pt, weight: "bold", fill: primary, exp.company)
+            if exp.keys().contains("location") and exp.location != "" {
+              h(4pt) 
+              text(size: 9.5pt, fill: secondary, "• " + exp.location)
+            }
+            v(0.4em)
+            
+            if exp.keys().contains("achievements") {
+                for ach in exp.achievements {
+                  let clean = ach
+                  if type(ach) == str and ach.starts-with("•") { clean = ach.slice(1).trim() }
+                  grid(
+                    columns: (12pt, 1fr),
+                    text(fill: primary, "•"),
+                    text(size: 9.5pt, fill: secondary, clean)
+                  )
+                  v(0.2em)
+                }
+            }
+            v(0.8em)
+          }
       }
     }
     
-    #main-title("Formation Académique")
+    #section-title("FORMATION")
     #{
-      for edu in cv.education {
-        grid(
-          columns: (1fr, auto),
-          [*#text(size: 9pt, fill: primary-color, edu.degree + " — " + edu.field)*],
-          [*#text(size: 8.5pt, fill: text-light, edu.year)*]
-        )
-        v(-0.2em)
-        text(size: 8.5pt, style: "italic", edu.school)
-        linebreak()
-        text(size: 8pt, fill: text-dark, edu.details)
-        v(0.4em)
+      if cv.keys().contains("education") {
+          for edu in cv.education {
+            grid(
+              columns: (1fr, auto),
+              text(size: 10pt, weight: "bold", fill: primary, edu.degree),
+              text(size: 9.5pt, weight: "medium", fill: secondary, edu.year)
+            )
+            v(-0.35em)
+            text(size: 10pt, weight: "medium", fill: primary, edu.school)
+            v(0.1em)
+            if edu.keys().contains("details") {
+                text(size: 9.5pt, fill: secondary, edu.details)
+            }
+            v(0.8em)
+          }
       }
     }
     
-    #main-title("Projets Significatifs")
+    #section-title("PROJETS")
     #{
-      for proj in cv.projects {
-        text(size: 8.5pt, weight: "bold", fill: primary-color, proj.name)
-        h(0.5em)
-        for tech in proj.technologies {
-          compact-badge(tech)
-        }
-        list(tight: true, marker: [$-$], text(size: 8pt, proj.description))
-        v(0.2em)
+      if cv.keys().contains("projects") {
+          for proj in cv.projects {
+            text(size: 10.5pt, weight: "bold", fill: primary, proj.name)
+            v(0.2em)
+            set par(spacing: 5pt)
+            if proj.keys().contains("technologies") {
+                for tech in proj.technologies {
+                  pill(tech)
+                  h(3pt)
+                }
+            }
+            v(0.3em)
+            if proj.keys().contains("description") {
+                text(size: 9.5pt, fill: secondary, proj.description)
+            }
+            v(0.8em)
+          }
       }
     }
   ]
