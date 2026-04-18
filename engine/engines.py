@@ -142,3 +142,43 @@ class MLXEngine(LLMEngine):
         except (ImportError, OSError, RuntimeError, ValueError) as e:
             print(f"   ⚠️  Erreur MLX: {e}")
             return None
+
+class GeminiEngine(LLMEngine):
+    """Interface avec Google Gemini via l'API (Cloud Native)"""
+    def __init__(self, api_key: str = None, model_name: str = "gemini-1.5-pro"):
+        self.model_name = model_name
+        self.api_key = api_key or os.environ.get("GEMINI_API_KEY")
+        self.available = False
+        self.model = None
+        self._detect()
+
+    def _detect(self):
+        try:
+            import google.generativeai as genai
+            if self.api_key:
+                genai.configure(api_key=self.api_key)
+                self.model = genai.GenerativeModel(self.model_name)
+                self.available = True
+        except ImportError:
+            self.available = False
+
+    def is_ready(self) -> bool:
+        return self.available and self.model is not None
+
+    async def generate(self, prompt: str, temperature: float = 0.3) -> Optional[str]:
+        if not self.is_ready():
+            return None
+        try:
+            import google.generativeai as genai
+            response = self.model.generate_content(
+                prompt,
+                generation_config=genai.types.GenerationConfig(
+                    temperature=temperature,
+                    top_p=0.9,
+                    max_output_tokens=2048,
+                )
+            )
+            return response.text.strip()
+        except Exception as e:
+            print(f"   ⚠️  Erreur Gemini: {e}")
+            return None

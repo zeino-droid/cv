@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 # Imports locaux
-from engine.engines import MLXEngine, OllamaEngine
+from engine.engines import MLXEngine, OllamaEngine, GeminiEngine
 from engine.matching import ProfileMatcher
 from engine.prompts import CVPromptBuilder
 from engine.rendering import LatexRenderer, MarkdownRenderer, TypstRenderer
@@ -55,10 +55,26 @@ class PersonalCVGenerator:
         }
 
         # LLM Engine selection
+        import os
+        import streamlit as st
+        
+        # Tentative de récupération clé API via st.secrets ou os.environ
+        gemini_api_key = os.environ.get("GEMINI_API_KEY")
+        if not gemini_api_key:
+            try:
+                if "GEMINI_API_KEY" in st.secrets:
+                    gemini_api_key = st.secrets["GEMINI_API_KEY"]
+            except Exception:
+                pass
+
+        self.gemini = GeminiEngine(api_key=gemini_api_key)
         self.mlx = MLXEngine()
         self.ollama = OllamaEngine()
 
-        if self.mlx.available:
+        if self.gemini.is_ready():
+            self.llm = self.gemini
+            self.llm_name = f"Gemini Cloud ({self.gemini.model_name})"
+        elif self.mlx.available:
             self.llm = self.mlx
             self.llm_name = f"MLX ({self.mlx.model_name.split('/')[-1]})"
         elif self.ollama.is_ready():
