@@ -145,7 +145,7 @@ class MLXEngine(LLMEngine):
 
 class GeminiEngine(LLMEngine):
     """Interface avec Google Gemini via l'API (Cloud Native)"""
-    def __init__(self, api_key: str = None, model_name: str = "gemini-1.5-pro"):
+    def __init__(self, api_key: str = None, model_name: str = "gemini-flash-latest"):
         self.model_name = model_name
         self.api_key = api_key or os.environ.get("GEMINI_API_KEY")
         self.available = False
