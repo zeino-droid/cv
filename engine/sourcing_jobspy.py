@@ -175,7 +175,7 @@ def scan_with_jobspy(
                     search_term=keyword,
                     location=location,
                     results_wanted=results_per_query,
-                    hours_old=hours_old,
+                    
                     country_indeed="France",
                     linkedin_fetch_description=True,
                     job_type="fulltime",
@@ -246,7 +246,7 @@ def scan_all_france(
     jobspy_jobs = scan_with_jobspy(
         keywords=keywords,
         locations=locations,
-        hours_old=hours_old,
+        
         results_per_query=results_per_query,
         progress_callback=progress_callback,
     )

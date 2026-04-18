@@ -7,7 +7,7 @@ Frontend premium inspiré des standards Apple / Indeed / Nike.
 import asyncio
 import json
 import sys
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from pathlib import Path
 
 import pandas as pd
