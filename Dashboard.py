@@ -1293,7 +1293,7 @@ elif page == "👤 Profil":
                     profile["current_status"] = cur_status
 
                     with open(
-                        ROOT / "config" / "master_profile.json", "w", encoding="utf-8"
+                        ROOT / "profiles" / "master_profile.json", "w", encoding="utf-8"
                     ) as f:
                         json.dump(profile, f, indent=2, ensure_ascii=False)
                     st.success("✅ Profil sauvegardé !")
