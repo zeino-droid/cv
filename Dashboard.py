@@ -418,13 +418,8 @@ if page == "🏠 Dashboard":
                 st.rerun()
 
         if dash_filter == "Top (Score > 70%)":
-            top_jobs = db.get_top_to_apply(n=100)
-            if location_filter:
-                display_jobs = [
-                    j for j in top_jobs if location_filter.lower() in str(j.get("location", "")).lower()
-                ][:10]
-            else:
-                display_jobs = top_jobs[:10]
+            top_jobs = db.get_jobs(min_score=70, location_filter=location_filter, limit=200)
+            display_jobs = [j for j in top_jobs if j.get("status") in {"new", "selected"}][:10]
         elif dash_filter == "Tous":
             display_jobs = db.get_jobs(location_filter=location_filter, limit=10)
         else:
