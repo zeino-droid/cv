@@ -1076,7 +1076,7 @@ elif page == "📊 Tracker":
     # Filtre style "Pills" avec st.radio horizontal
     filter_tab = st.radio(
         "Filtre rapide",
-        ["Tous", "sent", "applied", "interview", "offer", "rejected", "generated", "new"],
+        ["Tous"] + VALID_STATUSES,
         horizontal=True,
         label_visibility="collapsed",
         format_func=lambda x: f"{STATUS_EMOJI.get(x, '•')} {x.capitalize()}" if x != "Tous" else "📋 Tout voir"

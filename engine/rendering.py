@@ -5,6 +5,7 @@ from typing import Dict, Optional, List
 from datetime import datetime
 import re
 import unicodedata
+
 try:
     import typst
 except ImportError:
@@ -15,7 +16,7 @@ TYPST_TEMPLATE_PATH = Path("templates/cv_template.typ")
 
 class Renderer:
     """Base class for CV renderers"""
-    def render(self, cv_data: Dict, output_path: Path) -> Optional[Path]:
+    def render(self, cv_data: Dict, output_path: Path, **kwargs) -> Optional[Path]:
         raise NotImplementedError
 
 class TypstRenderer(Renderer):
@@ -28,14 +29,24 @@ class TypstRenderer(Renderer):
     def _check_typst(self) -> bool:
         return typst is not None
 
-    def render(self, cv_data: Dict, output_path: Path) -> Optional[Path]:
+    def render(self, cv_data: Dict, output_path: Path, **kwargs) -> Optional[Path]:
+        """
+        Renders the CV using Typst.
+        Supported kwargs:
+            font_size_delta (float): Adjust font size globally.
+        """
         if not self.available or not self.template_path.exists():
             return None
+        
+        font_size_delta = kwargs.get("font_size_delta", 0.0)
+        
         template_dir = self.template_path.resolve().parent
         data_path = template_dir / "_cv_data.json"
         output_path.parent.mkdir(parents=True, exist_ok=True)
+        
         with open(data_path, "w", encoding="utf-8") as f:
             json.dump(cv_data, f, ensure_ascii=False, indent=2)
+            
         try:
             if typst is None:
                 raise ImportError("Le module python 'typst' n'est pas installé.")
@@ -51,7 +62,10 @@ class TypstRenderer(Renderer):
                 template_abs, 
                 output=pdf_abs,
                 root=root_abs,
-                sys_inputs={"data-path": "_cv_data.json"}
+                sys_inputs={
+                    "data-path": "_cv_data.json",
+                    "font-size-delta": str(font_size_delta)
+                }
             )
             return pdf_path
         except Exception as e:
@@ -62,10 +76,22 @@ class TypstRenderer(Renderer):
             data_path.unlink(missing_ok=True)
         return None
 
+    def get_page_count(self, pdf_path: Path) -> int:
+        """Détecte le nombre de pages du PDF généré."""
+        try:
+            # Utilise pdfinfo de poppler-utils (pré-installé dans le sandbox)
+            result = subprocess.run(["pdfinfo", str(pdf_path)], capture_output=True, text=True)
+            for line in result.stdout.splitlines():
+                if line.startswith("Pages:"):
+                    return int(line.split(":")[1].strip())
+        except Exception as e:
+            print(f"   ⚠️ Erreur détection pages: {e}")
+        return 1
+
 class MarkdownRenderer(Renderer):
     """Rend le CV en Markdown"""
 
-    def render(self, cv_data: Dict, output_path: Path) -> Optional[Path]:
+    def render(self, cv_data: Dict, output_path: Path, **kwargs) -> Optional[Path]:
         identity = cv_data["identity"]
         output_path.parent.mkdir(parents=True, exist_ok=True)
         md = f"# {identity['name']}\n\n**{cv_data.get('headline', '')}**\n\n"
@@ -108,7 +134,7 @@ class MarkdownRenderer(Renderer):
 class LatexRenderer(Renderer):
     """Rend le CV en LaTeX (ModernCV)"""
 
-    def render(self, cv_data: Dict, output_path: Path) -> Optional[Path]:
+    def render(self, cv_data: Dict, output_path: Path, **kwargs) -> Optional[Path]:
         # Escape helper
         def esc(t):
             conv = {'&': r'\&', '%': r'\%', '$': r'\$', '#': r'\#', '_': r'\_', '{': r'\{', '}': r'\}'}
