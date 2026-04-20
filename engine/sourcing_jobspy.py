@@ -42,14 +42,7 @@ def load_config() -> Dict:
                     "Ansys": 5,
                 },
                 "preferred_locations": [
-                    "paris",
-                    "lyon",
-                    "marseille",
-                    "toulouse",
-                    "bordeaux",
-                    "nice",
-                    "montpellier",
-                    "grenoble",
+                    "paris", "lyon", "marseille", "toulouse", "bordeaux", "nice", "montpellier", "grenoble",
                 ],
                 "location_bonus": 5,
                 "stage_penalty": -50,
@@ -70,13 +63,20 @@ def score_job(job: Dict, profile: Dict, config: Dict) -> Dict:
     score = scoring.get("base_score", 20)
     haystack = f"{job.get('title', '')} {job.get('description', '')}".lower()
 
-    # Match compétences du profil
+    # Match compétences du profil (New Schema: skills_taxonomy)
+    taxonomy = profile.get("skills_taxonomy", {})
     profile_skills: List[str] = []
-    for cat in ["technical", "frameworks", "tools"]:
-        profile_skills.extend(profile.get("skills", {}).get(cat, {}).keys())
+    
+    # Hard skills
+    for skill in taxonomy.get("hard_skills", []):
+        profile_skills.append(skill.get("name", ""))
+    
+    # Domain knowledge
+    profile_skills.extend(taxonomy.get("domain_knowledge", []))
 
     matched: List[str] = []
     for skill in profile_skills:
+        if not skill: continue
         if skill.lower() in haystack:
             matched.append(skill)
             score += scoring.get("per_skill_match", 8)
@@ -175,7 +175,6 @@ def scan_with_jobspy(
                     search_term=keyword,
                     location=location,
                     results_wanted=results_per_query,
-                    
                     country_indeed="France",
                     linkedin_fetch_description=True,
                     job_type="fulltime",
@@ -195,8 +194,6 @@ def scan_with_jobspy(
             time.sleep(1.5)
 
     return all_jobs
-
-
 
 
 def deduplicate(jobs: List[Dict]) -> List[Dict]:
@@ -236,33 +233,25 @@ def scan_all_france(
 
     keywords: List[str] = config["search"]["keywords"]
     locations: List[str] = config["search"]["locations"]
-    hours_old: int = int(config["search"].get("hours_old", 168))
-    results_per_query: int = int(config["search"].get("results_per_query", 20))
     min_score: int = int(config["filters"].get("min_score", 40))
 
     report(0.04, f"🔍 {len(keywords)} requêtes × {len(locations)} zones...")
 
-    # 1. JobSpy — source principale
     jobspy_jobs = scan_with_jobspy(
         keywords=keywords,
         locations=locations,
-        
-        results_per_query=results_per_query,
         progress_callback=progress_callback,
     )
     report(0.90, f"✅ JobSpy : {len(jobspy_jobs)} offres")
 
-    # 3. Fusion + déduplication
     all_jobs = jobspy_jobs
     report(0.92, f"🔄 Déduplication ({len(all_jobs)} brut)...")
     unique_jobs = deduplicate(all_jobs)
     report(0.94, f"✅ {len(unique_jobs)} offres uniques")
 
-    # 4. Scoring
     report(0.96, "⭐ Scoring en cours...")
     scored = [score_job(job, profile, config) for job in unique_jobs]
 
-    # 5. Filtre + tri
     scored = [j for j in scored if j["fit_score"] >= min_score]
     scored.sort(key=lambda x: x["fit_score"], reverse=True)
 

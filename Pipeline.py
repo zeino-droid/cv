@@ -18,6 +18,8 @@ from typing import Any, Dict, List, Optional
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+from engine import matching
+
 OUTPUT_DIR = Path("vault")
 TRACKER_FILE = Path("storage/tracker.csv")
 TRACKER_HEADERS = [
@@ -77,16 +79,17 @@ def _job_focus_terms(job: Dict) -> str:
 
 
 def _experience_summary(profile: Dict) -> str:
-    experiences = profile.get("experiences", [])
+    experiences = profile.get("experience_stark", [])
     if not experiences:
         return "Mon parcours m'a permis de développer une expertise solide en ingénierie et en simulation."
 
     main_exp = experiences[0]
     company = _clean_text(main_exp.get("company", ""))
-    duration = _safe_duration(
-        _clean_text(main_exp.get("start_date", "")),
-        _clean_text(main_exp.get("end_date", "")),
-    )
+    period = main_exp.get("period", "")
+    start_date = period.split("-")[0].strip() if "-" in period else period
+    end_date = period.split("-")[-1].strip() if "-" in period else ""
+    
+    duration = _safe_duration(start_date, end_date)
 
     if company and duration:
         return f"J'ai développé mon expérience au sein de {company} pendant {duration}."
@@ -102,7 +105,7 @@ def _sanitize_letter(letter: str) -> str:
     replacements = {
         "3 ans d'expérience": "",
         "3 ans": "",
-        "ArcelorMittal R&D": "",
+        "ArcelorMittal R&D": "ArcelorMittal",
         "chez  ": "chez ",
         "de  ": "de ",
         "au sein de  ": "au sein de ",
@@ -120,19 +123,19 @@ def _sanitize_letter(letter: str) -> str:
 # ──────────────────────────────────────────────────────────────
 
 def generate_cover_letter_heuristic(profile: Dict, job: Dict) -> str:
-    identity = profile.get("identity", {})
-    name = _clean_text(identity.get("name", "Candidat"))
-    email = _clean_text(identity.get("email", ""))
-    phone = _clean_text(identity.get("phone", ""))
-    location = _clean_text(identity.get("location", "France"))
+    personal_info = profile.get("personal_info", {})
+    name = _clean_text(personal_info.get("name", "Candidat"))
+    email = _clean_text(personal_info.get("email", ""))
+    phone = _clean_text(personal_info.get("phone", ""))
+    location = _clean_text(personal_info.get("location", "France"))
 
     education = profile.get("education", [])
     main_edu = education[0] if education else {}
-    school = _clean_text(main_edu.get("school", ""))
+    school = _clean_text(main_edu.get("institution", ""))
     degree = _clean_text(main_edu.get("degree", "Diplôme d'ingénieur"))
     school_short = school.split("(")[0].strip() if school else "école d'ingénieurs"
 
-    summary = _clean_text(profile.get("summary", "")) or (
+    summary = _clean_text(personal_info.get("summary_default", "")) or (
         "Mon parcours m'a permis de développer une expertise solide en ingénierie et en simulation."
     )
 
@@ -142,14 +145,16 @@ def generate_cover_letter_heuristic(profile: Dict, job: Dict) -> str:
     exp_summary = _experience_summary(profile)
     today = datetime.now().strftime("%d/%m/%Y")
 
-    experiences = profile.get("experiences", [])
+    experiences = profile.get("experience_stark", [])
     required_terms = [
         _clean_text(s).lower() for s in (job.get("required_skills", []) or []) if _clean_text(s)
     ]
     top_achievements: List[str] = []
     for exp in experiences:
-        tech_str = " ".join(_clean_text(t).lower() for t in exp.get("technologies", []))
-        for ach in exp.get("achievements", [])[:4]:
+        tech_str = " ".join(_clean_text(t).lower() for t in exp.get("K", []))
+        achievements = exp.get("A", [])
+        if isinstance(achievements, str): achievements = [achievements]
+        for ach in achievements[:4]:
             ach_clean = _clean_text(ach).lstrip("•-– ").strip()
             if not ach_clean:
                 continue
@@ -204,11 +209,11 @@ async def generate_cover_letter_llm(generator: Any, profile: Dict, job: Dict) ->
     if not generator or not getattr(generator, "llm", None):
         return None
 
-    identity = profile.get("identity", {})
-    experiences = profile.get("experiences", [])
+    personal_info = profile.get("personal_info", {})
+    experiences = profile.get("experience_stark", [])
     main_exp = experiences[0] if experiences else {}
     exp_summary = (
-        f"{main_exp.get('position', '')} chez {main_exp.get('company', '')}"
+        f"{main_exp.get('title', '')} chez {main_exp.get('company', '')}"
         if main_exp
         else ""
     )
@@ -216,16 +221,19 @@ async def generate_cover_letter_llm(generator: Any, profile: Dict, job: Dict) ->
     ach_text = ""
     top_ach = []
     for exp in experiences[:2]:
-        for ach in exp.get("achievements", [])[:2]:
+        achievements = exp.get("A", [])
+        if isinstance(achievements, str): achievements = [achievements]
+        for ach in achievements[:2]:
             top_ach.append(f"• {_clean_text(ach).lstrip('•-– ').strip()}")
     if top_ach:
         ach_text = "\n".join(top_ach[:3])
 
     prompt = f"""Tu es un expert en rédaction de lettres de motivation pour des ingénieurs en France.
+    
+INTERDICTION FORMELLE : N'utilise jamais les mots 'Apprenti', 'Étudiant', 'Élève'. Présente le candidat comme un expert opérationnel.
 
-CANDIDAT: {identity.get("name", "Candidat")}
-TITRE: {profile.get("headline", "")}
-RÉSUMÉ: {profile.get("summary", "")}
+CANDIDAT: {personal_info.get("name", "Candidat")}
+RÉSUMÉ: {personal_info.get("summary_default", "")}
 EXPÉRIENCE PRINCIPALE: {exp_summary}
 COMPÉTENCES LIÉES AU POSTE: {_job_focus_terms(job)}
 RÉALISATIONS CLÉS:
@@ -234,16 +242,10 @@ RÉALISATIONS CLÉS:
 OFFRE CIBLÉE:
 - Poste: {job.get("title", "")}
 - Entreprise: {job.get("company", "")}
-- Description: {str(job.get("description", ""))[:400]}
+- Description: {str(job.get("description", ""))[:600]}
 
 MISSION:
-Rédige une lettre de motivation professionnelle en français.
-RÈGLES:
-- naturel, clair, crédible
-- pas de phrases anglaises
-- pas de formule lourde
-- pas de mention hors sujet
-- 4 paragraphes maximum
+Rédige une lettre de motivation professionnelle en français (3-4 paragraphes).
 """
 
     try:
@@ -279,6 +281,7 @@ def save_job_info(job: Dict, output_dir: Path) -> Path:
 
 def init_tracker() -> None:
     if not TRACKER_FILE.exists():
+        TRACKER_FILE.parent.mkdir(parents=True, exist_ok=True)
         with open(TRACKER_FILE, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
             writer.writerow(TRACKER_HEADERS)
@@ -303,7 +306,8 @@ async def process_single_job(
 ) -> Dict[str, Any]:
     company = job.get("company", "Unknown")
     title = job.get("title", "Poste")
-    name = profile.get("identity", {}).get("name", "Candidat")
+    personal_info = profile.get("personal_info", {})
+    name = personal_info.get("name", "Candidat")
 
     safe_dir = (
         "".join(c if c.isalnum() or c in "._- " else "_" for c in f"{company}_{title}")
@@ -313,149 +317,36 @@ async def process_single_job(
     job_output_dir = OUTPUT_DIR / safe_dir
     job_output_dir.mkdir(parents=True, exist_ok=True)
 
-    result: Dict[str, Any] = {
-        "job": job,
-        "success": False,
-        "cv_path": "",
-        "letter_path": "",
-    }
-
-    try:
-        print(f"\n   📄 Génération CV : {title} @ {company}")
-        cv_result = await generator.generate_cv_for_job(job)
-        cv_path = (
-            cv_result.get("pdf_path")
-            or cv_result.get("pdf")
-            or cv_result.get("md_path")
-            or cv_result.get("markdown")
-            or ""
-        )
-        result["cv_path"] = cv_path
-    except Exception as e:
-        print(f"   ❌ Erreur CV: {e}")
-        return result
-
-    try:
-        letter_text = None
-        if use_llm_letter and getattr(generator, "llm", None):
-            letter_text = await generate_cover_letter_llm(generator, profile, job)
-        if not letter_text:
-            letter_text = generate_cover_letter_heuristic(profile, job)
-
-        letter_path = save_cover_letter(letter_text, job_output_dir, name, company, title)
-        result["letter_path"] = str(letter_path)
-    except Exception as e:
-        print(f"   ⚠️  Erreur lettre: {e}")
-
+    # 1. CV Adaptation
+    cv_result = await generator.generate_cv_for_job(job)
+    
+    # 2. Letter Generation
+    letter_text = None
+    if use_llm_letter:
+        letter_text = await generate_cover_letter_llm(generator, profile, job)
+    
+    if not letter_text:
+        letter_text = generate_cover_letter_heuristic(profile, job)
+    
+    letter_path = save_cover_letter(letter_text, job_output_dir, name, company, title)
     save_job_info(job, job_output_dir)
 
-    append_to_tracker(
-        {
-            "id": job.get("id", ""),
-            "company": company,
-            "title": title,
-            "location": job.get("location", ""),
-            "score": job.get("fit_score", 0),
-            "source": job.get("source", ""),
-            "cv_path": result["cv_path"],
-            "letter_path": result["letter_path"],
-            "url": job.get("url", ""),
-            "status": "generated",
-            "generated_date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-            "applied_date": "",
-            "response_date": "",
-            "notes": f"Skills: {', '.join(job.get('matched_skills', [])[:5])}",
-        }
-    )
-
-    result["success"] = True
-    print(f"   ✅ {title} @ {company} → {job_output_dir.name}/")
-    return result
-
-
-async def batch_generate(
-    top_n: int = 20,
-    min_score: int = 50,
-    scan_first: bool = False,
-    use_llm_letter: bool = True,
-    dry_run: bool = False,
-):
-    print("\n" + "═" * 60)
-    print("   🚀 BATCH APPLY — Pipeline de candidature")
-    print("═" * 60)
-
-    from engine.cv_generator import PersonalCVGenerator
-    from engine.sourcing_jobspy import load_master_profile, scan_all_france
-    from engine.database import JobDatabase
-
-    db = JobDatabase("storage/jobs.db")
-
-    if scan_first:
-        print("\n   📡 Scan du marché...")
-        jobs = scan_all_france()
-        db.upsert_jobs(jobs)
-    
-    # Load from DB
-    jobs = db.get_jobs(min_score=min_score, limit=500)
-
-    filtered = [j for j in jobs if j.get("fit_score", 0) >= min_score]
-    selected = filtered[:top_n]
-
-    print(f"\n   📊 {len(jobs)} offres, {len(filtered)} ≥ {min_score}%")
-    print(f"   🎯 Traitement des {len(selected)} meilleures")
-
-    if not selected:
-        print("   ⚠️  Aucune offre ne matche. Essaie --min-score 40")
-        return
-
-    for i, job in enumerate(selected[:10], 1):
-        print(f"   {i:2d}. [{job['fit_score']:2d}%] {job['title'][:35]:35s} @ {job.get('company', '?')[:20]}")
-
-    if dry_run:
-        print("\n   🏁 DRY RUN — Aucun fichier généré.")
-        return
-
-    profile = load_master_profile()
-    generator = PersonalCVGenerator()
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    init_tracker()
-
-    success_count = 0
-    for i, job in enumerate(selected, 1):
-        print(f"\n   ═══ [{i}/{len(selected)}] ═══")
-        result = await process_single_job(generator, profile, job, use_llm_letter)
-        if result["success"]:
-            success_count += 1
-
-    print(f"\n{'═' * 60}")
-    print(f"   🏁 TERMINÉ : {success_count}/{len(selected)} candidatures générées")
-    print(f"   📂 Dossiers : {OUTPUT_DIR.resolve()}")
-    print(f"{'═' * 60}")
-
-
-# ──────────────────────────────────────────────────────────────
-# CLI
-# ──────────────────────────────────────────────────────────────
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="🚀 Pipeline de candidature massive")
-    parser.add_argument("--top", type=int, default=20)
-    parser.add_argument("--min-score", type=int, default=50)
-    parser.add_argument("--scan", action="store_true")
-    parser.add_argument("--no-llm-letter", action="store_true")
-    parser.add_argument("--dry-run", action="store_true")
-    args = parser.parse_args()
-
-    asyncio.run(
-        batch_generate(
-            top_n=args.top,
-            min_score=args.min_score,
-            scan_first=args.scan,
-            use_llm_letter=not args.no_llm_letter,
-            dry_run=args.dry_run,
-        )
-    )
-
-
-if __name__ == "__main__":
-    main()
+    # 3. Tracker Row
+    row = {
+        "id": job.get("id", "N/A"),
+        "company": company,
+        "title": title,
+        "location": job.get("location", "France"),
+        "score": job.get("fit_score", 0),
+        "source": job.get("source", "manual"),
+        "cv_path": cv_result.get("pdf_path") or cv_result.get("md_path", ""),
+        "letter_path": str(letter_path),
+        "url": job.get("url", ""),
+        "status": "generated",
+        "generated_date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "applied_date": "",
+        "response_date": "",
+        "notes": "",
+    }
+    append_to_tracker(row)
+    return row

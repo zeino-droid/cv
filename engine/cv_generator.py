@@ -1,25 +1,22 @@
 """
-🎯 GÉNÉRATEUR CV HYBRIDE (V3)
-Architecture modulaire: Matching + LLM (MLX/Ollama) + Rendering (Typst)
+🎯 GÉNÉRATEUR CV HYBRIDE (V3) - REFACTORISÉ
+Architecture modulaire: Matching + LLM + Rendering (Typst)
 """
 
 import asyncio
-import copy
 import json
 import re
-import unicodedata
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 # Imports locaux
-from engine.engines import MLXEngine, OllamaEngine, GeminiEngine
-from engine.matching import ProfileMatcher
-from engine.prompts import CVPromptBuilder
+from engine.engines import GeminiEngine, MLXEngine, OllamaEngine
+from engine import matching
+from engine import prompts
 from engine.rendering import LatexRenderer, MarkdownRenderer, TypstRenderer
 
 DEFAULT_OUTPUT_DIR = Path("vault/resumes")
-
 
 class PersonalCVGenerator:
     """Orchestrateur central du Cerveau"""
@@ -27,25 +24,10 @@ class PersonalCVGenerator:
     def __init__(self, master_profile_path: str = "profiles/master_profile.json"):
         self.master_profile_path = Path(master_profile_path)
 
-        # Charge master profile
         if not self.master_profile_path.exists():
-            raise FileNotFoundError(
-                f"Profil maître non trouvé à {self.master_profile_path}"
-            )
+            raise FileNotFoundError(f"Profil maître non trouvé à {self.master_profile_path}")
 
-        with open(self.master_profile_path, "r", encoding="utf-8") as f:
-            self.master_profile = json.load(f)
-
-        # Charger le profil complet (Markdown) pour le contexte étendu
-        self.full_profile_md = ""
-        full_profile_path = Path("profiles/full_profile.md")
-        if full_profile_path.exists():
-            with open(full_profile_path, "r", encoding="utf-8") as f:
-                self.full_profile_md = f.read()
-
-        # Initialise les composants
-        self.matcher = ProfileMatcher(self.master_profile)
-        self.prompt_builder = CVPromptBuilder(self.master_profile, self.full_profile_md)
+        self.master_profile = matching.load_profile_index(str(self.master_profile_path))
 
         # Renderers
         self.renderers = {
@@ -56,17 +38,8 @@ class PersonalCVGenerator:
 
         # LLM Engine selection
         import os
-        import streamlit as st
+        gemini_api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("OPENAI_API_KEY")
         
-        # Tentative de récupération clé API via st.secrets ou os.environ
-        gemini_api_key = os.environ.get("GEMINI_API_KEY")
-        if not gemini_api_key:
-            try:
-                if "GEMINI_API_KEY" in st.secrets:
-                    gemini_api_key = st.secrets["GEMINI_API_KEY"]
-            except Exception:
-                pass
-
         self.gemini = GeminiEngine(api_key=gemini_api_key)
         self.mlx = MLXEngine()
         self.ollama = OllamaEngine()
@@ -90,100 +63,56 @@ class PersonalCVGenerator:
         print(f"\n   {'=' * 40}")
         print(f"   🧠 CERVEAU V3 — STATUS")
         print(f"   {'=' * 40}")
-        print(f"   👤 Profil: {self.master_profile['identity']['name']}")
+        name = self.master_profile.get('personal_info', {}).get('name', 'Inconnu')
+        print(f"   👤 Profil: {name}")
         print(f"   🤖 LLM:    {self.llm_name}")
-        print(
-            f"   📄 Typst:  {'✅ Actif' if self.renderers['pdf'].available else '❌ Manquant'}"
-        )
+        print(f"   📄 Typst:  {'✅ Actif' if self.renderers['pdf'].available else '❌ Manquant'}")
         print(f"   {'=' * 40}")
 
     async def generate_cv_for_job(self, job: Dict) -> Dict:
-        """Génère un CV complet pour une offre spécifique en un seul appel LLM (Fast Pipeline)."""
+        """Génère un CV complet pour une offre spécifique."""
         job_data = self._normalize_job(job)
         print(f"\n   📄 GEN RAPIDE: {job_data.get('title')} @ {job_data.get('company')}")
 
-        # 1. Sélection du CV de base (Simulation vs Énergie)
-        desc_lower = job_data.get("description", "").lower() + " " + job_data.get("title", "").lower()
-        simulation_keywords = ["simulation", "abaqus", "metafor", "fem", "calcul", "structure", "flambage", "buckling", "mécanique", "solidification", "matériaux"]
-        energy_keywords = ["énergie", "energy", "thermique", "thermodynamique", "fluides", "fluent", "cfd", "procédés", "décarbonation", "pv", "solaire", "audit"]
-        
-        sim_score = sum(2 if k in job_data.get("title", "").lower() else 1 for k in simulation_keywords if k in desc_lower)
-        en_score = sum(2 if k in job_data.get("title", "").lower() else 1 for k in energy_keywords if k in desc_lower)
-        
-        cv_type = "simulation" if sim_score >= en_score else "energy"
-        print(f"      → Profil cible : {cv_type.upper()}")
+        # 1. Sélection du meilleur profil
+        profile_id, match_score = matching.select_best_profile(job_data, self.master_profile)
+        print(f"      → Profil cible : {profile_id.upper()} (Score: {match_score})")
 
-        # 2. Matching compétences
-        matched_skills = self.matcher.match_skills(job_data)
-        achievements = self.matcher.select_achievements(job_data)
+        # 2. Filtrage des données
+        filtered_exps = matching.filter_experiences_by_profile(profile_id, self.master_profile)
+        filtered_skills = matching.filter_skills_by_profile(profile_id, self.master_profile)
         
-        headline = self.matcher.adapt_headline(job_data)
-        summary = self.master_profile.get("summary", "").strip()
-
-        # 3. Adaptation IA : Headline, Summary ET Achievements (10/10 Impact Pass)
+        # 3. Construction du contexte et du prompt
+        candidate_context = prompts.build_candidate_context(profile_id, self.master_profile, filtered_exps, filtered_skills)
+        
         if self.llm:
-            print(f"      → Génération Impact IA (10/10 Pass)...")
+            print(f"      → Génération IA...")
+            prompt_dict = prompts.build_generation_prompt(job_data, candidate_context, profile_id)
+            # On convertit le dict en string pour le LLM
+            prompt_str = json.dumps(prompt_dict, ensure_ascii=False, indent=2)
+            response_str = await self.llm.generate(prompt_str)
             
-            # 3.1 Headline & Summary
-            prompt_meta = self.prompt_builder.build_fast_adaptation_prompt(job_data, matched_skills, cv_type)
-            response_meta = await self.llm.generate(prompt_meta)
-            improved = self._parse_json(response_meta)
-            
-            if improved:
-                headline = improved.get("headline", headline)
-                summary = improved.get("summary", summary)
-            
-            # 3.2 Achievements adaptation (Rewrite raw to Impact)
-            raw_ach_texts = [a for a in achievements[:8]]
-            prompt_ach = self.prompt_builder.build_achievements_prompt(job_data, raw_ach_texts)
-            response_ach = await self.llm.generate(prompt_ach)
-            final_achievements = [
-                l.strip().lstrip("•- ").strip()
-                for l in response_ach.split("\n")
-                if len(l.strip()) > 10
-            ][:4]
+            try:
+                # Tentative de parser la réponse JSON du LLM
+                # On nettoie si le LLM a mis des backticks ```json ... ```
+                clean_json = re.sub(r"```json\s*|\s*```", "", response_str).strip()
+                llm_output = json.loads(clean_json)
+                
+                # Post-processing
+                llm_output = prompts.post_process_llm_output(llm_output)
+                
+                # Assemblage final
+                cv_data = self._assemble_final_data(llm_output, candidate_context)
+            except Exception as e:
+                print(f"      ⚠️ Erreur parsing LLM: {e}. Utilisation fallback.")
+                cv_data = self._assemble_fallback_data(candidate_context, job_data)
         else:
-            final_achievements = [a["text"] for a in achievements[:4]]
+            cv_data = self._assemble_fallback_data(candidate_context, job_data)
 
-        # 4. Post-édition linguistique chirurgicale
-        headline, summary, final_achievements = self._light_post_edit(
-            headline=headline,
-            summary=summary,
-            achievements=final_achievements,
-            job=job_data,
-        )
-
-        # 5. Assemblage
-        cv_data = self._assemble_data(
-            job=job_data,
-            headline=headline,
-            summary=summary,
-            skills=matched_skills[:10],
-            achievements=final_achievements,
-            cv_type=cv_type
-        )
-
-        # 5. Rendu
-        slug = self._slugify(
-            f"{job_data.get('company', 'job')}_{job_data.get('title', 'title')}"
-        )
+        # 4. Rendu
+        slug = self._slugify(f"{job_data.get('company', 'job')}_{job_data.get('title', 'title')}")
         timestamp = datetime.now().strftime("%Y%m%d_%H%M")
         output_base = DEFAULT_OUTPUT_DIR / f"cv_{slug}_{timestamp}"
-
-        # --- DOUBLE SÉCURITÉ 1 PAGE (Data Truncation) ---
-        # On limite physiquement le nombre d'items AVANT le rendu
-        if "experiences" in cv_data:
-            for exp in cv_data["experiences"]:
-                if "achievements" in exp and len(exp["achievements"]) > 3:
-                    exp["achievements"] = exp["achievements"][:3]
-        
-        if "projects" in cv_data and len(cv_data["projects"]) > 2:
-            cv_data["projects"] = cv_data["projects"][:2]
-            
-        if "summary" in cv_data:
-            summary_lines = cv_data["summary"].split(".")
-            if len(summary_lines) > 4:
-                cv_data["summary"] = ".".join(summary_lines[:3]) + "."
 
         results = {}
         for fmt, renderer in self.renderers.items():
@@ -200,269 +129,76 @@ class PersonalCVGenerator:
 
         return {"cv_data": cv_data, **results}
 
-    async def generate_batch(
-        self, jobs: List[Dict], max_concurrency: int = 1
-    ) -> List[Dict[str, Any]]:
-        """Génère des CVs pour une liste d'offres avec parallélisme contrôlé."""
-        if max_concurrency < 1:
-            raise ValueError("max_concurrency doit être >= 1")
+    def _assemble_final_data(self, llm_output: Dict, context: Dict) -> Dict:
+        """Assemble les données générées par l'IA avec les infos de base."""
+        cv_gen = llm_output.get("cv", {})
+        
+        # Mapping experiences pour garder les dates et infos non générées
+        final_exps = []
+        gen_exps = {exp["id"]: exp for exp in cv_gen.get("experiences", [])}
+        
+        for exp in context["experiences"]:
+            exp_id = exp.get("id")
+            if exp_id in gen_exps:
+                gen_exp = gen_exps[exp_id]
+                final_exps.append({
+                    "position": gen_exp.get("title", exp.get("title")),
+                    "company": exp.get("company"),
+                    "start_date": exp.get("period", "").split("-")[0].strip(),
+                    "end_date": exp.get("period", "").split("-")[-1].strip() if "-" in exp.get("period", "") else "",
+                    "location": exp.get("location", ""),
+                    "achievements": gen_exp.get("bullet_points", exp.get("A", []))
+                })
+            else:
+                # Fallback pour cette exp
+                final_exps.append({
+                    "position": exp.get("title"),
+                    "company": exp.get("company"),
+                    "start_date": exp.get("period", ""),
+                    "end_date": "",
+                    "achievements": [exp.get("A", "")] if isinstance(exp.get("A"), str) else exp.get("A", [])
+                })
 
-        print(f"\n   📋 BATCH: {len(jobs)} offres en cours...")
-        semaphore = asyncio.Semaphore(max_concurrency)
-        results: List[Dict[str, Any]] = []
-
-        async def _run_single(job: Dict) -> Dict[str, Any]:
-            async with semaphore:
-                job_title = str(job.get("title", "Sans titre"))
-                try:
-                    generated = await self.generate_cv_for_job(job)
-                    return {
-                        "job_title": job_title,
-                        "success": True,
-                        "result": generated,
-                    }
-                except (ValueError, RuntimeError, OSError, KeyError, TypeError) as err:
-                    print(f"   ❌ Erreur sur {job.get('company')}: {err}")
-                    return {"job_title": job_title, "success": False, "error": str(err)}
-
-        tasks = [_run_single(job) for job in jobs]
-        for item in await asyncio.gather(*tasks):
-            results.append(item)
-        return results
-
-    # --- Internals ---
-    def _normalize_job(self, job: Dict[str, Any]) -> Dict[str, Any]:
-        title = str(job.get("title", "")).strip() or "Poste non spécifié"
-        company = str(job.get("company", "")).strip() or "Entreprise non spécifiée"
-        description = str(job.get("description", "")).strip()
-        required_skills_raw = job.get("required_skills", [])
-        if isinstance(required_skills_raw, str):
-            required_skills_raw = [required_skills_raw]
-        elif not isinstance(required_skills_raw, list):
-            required_skills_raw = []
-        required_skills = [
-            str(s).strip() for s in required_skills_raw if str(s).strip()
-        ]
-        return {
-            **job,
-            "title": title,
-            "company": company,
-            "description": description,
-            "required_skills": required_skills,
+        # Formattage skills pour le template Typst
+        grouped_skills = {
+            "Hard Skills": [{"name": s["name"]} for s in context["skills"]["hard_skills"][:8]],
+            "Domaines": [{"name": s} for s in context["skills"]["domain_knowledge"][:6]]
         }
 
-    def _coalesce_text(self, primary: Optional[str], fallback: str) -> str:
-        if primary is None:
-            return fallback
-        cleaned = str(primary).strip().strip('"')
-        return cleaned or fallback
+        return {
+            "identity": context["personal_info"],
+            "headline": cv_gen.get("headline", context["target_profile"]["headline"]),
+            "summary": cv_gen.get("summary", context["target_profile"]["summary"]),
+            "experiences": final_exps,
+            "grouped_skills": grouped_skills,
+            "education": [
+                {
+                    "degree": edu.get("degree"),
+                    "school": edu.get("institution"),
+                    "year": edu.get("period"),
+                    "details": edu.get("specialization", "")
+                } for edu in context["education"]
+            ],
+            "languages": [
+                {"name": l["language"], "level": l["level"]} for l in context["personal_info"].get("languages", [])
+            ],
+            "projects": [] # On peut ajouter les projets si besoin
+        }
+
+    def _assemble_fallback_data(self, context: Dict, job: Dict) -> Dict:
+        """Version sans IA."""
+        # Simplification pour le fallback
+        return self._assemble_final_data({"cv": {}}, context)
+
+    def _normalize_job(self, job: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "title": str(job.get("title", "Ingénieur")).strip(),
+            "company": str(job.get("company", "Entreprise")).strip(),
+            "description": str(job.get("description", "")).strip(),
+            "url": job.get("url", "")
+        }
 
     def _slugify(self, value: str) -> str:
         slug = value.lower().replace(" ", "_")
         slug = re.sub(r"[^a-z0-9_]", "", slug)
         return slug or "cv"
-
-    def _light_post_edit(
-        self,
-        headline: str,
-        summary: str,
-        achievements: List[str],
-        job: Dict,
-    ) -> tuple[str, str, List[str]]:
-        """
-        Nettoyage linguistique léger et sûr :
-        - supprime les espaces doubles
-        - normalise les accents/ponctuations
-        - enlève les fragments anglais les plus visibles
-        - garde un ton naturel et lisible
-        """
-        forbidden = [
-            "Passionné par",
-            "Je suis motivé",
-            "Suite à votre annonce",
-            "I am",
-            "team",
-            "project",
-            "Python scripting",
-        ]
-
-        def normalize(text: str) -> str:
-            t = str(text or "").replace("\r", " ")
-            t = unicodedata.normalize("NFKC", t)
-            t = re.sub(r"\s+", " ", t).strip()
-            # Nettoyage RADICAL des marqueurs de junior/scolaire
-            for bad in forbidden:
-                t = t.replace(bad, "")
-            
-            # Suppression chirurgicale des mentions de disponibilité tardive (Homicide de conversion)
-            t = re.sub(r"(Disponible|Disponibilité)\s+(en|à\s+partir\s+de)?\s*(Septembre|2026).*?(\.|$)", "", t, flags=re.IGNORECASE)
-            t = re.sub(r"\bJeune\b", "", t, flags=re.IGNORECASE)
-            
-            t = re.sub(r"\s+([,.;:!?])", r"\1", t)
-            t = t.replace("  ", " ").strip()
-            return t
-
-        headline = normalize(headline)
-        summary = normalize(summary)
-
-        # Rendre le titre impeccable
-        if headline.lower().startswith("ingénieuringénieur"):
-             headline = headline[9:].strip()
-        if headline.endswith("."):
-            headline = headline[:-1].strip()
-        
-        # S'assurer que le résumé ne re-mentionne pas ArcelorMittal de façon scolaire
-        if summary and summary[-1] not in ".!?":
-            summary += "."
-
-        cleaned_achievements: List[str] = []
-        for ach in achievements:
-            clean = normalize(ach).lstrip("•- ").strip()
-            if clean:
-                cleaned_achievements.append(f"• {clean}")
-
-        english_markers = [
-            "project",
-            "team",
-            "data",
-            "model",
-            "simulation",
-            "analysis",
-            "design",
-            "tool",
-            "workflow",
-        ]
-        english_hits = sum(1 for marker in english_markers if marker in summary.lower())
-        if english_hits >= 5 and self.master_profile.get("summary"):
-            summary = normalize(self.master_profile.get("summary", ""))
-
-        return headline, summary, cleaned_achievements
-
-    # --- Internals ---
-    async def _get_semantic_skills(self, job: Dict) -> List[str]:
-        res = await self.llm.generate(
-            self.prompt_builder.build_semantic_expansion_prompt(job)
-        )
-        if not res:
-            return []
-        values = [s.strip() for s in res.split(",") if len(s.strip()) > 2]
-        return list(dict.fromkeys(values))
-
-    async def _generate_achievements(self, job: Dict, raw_ach: List[Dict]) -> List[str]:
-        res = await self.llm.generate(
-            self.prompt_builder.build_achievements_prompt(job, raw_ach)
-        )
-        if res:
-            return [
-                l.strip().lstrip("•- ").strip()
-                for l in res.split("\n")
-                if len(l.strip()) > 10
-            ][:4]
-        return [a["text"] for a in raw_ach[:4]]
-
-    def _parse_json(self, text: str) -> Optional[Dict]:
-        if not text:
-            return None
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError:
-            pass
-
-        # Fallback: extraire le premier objet JSON valide inclus dans un texte libre
-        decoder = json.JSONDecoder()
-        normalized = text.replace("\n", " ")
-        for idx, char in enumerate(normalized):
-            if char != "{":
-                continue
-            try:
-                candidate, _ = decoder.raw_decode(normalized[idx:])
-                if isinstance(candidate, dict):
-                    return candidate
-            except json.JSONDecodeError:
-                continue
-        return None
-
-    def _assemble_data(
-        self,
-        job: Dict,
-        headline: str,
-        summary: str,
-        skills: List[str],
-        achievements: List[str],
-        cv_type: str = "simulation"
-    ) -> Dict:
-        """Fusionne le profil de base (Simulation ou Énergie) et les données générées."""
-        base_profile_path = Path(f"profiles/{cv_type}.json")
-        if base_profile_path.exists():
-            with open(base_profile_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        else:
-            data = copy.deepcopy(self.master_profile)
-
-        data["headline"] = self._postprocess_title(headline)
-        data["summary"] = self._postprocess_summary(summary)
-        # Use simple target job info
-        data["target_job"] = {"title": job.get("title"), "company": job.get("company")}
-
-        # Inject key achievements into the latest experience
-        if data.get("experiences"):
-            data["experiences"][0]["achievements"] = [
-                self._postprocess_bullet(a) for a in achievements
-            ]
-
-        # Strategic skill grouping
-        data["grouped_skills"] = {
-            "Expertise Technique": [{"name": s, "level": 4} for s in skills[:6]],
-            "Outils & Digital": [
-                {"name": s, "level": 3}
-                for s in self.master_profile["skills"].get("tools", {}).keys()
-            ][:5],
-        }
-        return data
-
-    def _postprocess_title(self, text: str) -> str:
-        value = re.sub(r"\s+", " ", str(text or "")).strip()
-        value = value.replace("  ", " ")
-        value = value.strip('"').strip()
-        if value and not value.endswith("."):
-            return value
-        return value.rstrip(".")
-
-    def _postprocess_summary(self, text: str) -> str:
-        value = re.sub(r"\s+", " ", str(text or "")).strip()
-        value = value.replace("  ", " ")
-        value = value.strip('"').strip()
-        value = re.sub(r"\s+([,.;:!?])", r"\1", value)
-        if value and value[-1] not in ".!?":
-            value += "."
-        return value
-
-    def _postprocess_bullet(self, text: str) -> str:
-        value = re.sub(r"\s+", " ", str(text or "")).strip()
-        value = value.lstrip("•- ").strip()
-        value = re.sub(r"\s+([,.;:!?])", r"\1", value)
-        if value and value[-1] not in ".!?":
-            value += "."
-        return f"• {value}"
-
-
-async def main():
-    """Point d'entrée CLI pour génération manuelle d'une offre."""
-    gen = PersonalCVGenerator()
-    print("\n   📝 Saisie manuelle de l'offre")
-    title = input("   Poste ciblé: ").strip() or "Ingénieur R&D"
-    company = input("   Entreprise: ").strip() or "Entreprise non spécifiée"
-    description = input("   Description courte (optionnel): ").strip()
-    raw_skills = input("   Compétences clés (séparées par virgules): ").strip()
-    skills = [s.strip() for s in raw_skills.split(",") if s.strip()]
-    job = {
-        "title": title,
-        "company": company,
-        "description": description,
-        "required_skills": skills,
-    }
-    await gen.generate_cv_for_job(job)
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
