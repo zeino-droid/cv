@@ -22,20 +22,67 @@ DEFAULT_OUTPUT_DIR = Path("vault/resumes")
 # ============================================
 # CONSTANTES DU BUDGET CONTENU (Phase 4)
 # ============================================
-CONTENT_BUDGET = {
-    "pro_experiences": {"target": 4, "minimum": 2},
-    "projects": {"target": 2, "minimum": 1},
-    "skills": {"target": 12, "minimum": 6},
+FILL_BUDGET = {
+    "pro_experiences": 4,
+    "pro_minimum": 2,
+    "projects": 2,
+    "projects_minimum": 1,
+    "skills": 12,
+    "skills_minimum": 6,
     "max_bullets_pro": 2,
+}
+
+CONTENT_BUDGET = {
     "max_bullets_project": 0,
     "project_max_desc_chars": 150,
 }
+BASE_FONT_SIZE = 9.5
 
 SHRINK_CONFIGS = [
-    {"attempt": 1, "call_llm": True, "font_delta": 0.0, "max_pro": 4, "max_proj": 2},
-    {"attempt": 2, "call_llm": False, "font_delta": -0.3, "max_pro": 4, "max_proj": 2},
-    {"attempt": 3, "call_llm": False, "font_delta": -0.5, "max_pro": 4, "max_proj": 2},
-    {"attempt": 4, "call_llm": True, "font_delta": -0.5, "max_pro": 3, "max_proj": 1},
+    {
+        "attempt": 1,
+        "call_llm": True,
+        "max_pro_exp": 4,
+        "max_projects": 2,
+        "max_bullets": 3,
+        "font_size": 9.5,
+        "leading": 0.55,
+        "section_gap": 5,
+        "margin_sides": 14,
+    },
+    {
+        "attempt": 2,
+        "call_llm": False,
+        "max_pro_exp": 4,
+        "max_projects": 2,
+        "max_bullets": 3,
+        "font_size": 9.2,
+        "leading": 0.50,
+        "section_gap": 4,
+        "margin_sides": 13,
+    },
+    {
+        "attempt": 3,
+        "call_llm": False,
+        "max_pro_exp": 4,
+        "max_projects": 2,
+        "max_bullets": 3,
+        "font_size": 9.0,
+        "leading": 0.47,
+        "section_gap": 3,
+        "margin_sides": 12,
+    },
+    {
+        "attempt": 4,
+        "call_llm": True,
+        "max_pro_exp": 3,
+        "max_projects": 2,
+        "max_bullets": 2,
+        "font_size": 9.0,
+        "leading": 0.47,
+        "section_gap": 3,
+        "margin_sides": 12,
+    },
 ]
 
 SCORE_PROFILE_WITH_KW = 4
@@ -117,32 +164,43 @@ class PersonalCVGenerator:
             or any(t in project_tag_markers for t in tags)
         )
 
+    def score_experience(self, exp: Dict, profile_id: str, job_keywords_lower: set[str]) -> int:
+        """Score cumulatif — aucune expérience jetée, tri seulement."""
+        tags = {str(t).lower() for t in exp.get("profiles_tags", [])}
+        kw_overlap = len({str(k).lower() for k in exp.get("K", [])} & job_keywords_lower)
+        has_profile = profile_id.lower() in tags
+        has_all = "all" in tags
+        has_kw = kw_overlap > 0
+        if has_profile and has_kw:
+            return SCORE_PROFILE_WITH_KW
+        if has_profile:
+            return SCORE_PROFILE_ONLY
+        if has_all and has_kw:
+            return SCORE_ALL_WITH_KW
+        if has_all or has_kw:
+            return SCORE_ALL_ONLY
+        return SCORE_OUT_OF_SCOPE
+
     def rank_experiences_for_profile(self, all_experiences: List[Dict], profile_id: str, job_keywords: List[str]) -> Dict:
-        """Sépare les expériences en 2 pools distincts : Pro et Projets."""
+        """3 passes : score → tri → backfill jusqu'au budget cible."""
         pro_scored = []
         project_scored = []
-        job_kw_set = set(k.lower() for k in job_keywords)
+        job_kw_set = {str(k).lower() for k in job_keywords}
         profile_project_ids = self._get_profile_project_ids(profile_id, all_experiences)
 
-        for exp in all_experiences:
+        for index, exp in enumerate(all_experiences):
             is_project = self._is_project_experience(exp, profile_project_ids)
-            tags = exp.get("profiles_tags", [])
-            tags_lower = {str(t).lower() for t in tags}
-            exp_keywords = set(k.lower() for k in exp.get("K", []))
+            exp_keywords = {str(k).lower() for k in exp.get("K", [])}
             keyword_overlap = len(exp_keywords & job_kw_set)
-
-            if profile_id in tags_lower and keyword_overlap > 0:
-                score = SCORE_PROFILE_WITH_KW
-            elif profile_id in tags_lower:
-                score = SCORE_PROFILE_ONLY
-            elif "all" in tags_lower and keyword_overlap > 0:
-                score = SCORE_ALL_WITH_KW
-            elif "all" in tags_lower:
-                score = SCORE_ALL_ONLY
-            else:
-                score = SCORE_OUT_OF_SCOPE
-
-            entry = {"data": exp, "score": score, "keyword_overlap": keyword_overlap}
+            score = self.score_experience(exp, profile_id, job_kw_set)
+            entry_id = exp.get("id", f"exp_{index}")
+            exp_data = exp if exp.get("id") else {**exp, "id": entry_id}
+            entry = {
+                "id": entry_id,
+                "data": exp_data,
+                "score": score,
+                "keyword_overlap": keyword_overlap,
+            }
             if is_project:
                 project_scored.append(entry)
             else:
@@ -151,37 +209,65 @@ class PersonalCVGenerator:
         pro_scored.sort(key=lambda x: (x["score"], x["keyword_overlap"]), reverse=True)
         project_scored.sort(key=lambda x: (x["score"], x["keyword_overlap"]), reverse=True)
 
-        pro_selected = [
-            e["data"] for e in pro_scored if e["score"] > SCORE_OUT_OF_SCOPE
-        ][: CONTENT_BUDGET["pro_experiences"]["target"]]
-        proj_selected = [
-            e["data"] for e in project_scored if e["score"] > SCORE_OUT_OF_SCOPE
-        ][: CONTENT_BUDGET["projects"]["target"]]
-
-        pro_with_floor = self._apply_floor(
-            pro_selected, pro_scored, CONTENT_BUDGET["pro_experiences"]["minimum"]
+        pro_result = [e["data"] for e in pro_scored[: FILL_BUDGET["pro_experiences"]]]
+        proj_result = [e["data"] for e in project_scored[: FILL_BUDGET["projects"]]]
+        pro_result, pro_backfilled = self._backfill_pool(
+            pro_result,
+            pro_scored,
+            FILL_BUDGET["pro_minimum"],
+            FILL_BUDGET["pro_experiences"],
+            pool_name="pro_experiences",
         )
-        proj_with_floor = self._apply_floor(
-            proj_selected, project_scored, CONTENT_BUDGET["projects"]["minimum"]
+        proj_result, proj_backfilled = self._backfill_pool(
+            proj_result,
+            project_scored,
+            FILL_BUDGET["projects_minimum"],
+            FILL_BUDGET["projects"],
+            pool_name="projects",
         )
-        floor_activated = (
-            len(pro_with_floor) > len(pro_selected) or len(proj_with_floor) > len(proj_selected)
-        )
+        floor_activated = pro_backfilled or proj_backfilled
 
         return {
-            "pro_experiences": pro_with_floor,
-            "projects": proj_with_floor,
+            "pro_experiences": pro_result,
+            "projects": proj_result,
             "floor_activated": floor_activated,
+            "fill_report": {
+                "pro_count": len(pro_result),
+                "project_count": len(proj_result),
+                "pro_backfilled": pro_backfilled,
+                "proj_backfilled": proj_backfilled,
+                "floor_activated": floor_activated,
+                "pro_ids_selected": [e.get("id", "?") for e in pro_result],
+                "project_ids_selected": [e.get("id", "?") for e in proj_result],
+            },
         }
 
-    def _apply_floor(self, result: List[Dict], all_scored: List[Dict], minimum: int) -> List[Dict]:
-        """Complète avec exclus (score 0) s'il manque du contenu."""
-        if len(result) >= minimum:
-            return result
-        excluded = [e for e in all_scored if e["score"] == SCORE_OUT_OF_SCOPE]
-        excluded.sort(key=lambda x: x["keyword_overlap"], reverse=True)
-        needed = minimum - len(result)
-        return result + [e["data"] for e in excluded[:needed]]
+    def _backfill_pool(
+        self,
+        current: List[Dict],
+        all_scored: List[Dict],
+        minimum: int,
+        target: int,
+        pool_name: str = "pool",
+    ) -> tuple[List[Dict], bool]:
+        if minimum > target:
+            raise ValueError(
+                f"Configuration error in {pool_name}: minimum ({minimum}) "
+                f"cannot exceed target ({target})"
+            )
+        if len(current) >= target:
+            return current, False
+        selected_ids = {e.get("id") for e in current if e.get("id")}
+        remaining = sorted(
+            [e for e in all_scored if e["id"] not in selected_ids],
+            key=lambda x: (x["score"], x["keyword_overlap"]),
+            reverse=True,
+        )
+        candidates = remaining[: target - len(current)]
+        backfilled = len(candidates) > 0
+        for candidate in candidates:
+            current.append(candidate["data"])
+        return current, backfilled
 
     def enforce_project_guarantee(self, ranked_content: Dict, all_experiences: List[Dict], profile_id: str = "") -> Dict:
         """Garantit qu'au moins un projet est présent."""
@@ -201,7 +287,7 @@ class PersonalCVGenerator:
                 return int(match.group()) if match else 0
             
             fallback_projects.sort(key=lambda x: _parse_period(x.get("period", "")), reverse=True)
-            ranked_content["projects"] = fallback_projects[:CONTENT_BUDGET["projects"]["target"]]
+            ranked_content["projects"] = fallback_projects[: FILL_BUDGET["projects"]]
             print(f"      ⚠️ Fallback Projet(s) utilisé(s) : {len(ranked_content['projects'])}")
 
         return ranked_content
@@ -231,10 +317,13 @@ class PersonalCVGenerator:
 
         for config in SHRINK_CONFIGS:
             attempt = config["attempt"]
-            print(f"      → Tentative {attempt} ({config['max_pro']} Pro, {config['max_proj']} Proj, Font: {config['font_delta']})")
+            print(
+                f"      → Tentative {attempt} "
+                f"({config['max_pro_exp']} Pro, {config['max_projects']} Proj, Font: {config['font_size']})"
+            )
             
-            current_pro = ranked_content["pro_experiences"][:config["max_pro"]]
-            current_proj = ranked_content["projects"][:config["max_proj"]]
+            current_pro = ranked_content["pro_experiences"][: config["max_pro_exp"]]
+            current_proj = ranked_content["projects"][: config["max_projects"]]
             
             filtered_skills = matching.filter_skills_by_profile(
                 profile_id, self.master_profile, selected_experiences=current_pro + current_proj
@@ -242,12 +331,13 @@ class PersonalCVGenerator:
             candidate_context = prompts.build_candidate_context(profile_id, self.master_profile, current_pro, filtered_skills)
             candidate_context["ranked_projects"] = current_proj # Injecter les projets dans le contexte
             prompt_content_cfg = {
-                "max_pro_exp": config["max_pro"],
-                "min_pro_exp": CONTENT_BUDGET["pro_experiences"]["minimum"],
-                "max_projects": config["max_proj"],
-                "min_projects": CONTENT_BUDGET["projects"]["minimum"],
-                "skills_count": CONTENT_BUDGET["skills"]["target"],
-                "skills_min": CONTENT_BUDGET["skills"]["minimum"],
+                "max_pro_exp": config["max_pro_exp"],
+                "min_pro_exp": FILL_BUDGET["pro_minimum"],
+                "max_projects": config["max_projects"],
+                "min_projects": FILL_BUDGET["projects_minimum"],
+                "max_bullets": config["max_bullets"],
+                "skills_count": FILL_BUDGET["skills"],
+                "skills_min": FILL_BUDGET["skills_minimum"],
             }
 
             cv_data = {}
@@ -261,17 +351,31 @@ class PersonalCVGenerator:
                     clean_json = re.sub(r"```json\s*|\s*```", "", response_str).strip()
                     llm_output = json.loads(clean_json)
                     validation = prompts.post_process_llm_output(llm_output)
-                    cv_data = self._assemble_final_data(validation["cv_data"], candidate_context)
+                    cv_data = self._assemble_final_data(
+                        validation["cv_data"],
+                        candidate_context,
+                        max_bullets=config["max_bullets"],
+                    )
                 except Exception as e:
                     print(f"      ⚠️ Erreur LLM: {e}. Fallback.")
-                    cv_data = self._assemble_fallback_data(candidate_context, job_data)
+                    cv_data = self._assemble_fallback_data(
+                        candidate_context,
+                        job_data,
+                        max_bullets=config["max_bullets"],
+                    )
                 cached_cv_data = copy.deepcopy(cv_data)
             elif cached_cv_data is not None:
                 cv_data = copy.deepcopy(cached_cv_data)
             else:
-                cv_data = self._assemble_fallback_data(candidate_context, job_data)
+                cv_data = self._assemble_fallback_data(
+                    candidate_context,
+                    job_data,
+                    max_bullets=config["max_bullets"],
+                )
                 cached_cv_data = copy.deepcopy(cv_data)
 
+            rank_fill_report = ranked_content.get("fill_report", {})
+            skill_fill_layers = filtered_skills.get("fill_layers", {})
             fill_report = {
                 "pro_count": len(current_pro),
                 "project_count": len(current_proj),
@@ -279,11 +383,25 @@ class PersonalCVGenerator:
                 "floor_activated": ranked_content.get("floor_activated", False),
                 "llm_calls": llm_calls,
                 "shrink_attempt": attempt,
+                "pro_backfilled": rank_fill_report.get("pro_backfilled", False),
+                "proj_backfilled": rank_fill_report.get("proj_backfilled", False),
+                "pro_ids_selected": rank_fill_report.get("pro_ids_selected", []),
+                "project_ids_selected": rank_fill_report.get("project_ids_selected", []),
+                "layer_1_signature": skill_fill_layers.get("layer_1_signature", 0),
+                "layer_2_transversal": skill_fill_layers.get("layer_2_transversal", 0),
             }
 
             # Rendu PDF
             pdf_renderer = self.renderers["pdf"]
-            pdf_path = pdf_renderer.render(cv_data, output_base, font_size_delta=config["font_delta"])
+            font_delta = config["font_size"] - BASE_FONT_SIZE
+            pdf_path = pdf_renderer.render(
+                cv_data,
+                output_base,
+                font_size_delta=font_delta,
+                leading=config["leading"],
+                section_gap=config["section_gap"],
+                margin_sides=config["margin_sides"],
+            )
             
             if pdf_path:
                 pages = pdf_renderer.get_page_count(pdf_path)
@@ -300,7 +418,10 @@ class PersonalCVGenerator:
         
         return best_result or {"error": "Échec"}
 
-    def _assemble_final_data(self, llm_output: Dict, context: Dict) -> Dict:
+    def _assemble_final_data(self, llm_output: Dict, context: Dict, max_bullets: Optional[int] = None) -> Dict:
+        effective_max_bullets = (
+            max_bullets if max_bullets is not None else FILL_BUDGET["max_bullets_pro"]
+        )
         cv_gen = llm_output.get("cv", {})
         
         # Expériences Pro (Pool A)
@@ -318,7 +439,7 @@ class PersonalCVGenerator:
                 "start_date": exp.get("period", "").split("-")[0].strip(),
                 "end_date": exp.get("period", "").split("-")[-1].strip() if "-" in exp.get("period", "") else "",
                 "location": exp.get("location", ""),
-                "achievements": g.get("bullets", fallback_achievements)[:CONTENT_BUDGET["max_bullets_pro"]]
+                "achievements": g.get("bullets", fallback_achievements)[:effective_max_bullets],
             })
 
         # Projets (Pool B)
@@ -351,8 +472,10 @@ class PersonalCVGenerator:
             "languages": [{"name": l["language"], "level": l["level"]} for l in context["personal_info"].get("languages", [])]
         }
 
-    def _assemble_fallback_data(self, context: Dict, job: Dict) -> Dict:
-        return self._assemble_final_data({"cv": {}}, context)
+    def _assemble_fallback_data(
+        self, context: Dict, job: Dict, max_bullets: Optional[int] = None
+    ) -> Dict:
+        return self._assemble_final_data({"cv": {}}, context, max_bullets=max_bullets)
 
     def _normalize_job(self, job: Dict) -> Dict:
         return {"title": str(job.get("title", "Ingénieur")), "company": str(job.get("company", "Entreprise")), "description": str(job.get("description", "")), "url": job.get("url", "")}

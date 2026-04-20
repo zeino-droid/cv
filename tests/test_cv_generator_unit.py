@@ -118,15 +118,15 @@ def test_rank_experiences_splits_pools_and_applies_limits(generator):
     assert [e["id"] for e in ranked["projects"]] == ["proj-1", "proj-2"]
 
 
-def test_rank_experiences_applies_floor_when_scoring_excludes_everything(generator):
+def test_rank_experiences_keeps_out_of_scope_entries_in_ranked_output(generator):
     exps = [
         {"id": "x1", "profiles_tags": ["other"], "K": ["python"]},
         {"id": "x2", "profiles_tags": ["other"], "K": ["ansys"]},
         {"id": "x3", "profiles_tags": ["other"], "K": []},
     ]
     ranked = generator.rank_experiences_for_profile(exps, "simulation_rd", ["python", "ansys"])
-    assert len(ranked["pro_experiences"]) == 2
-    assert ranked["floor_activated"] is True
+    assert len(ranked["pro_experiences"]) == 3
+    assert ranked["floor_activated"] is False
 
 
 def test_rank_experiences_scoring_ladder_prioritizes_profile_over_all(generator):
