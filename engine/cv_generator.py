@@ -22,8 +22,8 @@ DEFAULT_OUTPUT_DIR = Path("vault/resumes")
 # CONSTANTES DU BUDGET CONTENU (Phase 4)
 # ============================================
 CONTENT_BUDGET = {
-    "max_pro_experiences": 2,     # Réduit de 3 à 2 pour laisser place aux projets
-    "max_projects": 2,            # Slot garanti pour les projets
+    "max_pro_experiences": 4,     # Densité maximale d'expériences professionnelles
+    "max_projects": 2,            # Minimum garanti pour les projets
     "max_bullets_pro": 2,         # 2 bullets max par expérience pro
     "max_bullets_project": 0,     # Projets : format compact (pas de bullets)
     "project_max_desc_chars": 150 # Description courte
@@ -140,7 +140,7 @@ class PersonalCVGenerator:
             "projects": [e["data"] for e in project_pool[:CONTENT_BUDGET["max_projects"]]]
         }
 
-    def enforce_project_guarantee(self, ranked_content: Dict, all_experiences: List[Dict], profile_id: str) -> Dict:
+    def enforce_project_guarantee(self, ranked_content: Dict, all_experiences: List[Dict], profile_id: str = "") -> Dict:
         """Garantit qu'au moins un projet est présent."""
         if len(ranked_content["projects"]) > 0:
             return ranked_content
@@ -179,9 +179,9 @@ class PersonalCVGenerator:
 
         # 3. SHRINK LOOP (Phase 4)
         shrink_configs = [
-            {"max_pro": 2, "max_proj": 2, "font_delta": 0.0},
-            {"max_pro": 2, "max_proj": 1, "font_delta": -0.3},
-            {"max_pro": 2, "max_proj": 1, "font_delta": -0.8},
+            {"max_pro": 4, "max_proj": 2, "font_delta": 0.0},
+            {"max_pro": 4, "max_proj": 2, "font_delta": -0.4},
+            {"max_pro": 4, "max_proj": 2, "font_delta": -0.8},
         ]
 
         best_result = None

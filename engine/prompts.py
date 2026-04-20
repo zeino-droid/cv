@@ -95,7 +95,7 @@ def build_generation_prompt(job_offer: dict, candidate_context: dict, profile_id
                         "keywords_inline": "string — 3 à 4 mots techniques · séparés"
                     }
                 ],
-                "skills_inline": "string — MAX 8 skills séparés par ' · '",
+                "skills_inline": "string — MAX 15 skills séparés par ' · '",
                 "one_page_compliant": "boolean"
             }
         }
@@ -161,6 +161,15 @@ def validate_llm_output_constraints(cv_data: dict) -> dict:
             proj["one_line_description"] = _truncate_at_word(desc, 150)
             violations.append({"field": f"proj[{i}].desc", "action": "truncated"})
     cv["projects"] = projs
+
+    # 5. Skills inline (Max 15)
+    skills_inline = cv.get("skills_inline", "")
+    if isinstance(skills_inline, str) and skills_inline.strip():
+        skills = [s.strip() for s in skills_inline.split("·") if s.strip()]
+        if len(skills) > 15:
+            skills = skills[:15]
+            violations.append({"field": "skills_inline", "action": "cut_to_15"})
+        cv["skills_inline"] = " · ".join(skills)
 
     cv_data["cv"] = cv
     return {"cv_data": cv_data, "violations": violations, "had_violations": len(violations) > 0}

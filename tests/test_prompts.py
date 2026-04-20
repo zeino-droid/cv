@@ -25,6 +25,7 @@ def test_build_candidate_context_uses_safe_personal_info():
 
 def test_validate_llm_output_constraints_limits_and_truncates_fields():
     very_long = "mot " * 200
+    many_skills = " · ".join([f"Skill{i}" for i in range(1, 21)])
     data = {
         "cv": {
             "headline": {"value": very_long},
@@ -39,6 +40,7 @@ def test_validate_llm_output_constraints_limits_and_truncates_fields():
                 {"rewritten_title": "ok", "one_line_description": "ok"},
                 {"rewritten_title": "ignored", "one_line_description": "ignored"},
             ],
+            "skills_inline": many_skills,
         }
     }
     result = prompts.validate_llm_output_constraints(data)
@@ -47,6 +49,7 @@ def test_validate_llm_output_constraints_limits_and_truncates_fields():
     assert len(cv["experiences"]) == 2
     assert len(cv["experiences"][0]["bullets"]) == 2
     assert len(cv["projects"]) == 2
+    assert len([s.strip() for s in cv["skills_inline"].split("·") if s.strip()]) == 15
     assert cv["headline"]["char_count"] <= 91
     assert cv["summary"]["char_count"] <= 401
 
