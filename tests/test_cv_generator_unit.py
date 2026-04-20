@@ -68,7 +68,7 @@ def test_normalize_job_defaults(generator):
 
 
 def test_slugify_normalizes_and_fallbacks(generator):
-    assert generator._slugify("Data Engineer @ ACME!") == "data_engine__acme"
+    assert generator._slugify("Data Engineer @ ACME!") == "data_engineer__acme"
     assert generator._slugify("!!!") == "cv"
 
 
