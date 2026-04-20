@@ -410,12 +410,29 @@ if page == "🏠 Dashboard":
             format_func=lambda x: f"{STATUS_EMOJI.get(x, '•')} {x.capitalize()}" if x not in ["Tous", "Top (Score > 70%)"] else x
         )
         
+        location_filter = st.session_state.get("location_filter")
+        if location_filter:
+            st.caption(f"📍 Filtre actif : **{location_filter}**")
+            if st.button("Réinitialiser le filtre mobilité", key="reset_location_filter"):
+                st.session_state["location_filter"] = None
+                st.rerun()
+
         if dash_filter == "Top (Score > 70%)":
-            display_jobs = db.get_top_to_apply(n=10)
+            top_jobs = db.get_top_to_apply(n=100)
+            if location_filter:
+                display_jobs = [
+                    j for j in top_jobs if location_filter.lower() in str(j.get("location", "")).lower()
+                ][:10]
+            else:
+                display_jobs = top_jobs[:10]
         elif dash_filter == "Tous":
-            display_jobs = db.get_jobs(limit=10)
+            display_jobs = db.get_jobs(location_filter=location_filter, limit=10)
         else:
-            display_jobs = db.get_jobs(status=dash_filter, limit=10)
+            display_jobs = db.get_jobs(
+                status=dash_filter,
+                location_filter=location_filter,
+                limit=10,
+            )
 
         if not display_jobs:
             st.info(f"Aucune offre avec le statut '{dash_filter}'.")
@@ -442,10 +459,15 @@ if page == "🏠 Dashboard":
                     """,
                     unsafe_allow_html=True,
                 )
-                if st.button(f"Générer CV pour {j['title'][:20]}...", key=f"gen_{j['id']}"):
-                    st.session_state["generate_job"] = j
-                    st.session_state["page"] = "⚡ Générer"
-                    st.rerun()
+                action_cols = st.columns(2)
+                with action_cols[0]:
+                    if st.button(f"Générer CV pour {j['title'][:20]}...", key=f"gen_{j['id']}"):
+                        st.session_state["generate_job"] = j
+                        st.session_state["page"] = "⚡ Générer"
+                        st.rerun()
+                with action_cols[1]:
+                    if j.get("url"):
+                        st.link_button("🌐 Ouvrir l'offre", j["url"], use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
     with col_r:
