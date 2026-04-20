@@ -3,7 +3,19 @@ import re
 from typing import Dict, List, Any
 from .matching import get_safe_personal_info
 
-# --- CONTRAINTES STRICTES ONE-PAGE ---
+# ============================================
+# CONTRAINTES DE CONTENU (Phase 4)
+# ============================================
+PROJECT_CONSTRAINTS = """
+[CONTRAINTES PROJETS — FORMAT COMPACT]
+SECTION "PROJETS TECHNIQUES" (distincte de "EXPÉRIENCES") :
+Pour CHAQUE projet retenu :
+- TITRE : MAX 70 caractères — doit contenir le(s) outil(s) clé(s). Format : "[Sujet] — [Outil] | [Contexte]"
+- DESCRIPTION : 1 seule ligne — MAX 150 caractères. Format : "[Verbe passé] + [méthode] + [résultat]"
+- KEYWORDS : liste de 3 à 4 mots-clés techniques séparés par " · "
+INTERDIT : Bullets multiples, mention "TP/cours" (utiliser "Projet").
+"""
+
 ONE_PAGE_CONSTRAINTS = """
 [CONTRAINTES STRICTES — ONE PAGE — NON NÉGOCIABLES]
 
@@ -13,34 +25,22 @@ SUMMARY :
 - Format : 1 phrase de positionnement + 1 phrase de preuve chiffrée + 1 phrase de valeur ajoutée.
 - INTERDIT : listes, tirets, sauts de ligne dans le summary.
 
-EXPERIENCES — Pour CHAQUE expérience retenue :
-- MAXIMUM 3 bullet points. Pas 4. Pas 5. Exactement 2 ou 3.
+EXPERIENCES (Pool A) :
+- MAXIMUM 2 expériences.
+- MAXIMUM 2 bullet points par expérience.
 - MAXIMUM 120 caractères par bullet (espaces inclus).
 - Format obligatoire : [Verbe d'action] + [Technologie/Méthode] + [Résultat chiffré].
-- INTERDIT : phrases longues, sous-listes, contexte superflu.
+
+PROJETS (Pool B) :
+""" + PROJECT_CONSTRAINTS + """
 
 HEADLINE :
 - MAXIMUM 1 ligne.
 - MAXIMUM 90 caractères.
-- Format : [Domaine] | [Techno 1] · [Techno 2] · [Techno 3] | [Secteur/Valeur]
-
-NOMBRE D'EXPÉRIENCES À INCLURE :
-- MAXIMUM 3 expériences (les plus pertinentes pour l'offre).
-- MINIMUM 2 expériences.
-- Choisir parmi la liste fournie selon pertinence décroissante.
-
-COMPÉTENCES :
-- MAXIMUM 8 hard skills.
-- Format : liste inline séparée par " · " (pas de tableau, pas de niveaux).
 """
 
 def build_candidate_context(profile_id: str, profile_index: dict, filtered_experiences: list[dict], filtered_skills: dict) -> dict:
-    """
-    Assemble un dict combinant : 
-    get_safe_personal_info(profile_index["personal_info"]), 
-    le headline/summary du profil cible, 
-    les expériences filtrées et les skills filtrés.
-    """
+    """Prépare le contexte candidat pour le prompt."""
     personal_info = get_safe_personal_info(profile_index.get("personal_info", {}))
     profile_def = profile_index.get("profiles", {}).get(profile_id, {})
     
@@ -49,7 +49,7 @@ def build_candidate_context(profile_id: str, profile_index: dict, filtered_exper
         "target_profile": {
             "id": profile_id,
             "headline": profile_def.get("headline", ""),
-            "summary": profile_index.get("personal_info", {}).get("summary_default", "") # Fallback to default summary
+            "summary": profile_index.get("personal_info", {}).get("summary_default", "")
         },
         "experiences": filtered_experiences,
         "skills": filtered_skills,
@@ -58,17 +58,15 @@ def build_candidate_context(profile_id: str, profile_index: dict, filtered_exper
     return context
 
 def build_generation_prompt(job_offer: dict, candidate_context: dict, profile_id: str) -> dict:
-    """
-    Génère un dictionnaire structuré qui servira de prompt unique avec contraintes One-Page.
-    """
+    """Génère un dictionnaire structuré qui servira de prompt unique avec contraintes One-Page V2."""
     prompt_dict = {
         "role": "Expert en recrutement et chasseur de têtes spécialisé en ingénierie R&D.",
-        "objective": f"Générer un CV et une lettre de motivation percutants pour le poste de {job_offer.get('title')} chez {job_offer.get('company')}.",
+        "objective": f"Générer un CV percutant pour le poste de {job_offer.get('title')} chez {job_offer.get('company')}.",
         "one_page_policy": ONE_PAGE_CONSTRAINTS,
         "constraints": [
             "INTERDICTION FORMELLE d'utiliser les mots : 'Apprenti', 'Étudiant', 'Élève'.",
             "Présenter le candidat comme un expert opérationnel immédiatement productif.",
-            "Le ton doit être professionnel, technique et axé sur les résultats (impact-driven).",
+            "Le ton doit être professionnel, technique et axé sur les résultats.",
             "Utiliser des verbes d'action forts.",
             "Toutes les sorties doivent être en Français."
         ],
@@ -78,38 +76,33 @@ def build_generation_prompt(job_offer: dict, candidate_context: dict, profile_id
         },
         "output_format": {
             "cv": {
-                "headline": {
-                    "value": "string — MAX 90 chars",
-                    "char_count": "integer"
-                },
-                "summary": {
-                    "value": "string — MAX 400 chars, 3 lignes max",
-                    "char_count": "integer"
-                },
+                "headline": {"value": "string — MAX 90 chars", "char_count": "integer"},
+                "summary": {"value": "string — MAX 400 chars", "char_count": "integer"},
                 "experiences": [
                     {
-                        "id": "string — ID original",
+                        "id": "string",
                         "rewritten_title": "string — MAX 60 chars",
-                        "bullets": [
-                            "string — MAX 120 chars chacun, Verbe d'action + Résultat"
-                        ]
+                        "bullets": ["string — MAX 120 chars (EXACTEMENT 2)"]
+                    }
+                ],
+                "projects": [
+                    {
+                        "id": "string",
+                        "rewritten_title": "string — MAX 70 chars",
+                        "one_line_description": "string — MAX 150 chars",
+                        "keywords_inline": "string — 3 à 4 mots techniques · séparés"
                     }
                 ],
                 "skills_inline": "string — MAX 8 skills séparés par ' · '",
                 "one_page_compliant": "boolean"
-            },
-            "cover_letter": "Texte de la lettre de motivation (3 paragraphes max)"
+            }
         }
     }
     return prompt_dict
 
 def validate_llm_output_constraints(cv_data: dict) -> dict:
-    """
-    Valide et corrige les violations de contraintes One-Page avant compilation.
-    """
+    """Valide et corrige les violations de contraintes One-Page V2."""
     violations = []
-    
-    # Sécurité structurelle
     if "cv" not in cv_data:
         return {"cv_data": cv_data, "violations": ["Missing 'cv' key"], "had_violations": True}
 
@@ -131,44 +124,52 @@ def validate_llm_output_constraints(cv_data: dict) -> dict:
         violations.append({"field": "summary", "action": "truncated"})
     cv["summary"] = {"value": summary, "char_count": len(summary)}
 
-    # 3. Nombre d'expériences
+    # 3. Pool A : Expériences Pro (Max 2)
     exps = cv.get("experiences", [])
-    if len(exps) > 3:
-        exps = exps[:3]
-        violations.append({"field": "experiences", "action": "cut_to_3"})
+    if len(exps) > 2:
+        exps = exps[:2]
+        violations.append({"field": "experiences", "action": "cut_to_2"})
     
-    # 4. Bullets par expérience
     for i, exp in enumerate(exps):
         bullets = exp.get("bullets", [])
-        if len(bullets) > 3:
-            bullets = bullets[:3]
-            violations.append({"field": f"exp[{i}].bullets", "action": "cut_to_3"})
-        
+        if len(bullets) > 2:
+            bullets = bullets[:2]
+            violations.append({"field": f"exp[{i}].bullets", "action": "cut_to_2"})
         for j, bullet in enumerate(bullets):
             if len(bullet) > 120:
                 bullets[j] = _truncate_at_word(bullet, 120)
                 violations.append({"field": f"exp[{i}].bullet[{j}]", "action": "truncated"})
         exp["bullets"] = bullets
-    
     cv["experiences"] = exps
-    cv_data["cv"] = cv
 
-    return {
-        "cv_data": cv_data,
-        "violations": violations,
-        "had_violations": len(violations) > 0
-    }
+    # 4. Pool B : Projets (Max 2)
+    projs = cv.get("projects", [])
+    if len(projs) > 2:
+        projs = projs[:2]
+        violations.append({"field": "projects", "action": "cut_to_2"})
+    
+    for i, proj in enumerate(projs):
+        title = proj.get("rewritten_title", "")
+        if len(title) > 70:
+            proj["rewritten_title"] = _truncate_at_word(title, 70)
+            violations.append({"field": f"proj[{i}].title", "action": "truncated"})
+        
+        desc = proj.get("one_line_description", "")
+        if len(desc) > 150:
+            proj["one_line_description"] = _truncate_at_word(desc, 150)
+            violations.append({"field": f"proj[{i}].desc", "action": "truncated"})
+    cv["projects"] = projs
+
+    cv_data["cv"] = cv
+    return {"cv_data": cv_data, "violations": violations, "had_violations": len(violations) > 0}
 
 def _truncate_at_word(text: str, max_chars: int) -> str:
-    if len(text) <= max_chars:
-        return text
+    if len(text) <= max_chars: return text
     truncated = text[:max_chars].rsplit(' ', 1)[0]
     return truncated + "…"
 
 def post_process_llm_output(raw_output: dict) -> dict:
-    """
-    Nettoie les mots interdits et valide les contraintes One-Page.
-    """
+    """Nettoie les mots interdits et valide les contraintes."""
     forbidden_words = ["apprenti", "étudiant", "élève", "apprentissage", "etudiant", "eleve"]
     
     def clean_text(text: Any) -> Any:

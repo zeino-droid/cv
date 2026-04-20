@@ -1,6 +1,6 @@
 """
-🎯 GÉNÉRATEUR CV HYBRIDE (V4) - ONE-PAGE GUARANTEE
-Architecture modulaire avec boucle de correction automatique (Shrink Loop).
+🎯 GÉNÉRATEUR CV HYBRIDE (V5) - ONE-PAGE GUARANTEE + PROJETS
+Architecture modulaire avec pools séparés pour garantir la présence des projets académiques.
 """
 
 import asyncio
@@ -18,8 +18,19 @@ from engine.rendering import LatexRenderer, MarkdownRenderer, TypstRenderer
 
 DEFAULT_OUTPUT_DIR = Path("vault/resumes")
 
+# ============================================
+# CONSTANTES DU BUDGET CONTENU (Phase 4)
+# ============================================
+CONTENT_BUDGET = {
+    "max_pro_experiences": 2,     # Réduit de 3 à 2 pour laisser place aux projets
+    "max_projects": 2,            # Slot garanti pour les projets
+    "max_bullets_pro": 2,         # 2 bullets max par expérience pro
+    "max_bullets_project": 0,     # Projets : format compact (pas de bullets)
+    "project_max_desc_chars": 150 # Description courte
+}
+
 class PersonalCVGenerator:
-    """Orchestrateur central du Cerveau avec garantie One-Page."""
+    """Orchestrateur central du Cerveau avec garantie One-Page et Projets."""
 
     def __init__(self, master_profile_path: str = "profiles/master_profile.json"):
         self.master_profile_path = Path(master_profile_path)
@@ -61,7 +72,7 @@ class PersonalCVGenerator:
 
     def _print_status(self):
         print(f"\n   {'=' * 40}")
-        print(f"   🧠 CERVEAU V4 — ONE-PAGE GUARANTEE")
+        print(f"   🧠 CERVEAU V5 — PROJETS + ONE-PAGE")
         print(f"   {'=' * 40}")
         name = self.master_profile.get('personal_info', {}).get('name', 'Inconnu')
         print(f"   👤 Profil: {name}")
@@ -69,160 +80,180 @@ class PersonalCVGenerator:
         print(f"   📄 Typst:  {'✅ Actif' if self.renderers['pdf'].available else '❌ Manquant'}")
         print(f"   {'=' * 40}")
 
+    def rank_experiences_for_profile(self, all_experiences: List[Dict], profile_id: str, job_keywords: List[str]) -> Dict:
+        """Sépare les expériences en 2 pools distincts : Pro et Projets."""
+        pro_pool = []
+        project_pool = []
+        job_kw_set = set(k.lower() for k in job_keywords)
+
+        for exp in all_experiences:
+            is_project = (exp.get("type") == "academic_project")
+            tags = exp.get("profiles_tags", [])
+            exp_keywords = set(k.lower() for k in exp.get("K", []))
+            keyword_overlap = len(exp_keywords & job_kw_set)
+
+            if profile_id in tags and keyword_overlap > 0:
+                score = 3
+            elif profile_id in tags:
+                score = 2
+            elif "all" in tags and keyword_overlap > 0:
+                score = 1
+            else:
+                score = 0
+
+            if score == 0: continue
+
+            entry = {"data": exp, "score": score, "keyword_overlap": keyword_overlap}
+            if is_project:
+                project_pool.append(entry)
+            else:
+                pro_pool.append(entry)
+
+        pro_pool.sort(key=lambda x: (x["score"], x["keyword_overlap"]), reverse=True)
+        project_pool.sort(key=lambda x: (x["score"], x["keyword_overlap"]), reverse=True)
+
+        return {
+            "pro_experiences": [e["data"] for e in pro_pool[:CONTENT_BUDGET["max_pro_experiences"]]],
+            "projects": [e["data"] for e in project_pool[:CONTENT_BUDGET["max_projects"]]]
+        }
+
+    def enforce_project_guarantee(self, ranked_content: Dict, all_experiences: List[Dict]) -> Dict:
+        """Garantit qu'au moins un projet est présent."""
+        if len(ranked_content["projects"]) > 0:
+            return ranked_content
+
+        fallback_projects = []
+        for exp in all_experiences:
+            if exp.get("type") == "academic_project":
+                fallback_projects.append(exp)
+
+        if fallback_projects:
+            # Trier par semestre (S9 > S8...)
+            def _parse_period(p):
+                match = re.search(r'\d+', p)
+                return int(match.group()) if match else 0
+            
+            fallback_projects.sort(key=lambda x: _parse_period(x.get("period", "")), reverse=True)
+            ranked_content["projects"] = [fallback_projects[0]]
+            print(f"      ⚠️ Fallback Projet utilisé : {fallback_projects[0].get('title')}")
+
+        return ranked_content
+
     async def generate_cv_for_job(self, job: Dict) -> Dict:
-        """
-        Génère un CV avec une boucle de réduction (Shrink Loop) pour garantir 1 page.
-        """
+        """Génère un CV avec Shrink Loop et séparation des pools Pro/Projets."""
         job_data = self._normalize_job(job)
-        print(f"\n   📄 GEN ONE-PAGE: {job_data.get('title')} @ {job_data.get('company')}")
+        job_keywords = job_data.get("description", "").lower().split() # Simplifié pour le matching
 
         # 1. Sélection du meilleur profil
         profile_id, match_score = matching.select_best_profile(job_data, self.master_profile)
         print(f"      → Profil cible : {profile_id.upper()} (Score: {match_score})")
 
-        # 2. SHRINK LOOP - 3 niveaux de réduction
-        attempts_config = [
-            {"max_exp": 3, "font_delta": 0.0},
-            {"max_exp": 3, "font_delta": -0.3},
-            {"max_exp": 2, "font_delta": -0.5},
+        # 2. Classement et Pools
+        all_exps = self.master_profile.get("experiences", [])
+        ranked_content = self.rank_experiences_for_profile(all_exps, profile_id, job_keywords)
+        ranked_content = self.enforce_project_guarantee(ranked_content, all_exps)
+
+        # 3. SHRINK LOOP (Phase 4)
+        shrink_configs = [
+            {"max_pro": 2, "max_proj": 2, "font_delta": 0.0},
+            {"max_pro": 2, "max_proj": 1, "font_delta": -0.3},
+            {"max_pro": 2, "max_proj": 1, "font_delta": -0.5},
         ]
 
         best_result = None
         slug = self._slugify(f"{job_data.get('company', 'job')}_{job_data.get('title', 'title')}")
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-        output_base = DEFAULT_OUTPUT_DIR / f"cv_{slug}_{timestamp}"
+        output_base = DEFAULT_OUTPUT_DIR / f"cv_{slug}_{datetime.now().strftime('%Y%m%d_%H%M')}"
 
-        for attempt, config in enumerate(attempts_config, 1):
-            print(f"      → Tentative {attempt}/{len(attempts_config)} (Max Exp: {config['max_exp']}, Font: {config['font_delta']})")
+        for attempt, config in enumerate(shrink_configs, 1):
+            print(f"      → Tentative {attempt} ({config['max_pro']} Pro, {config['max_proj']} Proj, Font: {config['font_delta']})")
             
-            # Filtrage et limitation des expériences
-            filtered_exps = matching.filter_experiences_by_profile(profile_id, self.master_profile)
-            # On ne garde que les N meilleures expériences pour l'offre
-            # Ici on utilise la liste filtrée par profil, limitée par la config
-            limited_exps = filtered_exps[:config["max_exp"]]
+            current_pro = ranked_content["pro_experiences"][:config["max_pro"]]
+            current_proj = ranked_content["projects"][:config["max_proj"]]
             
             filtered_skills = matching.filter_skills_by_profile(profile_id, self.master_profile)
-            
-            # Construction du contexte et du prompt
-            candidate_context = prompts.build_candidate_context(profile_id, self.master_profile, limited_exps, filtered_skills)
-            
+            candidate_context = prompts.build_candidate_context(profile_id, self.master_profile, current_pro, filtered_skills)
+            candidate_context["ranked_projects"] = current_proj # Injecter les projets dans le contexte
+
             cv_data = {}
             if self.llm:
                 prompt_dict = prompts.build_generation_prompt(job_data, candidate_context, profile_id)
-                prompt_str = json.dumps(prompt_dict, ensure_ascii=False, indent=2)
-                response_str = await self.llm.generate(prompt_str)
-                
+                response_str = await self.llm.generate(json.dumps(prompt_dict, ensure_ascii=False))
                 try:
                     clean_json = re.sub(r"```json\s*|\s*```", "", response_str).strip()
                     llm_output = json.loads(clean_json)
-                    
-                    # Post-processing (inclut la validation One-Page Couche 1)
-                    validation_result = prompts.post_process_llm_output(llm_output)
-                    cv_data = self._assemble_final_data(validation_result["cv_data"], candidate_context)
+                    validation = prompts.post_process_llm_output(llm_output)
+                    cv_data = self._assemble_final_data(validation["cv_data"], candidate_context)
                 except Exception as e:
-                    print(f"      ⚠️ Erreur parsing LLM: {e}. Fallback.")
+                    print(f"      ⚠️ Erreur LLM: {e}. Fallback.")
                     cv_data = self._assemble_fallback_data(candidate_context, job_data)
             else:
                 cv_data = self._assemble_fallback_data(candidate_context, job_data)
 
-            # Rendu PDF pour vérification
-            results = {}
+            # Rendu PDF
             pdf_renderer = self.renderers["pdf"]
             pdf_path = pdf_renderer.render(cv_data, output_base, font_size_delta=config["font_delta"])
             
             if pdf_path:
-                page_count = pdf_renderer.get_page_count(pdf_path)
-                print(f"      → Pages: {page_count}")
-                
-                results["pdf_path"] = str(pdf_path)
-                results["page_count"] = page_count
-                results["cv_data"] = cv_data
-                
-                if page_count == 1:
-                    # Succès immédiat ! On génère les autres formats
-                    for fmt in ["md", "tex"]:
-                        p = self.renderers[fmt].render(cv_data, output_base)
-                        if p: results[f"{fmt}_path"] = str(p)
-                    return results
-                
-                best_result = results # On garde la dernière tentative au cas où
-            else:
-                print("      ⚠️ Échec du rendu PDF.")
-
-        # Si on arrive ici, on n'a pas réussi à faire 1 page ou on a épuisé les tentatives
-        print("      ⚠️ Garantie One-Page non atteinte après toutes les tentatives.")
-        return best_result or {"error": "Génération échouée"}
+                pages = pdf_renderer.get_page_count(pdf_path)
+                print(f"      → Pages: {pages}")
+                res = {"pdf_path": str(pdf_path), "page_count": pages, "cv_data": cv_data}
+                if pages == 1:
+                    for f in ["md", "tex"]: 
+                        p = self.renderers[f].render(cv_data, output_base)
+                        if p: res[f"{f}_path"] = str(p)
+                    return res
+                best_result = res
+        
+        return best_result or {"error": "Échec"}
 
     def _assemble_final_data(self, llm_output: Dict, context: Dict) -> Dict:
-        """Assemble les données générées par l'IA avec les infos de base."""
         cv_gen = llm_output.get("cv", {})
         
+        # Expériences Pro (Pool A)
         final_exps = []
         gen_exps = {exp["id"]: exp for exp in cv_gen.get("experiences", [])}
-        
         for exp in context["experiences"]:
-            exp_id = exp.get("id")
-            if exp_id in gen_exps:
-                gen_exp = gen_exps[exp_id]
+            eid = exp.get("id")
+            if eid in gen_exps:
+                g = gen_exps[eid]
                 final_exps.append({
-                    "position": gen_exp.get("rewritten_title", exp.get("title")),
+                    "position": g.get("rewritten_title", exp.get("title")),
                     "company": exp.get("company"),
                     "start_date": exp.get("period", "").split("-")[0].strip(),
                     "end_date": exp.get("period", "").split("-")[-1].strip() if "-" in exp.get("period", "") else "",
                     "location": exp.get("location", ""),
-                    "achievements": gen_exp.get("bullets", exp.get("A", []))
-                })
-            else:
-                final_exps.append({
-                    "position": exp.get("title"),
-                    "company": exp.get("company"),
-                    "start_date": exp.get("period", ""),
-                    "end_date": "",
-                    "achievements": [exp.get("A", "")] if isinstance(exp.get("A"), str) else exp.get("A", [])
+                    "achievements": g.get("bullets", exp.get("A", []))[:CONTENT_BUDGET["max_bullets_pro"]]
                 })
 
-        # Formattage skills
-        skills_inline = cv_gen.get("skills_inline", "")
-        if skills_inline:
-            grouped_skills = {"Compétences": [{"name": s.strip()} for s in skills_inline.split("·")]}
-        else:
-            grouped_skills = {
-                "Hard Skills": [{"name": s["name"]} for s in context["skills"]["hard_skills"][:8]],
-                "Domaines": [{"name": s} for s in context["skills"]["domain_knowledge"][:6]]
-            }
+        # Projets (Pool B)
+        final_projs = []
+        gen_projs = {p["id"]: p for p in cv_gen.get("projects", [])}
+        for p in context.get("ranked_projects", []):
+            pid = p.get("id")
+            if pid in gen_projs:
+                g = gen_projs[pid]
+                final_projs.append({
+                    "name": g.get("rewritten_title", p.get("title")),
+                    "description": g.get("one_line_description", p.get("D", "")),
+                    "keywords": g.get("keywords_inline", " · ".join(p.get("K", [])))
+                })
 
         return {
             "identity": context["personal_info"],
             "headline": cv_gen.get("headline", {}).get("value", context["target_profile"]["headline"]),
             "summary": cv_gen.get("summary", {}).get("value", context["target_profile"]["summary"]),
             "experiences": final_exps,
-            "grouped_skills": grouped_skills,
-            "education": [
-                {
-                    "degree": edu.get("degree"),
-                    "school": edu.get("institution"),
-                    "year": edu.get("period"),
-                    "details": edu.get("specialization", "")
-                } for edu in context["education"]
-            ][:2], # Max 2 formations pour l'espace
-            "languages": [
-                {"name": l["language"], "level": l["level"]} for l in context["personal_info"].get("languages", [])
-            ],
-            "projects": []
+            "projects": final_projs,
+            "grouped_skills": {"Compétences": [{"name": s.strip()} for s in cv_gen.get("skills_inline", "").split("·")]} if cv_gen.get("skills_inline") else {},
+            "education": [{"degree": e.get("degree"), "school": e.get("institution"), "year": e.get("period"), "details": e.get("specialization", "")} for e in context["education"]][:2],
+            "languages": [{"name": l["language"], "level": l["level"]} for l in context["personal_info"].get("languages", [])]
         }
 
     def _assemble_fallback_data(self, context: Dict, job: Dict) -> Dict:
         return self._assemble_final_data({"cv": {}}, context)
 
-    def _normalize_job(self, job: Dict[str, Any]) -> Dict[str, Any]:
-        return {
-            "title": str(job.get("title", "Ingénieur")).strip(),
-            "company": str(job.get("company", "Entreprise")).strip(),
-            "description": str(job.get("description", "")).strip(),
-            "url": job.get("url", "")
-        }
+    def _normalize_job(self, job: Dict) -> Dict:
+        return {"title": str(job.get("title", "Ingénieur")), "company": str(job.get("company", "Entreprise")), "description": str(job.get("description", "")), "url": job.get("url", "")}
 
     def _slugify(self, value: str) -> str:
-        slug = value.lower().replace(" ", "_")
-        slug = re.sub(r"[^a-z0-9_]", "", slug)
-        return slug or "cv"
+        return re.sub(r"[^a-z0-9_]", "", value.lower().replace(" ", "_")) or "cv"
