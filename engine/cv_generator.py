@@ -23,7 +23,7 @@ DEFAULT_OUTPUT_DIR = Path("vault/resumes")
 # ============================================
 CONTENT_BUDGET = {
     "max_pro_experiences": 4,     # Densité maximale d'expériences professionnelles
-    "max_projects": 2,            # Minimum garanti pour les projets
+    "max_projects": 2,            # Maximum fixé à 2 (et minimum visé via les configs de shrink)
     "max_bullets_pro": 2,         # 2 bullets max par expérience pro
     "max_bullets_project": 0,     # Projets : format compact (pas de bullets)
     "project_max_desc_chars": 150 # Description courte
