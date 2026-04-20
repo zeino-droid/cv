@@ -29,13 +29,14 @@ FILL_BUDGET = {
     "projects_minimum": 1,
     "skills": 12,
     "skills_minimum": 6,
+    "max_bullets_pro": 2,
 }
 
 CONTENT_BUDGET = {
-    "max_bullets_pro": 2,
     "max_bullets_project": 0,
     "project_max_desc_chars": 150,
 }
+BASE_FONT_SIZE = 9.5
 
 SHRINK_CONFIGS = [
     {
@@ -187,14 +188,16 @@ class PersonalCVGenerator:
         job_kw_set = {str(k).lower() for k in job_keywords}
         profile_project_ids = self._get_profile_project_ids(profile_id, all_experiences)
 
-        for exp in all_experiences:
+        for index, exp in enumerate(all_experiences):
             is_project = self._is_project_experience(exp, profile_project_ids)
             exp_keywords = {str(k).lower() for k in exp.get("K", [])}
             keyword_overlap = len(exp_keywords & job_kw_set)
             score = self.score_experience(exp, profile_id, job_kw_set)
+            entry_id = exp.get("id", f"exp_{index}")
+            exp_data = exp if exp.get("id") else {**exp, "id": entry_id}
             entry = {
-                "id": exp.get("id", f"exp_{len(pro_scored) + len(project_scored)}"),
-                "data": exp,
+                "id": entry_id,
+                "data": exp_data,
                 "score": score,
                 "keyword_overlap": keyword_overlap,
             }
@@ -213,12 +216,14 @@ class PersonalCVGenerator:
             pro_scored,
             FILL_BUDGET["pro_minimum"],
             FILL_BUDGET["pro_experiences"],
+            pool_name="pro_experiences",
         )
         proj_result, proj_backfilled = self._backfill_pool(
             proj_result,
             project_scored,
             FILL_BUDGET["projects_minimum"],
             FILL_BUDGET["projects"],
+            pool_name="projects",
         )
         floor_activated = pro_backfilled or proj_backfilled
 
@@ -237,21 +242,31 @@ class PersonalCVGenerator:
             },
         }
 
-    def _backfill_pool(self, current: List[Dict], all_scored: List[Dict], minimum: int, target: int) -> tuple[List[Dict], bool]:
+    def _backfill_pool(
+        self,
+        current: List[Dict],
+        all_scored: List[Dict],
+        minimum: int,
+        target: int,
+        pool_name: str = "pool",
+    ) -> tuple[List[Dict], bool]:
+        if minimum > target:
+            raise ValueError(
+                f"Configuration error in {pool_name}: minimum ({minimum}) "
+                f"cannot exceed target ({target})"
+            )
         if len(current) >= target:
             return current, False
-        selected_ids = {e.get("id", id(e)) for e in current}
+        selected_ids = {e.get("id") for e in current if e.get("id")}
         remaining = sorted(
             [e for e in all_scored if e["id"] not in selected_ids],
             key=lambda x: (x["score"], x["keyword_overlap"]),
             reverse=True,
         )
-        backfilled = False
-        for candidate in remaining[: target - len(current)]:
+        candidates = remaining[: target - len(current)]
+        backfilled = len(candidates) > 0
+        for candidate in candidates:
             current.append(candidate["data"])
-            backfilled = True
-        if len(current) < minimum:
-            return current, backfilled
         return current, backfilled
 
     def enforce_project_guarantee(self, ranked_content: Dict, all_experiences: List[Dict], profile_id: str = "") -> Dict:
@@ -378,7 +393,7 @@ class PersonalCVGenerator:
 
             # Rendu PDF
             pdf_renderer = self.renderers["pdf"]
-            font_delta = config["font_size"] - SHRINK_CONFIGS[0]["font_size"]
+            font_delta = config["font_size"] - BASE_FONT_SIZE
             pdf_path = pdf_renderer.render(
                 cv_data,
                 output_base,
@@ -403,7 +418,10 @@ class PersonalCVGenerator:
         
         return best_result or {"error": "Échec"}
 
-    def _assemble_final_data(self, llm_output: Dict, context: Dict, max_bullets: int = CONTENT_BUDGET["max_bullets_pro"]) -> Dict:
+    def _assemble_final_data(self, llm_output: Dict, context: Dict, max_bullets: Optional[int] = None) -> Dict:
+        effective_max_bullets = (
+            max_bullets if max_bullets is not None else FILL_BUDGET["max_bullets_pro"]
+        )
         cv_gen = llm_output.get("cv", {})
         
         # Expériences Pro (Pool A)
@@ -421,7 +439,7 @@ class PersonalCVGenerator:
                 "start_date": exp.get("period", "").split("-")[0].strip(),
                 "end_date": exp.get("period", "").split("-")[-1].strip() if "-" in exp.get("period", "") else "",
                 "location": exp.get("location", ""),
-                "achievements": g.get("bullets", fallback_achievements)[:max_bullets],
+                "achievements": g.get("bullets", fallback_achievements)[:effective_max_bullets],
             })
 
         # Projets (Pool B)
@@ -455,7 +473,7 @@ class PersonalCVGenerator:
         }
 
     def _assemble_fallback_data(
-        self, context: Dict, job: Dict, max_bullets: int = CONTENT_BUDGET["max_bullets_pro"]
+        self, context: Dict, job: Dict, max_bullets: Optional[int] = None
     ) -> Dict:
         return self._assemble_final_data({"cv": {}}, context, max_bullets=max_bullets)
 

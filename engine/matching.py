@@ -6,6 +6,17 @@ FILL_BUDGET = {
     "skills": 12,
     "skills_minimum": 6,
 }
+TRANSVERSAL_SKILL_MARKERS = {
+    "python",
+    "matlab",
+    "simulink",
+    "matlab / simulink",
+    "git",
+    "linux",
+    "latex",
+    "automatique",
+    "commande",
+}
 
 
 def _skill_matches_keywords(skill_name: str, keywords: set[str]) -> bool:
@@ -133,7 +144,12 @@ def filter_experiences_by_profile(profile_id: str, profile_index: dict, max_expe
     return filtered[:max_experiences]
 
 def filter_skills_by_profile(profile_id: str, profile_index: dict, selected_experiences: list[dict] | None = None) -> dict:
-    """Sélection des hard skills en 3 couches cumulatives avec floor."""
+    """Sélection des hard skills en 3 couches et applique un floor de remplissage.
+
+    Layer 1: compétences signature liées aux mots-clés du profil.
+    Layer 2: compétences transversales via whitelist.
+    Layer 3: reste trié par niveau (et léger boost contextuel si expérience fournie).
+    """
     taxonomy = profile_index.get("skills_taxonomy", {})
     profile_def = profile_index.get("profiles", {}).get(profile_id, {})
     hard_skills = taxonomy.get("hard_skills", [])
@@ -155,47 +171,37 @@ def filter_skills_by_profile(profile_id: str, profile_index: dict, selected_expe
         )
     ]
 
-    transversal = {
-        "python",
-        "matlab",
-        "simulink",
-        "matlab / simulink",
-        "git",
-        "linux",
-        "latex",
-        "automatique",
-        "commande",
-    }
     l1_names = {str(s.get("name", "")).lower() for s in layer_1}
     layer_2 = [
         s
         for s in hard_skills
-        if str(s.get("name", "")).lower() in transversal
+        if str(s.get("name", "")).lower() in TRANSVERSAL_SKILL_MARKERS
         and str(s.get("name", "")).lower() not in l1_names
     ]
 
-    levels = {"avancé": 3, "intermédiaire": 2, "débutant": 1}
+    skill_level_weights = {"avancé": 3, "intermédiaire": 2, "débutant": 1}
     selected_names = l1_names | {str(s.get("name", "")).lower() for s in layer_2}
     layer_3_pool = [
         s
         for s in hard_skills
         if str(s.get("name", "")).lower() not in selected_names
     ]
+
+    def _layer3_sort_key(skill: dict) -> tuple[int, int]:
+        skill_name_low = str(skill.get("name", "")).lower()
+        level_weight = skill_level_weights.get(str(skill.get("level", "")).lower(), 0)
+        contextual_match = int(
+            any(kw in skill_name_low or skill_name_low in kw for kw in contextual_keywords)
+        )
+        return level_weight, contextual_match
+
     layer_3_pool.sort(
-        key=lambda s: (
-            levels.get(str(s.get("level", "")).lower(), 0),
-            int(
-                any(
-                    kw in str(s.get("name", "")).lower() or str(s.get("name", "")).lower() in kw
-                    for kw in contextual_keywords
-                )
-            ),
-        ),
+        key=_layer3_sort_key,
         reverse=True,
     )
 
     all_layers = _dedupe_skills(layer_1 + layer_2 + layer_3_pool)
-    selected = all_layers[: max(FILL_BUDGET["skills"], FILL_BUDGET["skills_minimum"])]
+    selected = all_layers[: FILL_BUDGET["skills"]]
 
     filtered_skills = {
         "hard_skills": selected,

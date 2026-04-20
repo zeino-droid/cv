@@ -13,6 +13,13 @@ def run_diagnostic(
     profile_id: str = "simulation_rd",
     mock_desc: str = "Ingénieur simulation Abaqus éléments finis flambage Python",
 ) -> None:
+    """Exécute un diagnostic rapide du pipeline de remplissage.
+
+    Le diagnostic est OK si:
+    - pro_count >= 2
+    - project_count >= 1
+    - skills_total >= 6
+    """
     with open(json_path, encoding="utf-8") as f:
         profile_index = json.load(f)
 
