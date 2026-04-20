@@ -1,10 +1,12 @@
 import json
-import subprocess
-from pathlib import Path
-from typing import Dict, Optional, List
-from datetime import datetime
 import re
+import subprocess
 import unicodedata
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Optional
+
+from pypdf import PdfReader
 
 try:
     import typst
@@ -14,10 +16,13 @@ except ImportError:
 DEFAULT_OUTPUT_DIR = Path("vault/resumes")
 TYPST_TEMPLATE_PATH = Path("templates/cv_template.typ")
 
+
 class Renderer:
     """Base class for CV renderers"""
+
     def render(self, cv_data: Dict, output_path: Path, **kwargs) -> Optional[Path]:
         raise NotImplementedError
+
 
 class TypstRenderer(Renderer):
     """Génère des PDFs professionnels via Typst"""
@@ -29,43 +34,56 @@ class TypstRenderer(Renderer):
     def _check_typst(self) -> bool:
         return typst is not None
 
-    def render(self, cv_data: Dict, output_path: Path, **kwargs) -> Optional[Path]:
+    def render(
+        self,
+        cv_data: Dict,
+        output_path: Path,
+        font_size_delta: float = 0.0,
+        leading: float = 0.50,
+        section_gap: float = 5.0,
+        margin_sides: float = 14.0,
+        **kwargs,
+    ) -> Optional[Path]:
         """
         Renders the CV using Typst.
         Supported kwargs:
             font_size_delta (float): Adjust font size globally.
+            leading (float): Paragraph leading in em.
+            section_gap (float): Section spacing in pt.
+            margin_sides (float): Right margin in pt.
         """
         if not self.available or not self.template_path.exists():
             return None
-        
-        font_size_delta = kwargs.get("font_size_delta", 0.0)
-        
+
         template_dir = self.template_path.resolve().parent
         data_path = template_dir / "_cv_data.json"
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         with open(data_path, "w", encoding="utf-8") as f:
             json.dump(cv_data, f, ensure_ascii=False, indent=2)
-            
+
         try:
             if typst is None:
                 raise ImportError("Le module python 'typst' n'est pas installé.")
-            
+
             pdf_path = output_path.with_suffix(".pdf")
-            
+
             # On passe tout en chemins absolus pour éviter les doutes
             template_abs = str(self.template_path.resolve())
             pdf_abs = str(pdf_path.resolve())
             root_abs = str(template_dir.resolve())
-            
+
             typst.compile(
-                template_abs, 
+                template_abs,
                 output=pdf_abs,
                 root=root_abs,
                 sys_inputs={
                     "data-path": "_cv_data.json",
-                    "font-size-delta": str(font_size_delta)
-                }
+                    "font-size-delta": f"{font_size_delta:.2f}",
+                    "leading": f"{leading:.2f}",
+                    "section-gap": f"{section_gap:.1f}",
+                    "margin-sides": f"{margin_sides:.1f}",
+                },
             )
             return pdf_path
         except Exception as e:
@@ -79,14 +97,24 @@ class TypstRenderer(Renderer):
     def get_page_count(self, pdf_path: Path) -> int:
         """Détecte le nombre de pages du PDF généré."""
         try:
-            # Utilise pdfinfo de poppler-utils (pré-installé dans le sandbox)
-            result = subprocess.run(["pdfinfo", str(pdf_path)], capture_output=True, text=True)
+            # Utilise pdfinfo de poppler-utils si disponible
+            result = subprocess.run(
+                ["pdfinfo", str(pdf_path)], capture_output=True, text=True
+            )
             for line in result.stdout.splitlines():
                 if line.startswith("Pages:"):
                     return int(line.split(":")[1].strip())
         except Exception as e:
-            print(f"   ⚠️ Erreur détection pages: {e}")
+            print(f"   ⚠️ Erreur détection pages (pdfinfo): {e}")
+
+        try:
+            reader = PdfReader(str(pdf_path))
+            return len(reader.pages)
+        except Exception as e:
+            print(f"   ⚠️ Erreur détection pages (pypdf): {e}")
+
         return 1
+
 
 class MarkdownRenderer(Renderer):
     """Rend le CV en Markdown"""
@@ -95,14 +123,18 @@ class MarkdownRenderer(Renderer):
         identity = cv_data["identity"]
         output_path.parent.mkdir(parents=True, exist_ok=True)
         md = f"# {identity['name']}\n\n**{cv_data.get('headline', '')}**\n\n"
-        
+
         # Contact Line
-        contacts = [identity.get(k) for k in ["email", "phone", "location", "linkedin"] if identity.get(k)]
+        contacts = [
+            identity.get(k)
+            for k in ["email", "phone", "location", "linkedin"]
+            if identity.get(k)
+        ]
         md += " | ".join(contacts) + "\n\n"
-        
+
         # Summary
         md += f"## Résumé Professionnel\n\n{cv_data.get('summary', '')}\n\n"
-        
+
         # Compétences
         md += "## Compétences Clés\n\n"
         grouped = cv_data.get("grouped_skills", {})
@@ -110,7 +142,7 @@ class MarkdownRenderer(Renderer):
             if skills:
                 names = [s["name"] for s in skills]
                 md += f"**{cat}:** {', '.join(names)}\n\n"
-        
+
         # Expériences
         md += "## Expériences Professionnelles\n\n"
         for exp in cv_data.get("experiences", []):
@@ -119,7 +151,7 @@ class MarkdownRenderer(Renderer):
             for ach in exp.get("achievements", []):
                 md += f"{ach if ach.startswith('•') else '• ' + ach}\n"
             md += "\n"
-        
+
         # Formation
         md += "## Formation\n\n"
         for edu in cv_data.get("education", []):
@@ -131,18 +163,31 @@ class MarkdownRenderer(Renderer):
             f.write(md)
         return md_path
 
+
 class LatexRenderer(Renderer):
     """Rend le CV en LaTeX (ModernCV)"""
 
     def render(self, cv_data: Dict, output_path: Path, **kwargs) -> Optional[Path]:
         # Escape helper
         def esc(t):
-            conv = {'&': r'\&', '%': r'\%', '$': r'\$', '#': r'\#', '_': r'\_', '{': r'\{', '}': r'\}'}
-            return re.sub('|'.join(re.escape(k) for k in conv.keys()), lambda m: conv[m.group()], str(t))
+            conv = {
+                "&": r"\&",
+                "%": r"\%",
+                "$": r"\$",
+                "#": r"\#",
+                "_": r"\_",
+                "{": r"\{",
+                "}": r"\}",
+            }
+            return re.sub(
+                "|".join(re.escape(k) for k in conv.keys()),
+                lambda m: conv[m.group()],
+                str(t),
+            )
 
         identity = cv_data["identity"]
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        names = identity['name'].split()
+        names = identity["name"].split()
         tex = r"\documentclass[11pt,a4paper,sans]{moderncv}" + "\n"
         tex += r"\moderncvstyle{classic}" + "\n\\moderncvcolor{blue}\n"
         tex += r"\usepackage[utf8]{inputenc}" + "\n"
@@ -152,9 +197,9 @@ class LatexRenderer(Renderer):
         tex += f"\\phone{{{esc(identity.get('phone', ''))}}}\n"
         tex += f"\\email{{{esc(identity.get('email', ''))}}}\n\n"
         tex += "\\begin{document}\n\\makecvtitle\n\n"
-        
+
         tex += f"\\section{{Résumé}}\n{esc(cv_data.get('summary', ''))}\n\n"
-        
+
         tex += "\\section{Expériences}\n"
         for exp in cv_data.get("experiences", []):
             tex += f"\\cventry{{{esc(exp.get('start_date'))}}}{{{esc(exp.get('position'))}}}"
@@ -164,7 +209,7 @@ class LatexRenderer(Renderer):
             tex += "\\end{itemize}\n}\n"
 
         tex += "\n\\end{document}\n"
-        
+
         tex_path = output_path.with_suffix(".tex")
         with open(tex_path, "w", encoding="utf-8") as f:
             f.write(tex)

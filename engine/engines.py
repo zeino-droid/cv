@@ -1,6 +1,6 @@
+import json
 import os
 import subprocess
-import json
 from typing import Optional
 
 # Configuration
@@ -11,12 +11,16 @@ OLLAMA_FALLBACK_MODELS = [
     "llama3.2:3b",
 ]
 
+
 class LLMEngine:
     """Base class for LLM engines"""
+
     def is_ready(self) -> bool:
         raise NotImplementedError
+
     async def generate(self, prompt: str, temperature: float = 0.3) -> Optional[str]:
         raise NotImplementedError
+
 
 class OllamaEngine(LLMEngine):
     """Interface avec Ollama pour la rédaction IA locale"""
@@ -30,8 +34,7 @@ class OllamaEngine(LLMEngine):
         """Détecte si Ollama est disponible et quel modèle utiliser"""
         try:
             result = subprocess.run(
-                ["ollama", "list"],
-                capture_output=True, text=True, timeout=5
+                ["ollama", "list"], capture_output=True, text=True, timeout=5
             )
             if result.returncode == 0:
                 installed_models = result.stdout.lower()
@@ -57,22 +60,41 @@ class OllamaEngine(LLMEngine):
         try:
             try:
                 import ollama as ollama_lib
+
                 response = ollama_lib.generate(
                     model=self.model,
                     prompt=prompt,
-                    options={"temperature": temperature, "top_p": 0.9, "num_predict": 2048}
+                    options={
+                        "temperature": temperature,
+                        "top_p": 0.9,
+                        "num_predict": 2048,
+                    },
                 )
                 return response.get("response", "")
             except ImportError:
-                payload = json.dumps({
-                    "model": self.model,
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": {"temperature": temperature, "top_p": 0.9, "num_predict": 2048}
-                })
+                payload = json.dumps(
+                    {
+                        "model": self.model,
+                        "prompt": prompt,
+                        "stream": False,
+                        "options": {
+                            "temperature": temperature,
+                            "top_p": 0.9,
+                            "num_predict": 2048,
+                        },
+                    }
+                )
                 result = subprocess.run(
-                    ["curl", "-s", "http://localhost:11434/api/generate", "-d", payload],
-                    capture_output=True, text=True, timeout=120
+                    [
+                        "curl",
+                        "-s",
+                        "http://localhost:11434/api/generate",
+                        "-d",
+                        payload,
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
                 )
                 if result.returncode == 0:
                     try:
@@ -97,6 +119,7 @@ class OllamaEngine(LLMEngine):
             print(f"   ❌ Erreur: {e}")
         return False
 
+
 class MLXEngine(LLMEngine):
     """Interface avec mlx-lm pour Apple Silicon"""
 
@@ -110,6 +133,7 @@ class MLXEngine(LLMEngine):
     def _detect(self):
         try:
             import mlx_lm
+
             self.available = True
         except ImportError:
             self.available = False
@@ -119,6 +143,7 @@ class MLXEngine(LLMEngine):
             return True
         try:
             from mlx_lm import load
+
             print(f"   📥 Chargement MLX ({self.model_name})...")
             self.model, self.tokenizer = load(self.model_name)
             return True
@@ -135,50 +160,62 @@ class MLXEngine(LLMEngine):
         try:
             from mlx_lm import generate as mlx_generate
             from mlx_lm.sample_utils import make_sampler
+
             formatted_prompt = f"[INST] {prompt} [/INST]"
             sampler = make_sampler(temp=temperature, top_p=0.9)
-            result = mlx_generate(self.model, self.tokenizer, prompt=formatted_prompt, max_tokens=1024, sampler=sampler)
+            result = mlx_generate(
+                self.model,
+                self.tokenizer,
+                prompt=formatted_prompt,
+                max_tokens=1024,
+                sampler=sampler,
+            )
             return result.strip()
         except (ImportError, OSError, RuntimeError, ValueError) as e:
             print(f"   ⚠️  Erreur MLX: {e}")
             return None
 
+
 class GeminiEngine(LLMEngine):
     """Interface avec Google Gemini via l'API (Cloud Native)"""
+
     def __init__(self, api_key: str = None, model_name: str = "gemini-flash-latest"):
         self.model_name = model_name
         self.api_key = api_key or os.environ.get("GEMINI_API_KEY")
         self.available = False
-        self.model = None
+        self.client = None
+        self.genai = None
         self._detect()
 
     def _detect(self):
         try:
-            import google.generativeai as genai
+            from google import genai
+
             if self.api_key:
-                genai.configure(api_key=self.api_key)
-                self.model = genai.GenerativeModel(self.model_name)
+                self.genai = genai
+                self.client = genai.Client(api_key=self.api_key)
                 self.available = True
         except ImportError:
             self.available = False
 
     def is_ready(self) -> bool:
-        return self.available and self.model is not None
+        return self.available and self.client is not None
 
     async def generate(self, prompt: str, temperature: float = 0.3) -> Optional[str]:
         if not self.is_ready():
             return None
         try:
-            import google.generativeai as genai
-            response = self.model.generate_content(
-                prompt,
-                generation_config=genai.types.GenerationConfig(
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt,
+                config=self.genai.types.GenerateContentConfig(
                     temperature=temperature,
                     top_p=0.9,
                     max_output_tokens=2048,
-                )
+                ),
             )
-            return response.text.strip()
+            text = getattr(response, "text", None)
+            return text.strip() if text else None
         except Exception as e:
             print(f"   ⚠️  Erreur Gemini: {e}")
             return None

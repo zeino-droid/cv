@@ -1,12 +1,13 @@
 {
-  "personal_info": {
-    "name": "Zein ELAJAMY",
-    "email": "zeinfrance4@gmail.com",
-    "phone": "+33 7 54 45 47 42",
-    "location": "France (mobilité nationale)",
-    "linkedin": "https://www.linkedin.com/in/zein-elajamy",
-    "github": "",
-    "current_status": {
+   "personal_info": {
+     "name": "Zein ELAJAMY",
+     "email": "zeinfrance4@gmail.com",
+     "phone": "+33 7 54 45 47 42",
+     "location": "France (mobilité nationale)",
+     "linkedin": "https://www.linkedin.com/in/zein-elajamy",
+     "github": "",
+     "hobbies": ["Basketball (compétition)", "Lecture technique", "Hackathons", "Voyages"],
+     "current_status": {
       "value": "Élève-ingénieur ENSEM (3A) en apprentissage chez ArcelorMittal R&D",
       "hidden": true,
       "inject_in_prompt": false
@@ -24,7 +25,7 @@
       "degree": "Diplôme d'Ingénieur",
       "institution": "ENSEM (École Nationale Supérieure d'Électricité et de Mécanique)",
       "period": "2023 - 2026",
-      "specialization": "Énergie & Systèmes (FISA)",
+      "specialization": "Énergie & Systèmes (FISA) — Modules clés : Simulations Numériques (Abaqus/Fluent), Thermomécanique, Smart Grids, Automatique & Commande.",
       "curriculum_highlights": {
         "S5_S6": [
           "Bases de la Mécanique des Milieux Continus (MMC)",
