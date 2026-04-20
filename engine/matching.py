@@ -6,6 +6,8 @@ CONTENT_BUDGET = {
     "skills": {"target": 12, "minimum": 6},
 }
 
+TRANSVERSE_SKILL_MARKERS = {"python", "matlab", "simulink"}
+
 
 def _skill_matches_keywords(skill_name: str, keywords: set[str]) -> bool:
     return any(kw in skill_name or skill_name in kw for kw in keywords if kw)
@@ -143,8 +145,6 @@ def filter_skills_by_profile(profile_id: str, profile_index: dict, selected_expe
     for exp in selected_experiences:
         contextual_keywords.update(str(k).lower() for k in exp.get("K", []))
 
-    transverse_markers = {"python", "matlab", "simulink"}
-
     layer_1 = []
     layer_2 = []
     layer_3 = []
@@ -154,7 +154,7 @@ def filter_skills_by_profile(profile_id: str, profile_index: dict, selected_expe
 
         if _skill_matches_keywords(skill_name, target_keywords):
             layer_1.append(skill)
-        elif "all" in tags or any(marker in skill_name for marker in transverse_markers):
+        elif "all" in tags or any(marker in skill_name for marker in TRANSVERSE_SKILL_MARKERS):
             layer_2.append(skill)
         elif _skill_matches_keywords(skill_name, contextual_keywords):
             layer_3.append(skill)

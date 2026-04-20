@@ -38,6 +38,12 @@ SHRINK_CONFIGS = [
     {"attempt": 4, "call_llm": True, "font_delta": -0.5, "max_pro": 3, "max_proj": 1},
 ]
 
+SCORE_PROFILE_WITH_KW = 4
+SCORE_PROFILE_ONLY = 3
+SCORE_ALL_WITH_KW = 2
+SCORE_ALL_ONLY = 1
+SCORE_OUT_OF_SCOPE = 0
+
 class PersonalCVGenerator:
     """Orchestrateur central du Cerveau avec garantie One-Page et Projets."""
 
@@ -126,15 +132,15 @@ class PersonalCVGenerator:
             keyword_overlap = len(exp_keywords & job_kw_set)
 
             if profile_id in tags_lower and keyword_overlap > 0:
-                score = 4
+                score = SCORE_PROFILE_WITH_KW
             elif profile_id in tags_lower:
-                score = 3
+                score = SCORE_PROFILE_ONLY
             elif "all" in tags_lower and keyword_overlap > 0:
-                score = 2
+                score = SCORE_ALL_WITH_KW
             elif "all" in tags_lower:
-                score = 1
+                score = SCORE_ALL_ONLY
             else:
-                score = 0
+                score = SCORE_OUT_OF_SCOPE
 
             entry = {"data": exp, "score": score, "keyword_overlap": keyword_overlap}
             if is_project:
@@ -146,10 +152,10 @@ class PersonalCVGenerator:
         project_scored.sort(key=lambda x: (x["score"], x["keyword_overlap"]), reverse=True)
 
         pro_selected = [
-            e["data"] for e in pro_scored if e["score"] > 0
+            e["data"] for e in pro_scored if e["score"] > SCORE_OUT_OF_SCOPE
         ][: CONTENT_BUDGET["pro_experiences"]["target"]]
         proj_selected = [
-            e["data"] for e in project_scored if e["score"] > 0
+            e["data"] for e in project_scored if e["score"] > SCORE_OUT_OF_SCOPE
         ][: CONTENT_BUDGET["projects"]["target"]]
 
         pro_with_floor = self._apply_floor(
@@ -172,7 +178,7 @@ class PersonalCVGenerator:
         """Complète avec exclus (score 0) s'il manque du contenu."""
         if len(result) >= minimum:
             return result
-        excluded = [e for e in all_scored if e["score"] == 0]
+        excluded = [e for e in all_scored if e["score"] == SCORE_OUT_OF_SCOPE]
         excluded.sort(key=lambda x: x["keyword_overlap"], reverse=True)
         needed = minimum - len(result)
         return result + [e["data"] for e in excluded[:needed]]
