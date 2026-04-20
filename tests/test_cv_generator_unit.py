@@ -67,6 +67,18 @@ def test_normalize_job_defaults(generator):
     }
 
 
+def test_normalize_job_casts_and_keeps_passed_values(generator):
+    normalized = generator._normalize_job(
+        {"title": "  Data  ", "company": 123, "description": " desc ", "url": None}
+    )
+    assert normalized == {
+        "title": "  Data  ",
+        "company": "123",
+        "description": " desc ",
+        "url": None,
+    }
+
+
 def test_slugify_normalizes_and_fallbacks(generator):
     assert generator._slugify("Data Engineer @ ACME!") == "data_engineer__acme"
     assert generator._slugify("!!!") == "cv"
@@ -148,3 +160,16 @@ def test_assemble_final_data_maps_llm_output_and_falls_back_to_context(generator
     assert data["projects"][0]["name"] == "Proj LLM"
     assert data["projects"][0]["keywords"] == "Python · CFD"
     assert data["languages"] == [{"name": "Français", "level": "Natif"}]
+
+
+def test_assemble_final_data_does_not_mutate_input_context(generator):
+    context = {
+        "personal_info": {"name": "Zein", "languages": []},
+        "target_profile": {"headline": "Fallback Headline", "summary": "Fallback Summary"},
+        "experiences": [{"id": "exp-1", "title": "Ingénieur", "company": "ACME", "period": "2022 - 2024", "A": ["A1", "A2"]}],
+        "ranked_projects": [{"id": "proj-1", "title": "Proj", "D": "Desc", "K": ["Python"]}],
+        "education": [],
+    }
+    before = json.loads(json.dumps(context))
+    generator._assemble_final_data({"cv": {"experiences": [{"id": "exp-1", "bullets": ["B1", "B2"]}]}}, context)
+    assert context == before
