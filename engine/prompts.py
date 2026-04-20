@@ -1,6 +1,6 @@
 import json
 import re
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from .matching import get_safe_personal_info
 
 # ============================================
@@ -55,7 +55,7 @@ DEFAULT_CONTENT_CONFIG = {
 }
 
 
-def build_one_page_constraints(content_config: dict | None = None) -> str:
+def build_one_page_constraints(content_config: Optional[Dict] = None) -> str:
     config = {**DEFAULT_CONTENT_CONFIG, **(content_config or {})}
     return f"""
 [CONTRAINTES STRICTES — ONE PAGE — NON NÉGOCIABLES]
@@ -85,7 +85,7 @@ HEADLINE:
 """
 
 
-def build_candidate_context(profile_id: str, profile_index: dict, filtered_experiences: list[dict], filtered_skills: dict) -> dict:
+def build_candidate_context(profile_id: str, profile_index: Dict, filtered_experiences: List[Dict], filtered_skills: Dict) -> Dict:
     """Prépare le contexte candidat pour le prompt."""
     personal_info = get_safe_personal_info(profile_index.get("personal_info", {}))
     profile_def = profile_index.get("profiles", {}).get(profile_id, {})
@@ -103,7 +103,7 @@ def build_candidate_context(profile_id: str, profile_index: dict, filtered_exper
     }
     return context
 
-def build_generation_prompt(job_offer: dict, candidate_context: dict, profile_id: str, content_config: dict | None = None) -> dict:
+def build_generation_prompt(job_offer: Dict, candidate_context: Dict, profile_id: str, content_config: Optional[Dict] = None) -> Dict:
     """Génère un dictionnaire structuré qui servira de prompt unique avec contraintes One-Page V2."""
     content_cfg = {**DEFAULT_CONTENT_CONFIG, **(content_config or {})}
     prompt_dict = {
@@ -148,9 +148,9 @@ def build_generation_prompt(job_offer: dict, candidate_context: dict, profile_id
     }
     return prompt_dict
 
-def validate_llm_output_constraints(cv_data: dict) -> dict:
+def validate_llm_output_constraints(cv_data: Dict, content_config: Optional[Dict] = None) -> Dict:
     """Valide et corrige les violations de contraintes One-Page V2."""
-    cfg = DEFAULT_CONTENT_CONFIG
+    cfg = {**DEFAULT_CONTENT_CONFIG, **(content_config or {})}
     violations = []
     if "cv" not in cv_data:
         return {"cv_data": cv_data, "violations": ["Missing 'cv' key"], "had_violations": True}
@@ -239,7 +239,7 @@ def _truncate_at_word(text: str, max_chars: int) -> str:
     truncated = text[:max_chars].rsplit(' ', 1)[0]
     return truncated + "…"
 
-def post_process_llm_output(raw_output: dict) -> dict:
+def post_process_llm_output(raw_output: Dict, content_config: Optional[Dict] = None) -> Dict:
     """Nettoie les mots interdits et valide les contraintes."""
     forbidden_words = ["apprenti", "étudiant", "élève", "apprentissage", "etudiant", "eleve"]
     
@@ -260,4 +260,4 @@ def post_process_llm_output(raw_output: dict) -> dict:
         return text
 
     cleaned_output = clean_text(raw_output)
-    return validate_llm_output_constraints(cleaned_output)
+    return validate_llm_output_constraints(cleaned_output, content_config=content_config)

@@ -1,5 +1,5 @@
 import json
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Tuple, Any, Optional
 from pathlib import Path
 
 FILL_BUDGET = {
@@ -143,7 +143,7 @@ def filter_experiences_by_profile(profile_id: str, profile_index: dict, max_expe
             
     return filtered[:max_experiences]
 
-def filter_skills_by_profile(profile_id: str, profile_index: dict, selected_experiences: list[dict] | None = None) -> dict:
+def filter_skills_by_profile(profile_id: str, profile_index: dict, selected_experiences: Optional[List[Dict]] = None) -> dict:
     """Sélection des hard skills en 3 couches et applique un floor de remplissage.
 
     Layer 1: compétences signature liées aux mots-clés du profil.

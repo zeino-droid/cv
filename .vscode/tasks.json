@@ -5,9 +5,7 @@
       "label": "setup-env",
       "type": "shell",
       "command": "bash",
-      "args": [
-        "setup.sh"
-      ],
+      "args": ["setup.sh"],
       "cwd": "${workspaceFolder}",
       "presentation": {
         "reveal": "always",
@@ -19,13 +17,7 @@
       "label": "Python: Install Dependencies",
       "type": "shell",
       "command": "${command:python.interpreterPath}",
-      "args": [
-        "-m",
-        "pip",
-        "install",
-        "-r",
-        "requirements.txt"
-      ],
+      "args": ["-m", "pip", "install", "-r", "requirements.txt"],
       "cwd": "${workspaceFolder}",
       "presentation": {
         "reveal": "always",
@@ -36,9 +28,7 @@
       "label": "Python: Run Main Script",
       "type": "shell",
       "command": "${command:python.interpreterPath}",
-      "args": [
-        "main.py"
-      ],
+      "args": ["main.py"],
       "cwd": "${workspaceFolder}",
       "presentation": {
         "reveal": "always",
@@ -50,21 +40,13 @@
       "label": "Python: Run Tests",
       "type": "shell",
       "command": "${command:python.interpreterPath}",
-      "args": [
-        "-m",
-        "pytest",
-        "tests/",
-        "-v",
-        "-s"
-      ],
+      "args": ["-m", "pytest", "tests/", "-v", "-s"],
       "cwd": "${workspaceFolder}",
       "presentation": {
         "reveal": "always",
         "panel": "new"
       },
-      "problemMatcher": [
-        "$pytest"
-      ]
+      "problemMatcher": ["$pytest"]
     },
     {
       "label": "FastAPI: Start Server",
@@ -104,9 +86,7 @@
       "label": "Node: Install Dependencies",
       "type": "shell",
       "command": "npm",
-      "args": [
-        "install"
-      ],
+      "args": ["install"],
       "cwd": "${workspaceFolder}/apps/web",
       "presentation": {
         "reveal": "always",
@@ -117,10 +97,7 @@
       "label": "Node: Web Dev Server",
       "type": "shell",
       "command": "npm",
-      "args": [
-        "run",
-        "dev"
-      ],
+      "args": ["run", "dev"],
       "cwd": "${workspaceFolder}/apps/web",
       "presentation": {
         "reveal": "always",
@@ -142,10 +119,7 @@
       "label": "Node: Build Web App",
       "type": "shell",
       "command": "npm",
-      "args": [
-        "run",
-        "build"
-      ],
+      "args": ["run", "build"],
       "cwd": "${workspaceFolder}/apps/web",
       "presentation": {
         "reveal": "always",
@@ -160,22 +134,14 @@
       "label": "Docker: Full Stack Up",
       "type": "shell",
       "command": "bash",
-      "args": [
-        "scripts/dev/fullstack.sh"
-      ],
+      "args": ["scripts/dev/fullstack.sh"],
       "cwd": "${workspaceFolder}",
       "presentation": {
         "reveal": "always",
         "panel": "new"
       },
       "isBackground": true,
-      "problemMatcher": {
-        "background": {
-          "activeOnStart": true,
-          "beginsPattern": "^.*$",
-          "endsPattern": "^.*$"
-        }
-      }
+      "problemMatcher": []
     },
     {
       "label": "Docker: Full Stack Down",
@@ -195,31 +161,19 @@
       "label": "Lint: Python (Ruff)",
       "type": "shell",
       "command": "${command:python.interpreterPath}",
-      "args": [
-        "-m",
-        "ruff",
-        "check",
-        "."
-      ],
+      "args": ["-m", "ruff", "check", "."],
       "cwd": "${workspaceFolder}",
       "presentation": {
         "reveal": "always",
         "panel": "new"
       },
-      "problemMatcher": [
-        "$ruff"
-      ]
+      "problemMatcher": ["$ruff"]
     },
     {
       "label": "Format: Python (Black)",
       "type": "shell",
       "command": "${command:python.interpreterPath}",
-      "args": [
-        "-m",
-        "black",
-        ".",
-        "--line-length=100"
-      ],
+      "args": ["-m", "black", ".", "--line-length=100"],
       "cwd": "${workspaceFolder}",
       "presentation": {
         "reveal": "always",
@@ -230,10 +184,7 @@
       "label": "Format: Web (Prettier)",
       "type": "shell",
       "command": "npm",
-      "args": [
-        "run",
-        "format"
-      ],
+      "args": ["run", "format"],
       "cwd": "${workspaceFolder}/apps/web",
       "presentation": {
         "reveal": "always",

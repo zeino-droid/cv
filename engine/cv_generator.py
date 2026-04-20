@@ -312,6 +312,7 @@ class PersonalCVGenerator:
         best_result = None
         cached_cv_data = None
         llm_calls = 0
+        cached_llm_result = None
         slug = self._slugify(f"{job_data.get('company', 'job')}_{job_data.get('title', 'title')}")
         output_base = DEFAULT_OUTPUT_DIR / f"cv_{slug}_{datetime.now().strftime('%Y%m%d_%H%M')}"
 
@@ -350,9 +351,10 @@ class PersonalCVGenerator:
                 try:
                     clean_json = re.sub(r"```json\s*|\s*```", "", response_str).strip()
                     llm_output = json.loads(clean_json)
-                    validation = prompts.post_process_llm_output(llm_output)
+                    validation = prompts.post_process_llm_output(llm_output, content_config=prompt_content_cfg)
+                    cached_llm_result = validation["cv_data"]
                     cv_data = self._assemble_final_data(
-                        validation["cv_data"],
+                        cached_llm_result,
                         candidate_context,
                         max_bullets=config["max_bullets"],
                     )
@@ -364,6 +366,14 @@ class PersonalCVGenerator:
                         max_bullets=config["max_bullets"],
                     )
                 cached_cv_data = copy.deepcopy(cv_data)
+            elif cached_llm_result is not None:
+                # Re-assemblage intelligent à partir de la sortie LLM déjà validée
+                # mais avec les nouvelles contraintes de troncature (max_bullets)
+                cv_data = self._assemble_final_data(
+                    cached_llm_result,
+                    candidate_context,
+                    max_bullets=config["max_bullets"],
+                )
             elif cached_cv_data is not None:
                 cv_data = copy.deepcopy(cached_cv_data)
             else:
@@ -430,9 +440,14 @@ class PersonalCVGenerator:
         for exp in context["experiences"]:
             eid = exp.get("id")
             g = gen_exps.get(eid, {})
+            
+            # Gestion intelligente du Fallback pour STAR-K (A est souvent un bloc de texte)
             fallback_achievements = exp.get("A", [])
             if isinstance(fallback_achievements, str):
-                fallback_achievements = [fallback_achievements]
+                # Découper le bloc de texte en phrases si c'est un paragraphe unique
+                sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', fallback_achievements) if len(s.strip()) > 10]
+                fallback_achievements = sentences if len(sentences) > 1 else [fallback_achievements]
+                
             final_exps.append({
                 "position": g.get("rewritten_title", exp.get("title")),
                 "company": exp.get("company"),
