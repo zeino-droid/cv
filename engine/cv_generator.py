@@ -80,14 +80,37 @@ class PersonalCVGenerator:
         print(f"   📄 Typst:  {'✅ Actif' if self.renderers['pdf'].available else '❌ Manquant'}")
         print(f"   {'=' * 40}")
 
+    def _get_profile_project_ids(self, profile_id: str, all_experiences: List[Dict]) -> set[str]:
+        """Détecte les IDs de projets liés au profil (priorités + type projet)."""
+        profile_def = self.master_profile.get("profiles", {}).get(profile_id, {})
+        priority_ids = set(profile_def.get("priority_experiences", []))
+        by_id = {exp.get("id"): exp for exp in all_experiences if exp.get("id")}
+        return {
+            exp_id
+            for exp_id in priority_ids
+            if exp_id in by_id and by_id[exp_id].get("type") == "academic_project"
+        }
+
+    def _is_project_experience(self, exp: Dict, profile_project_ids: set[str]) -> bool:
+        """Détermine si une entrée doit être traitée comme projet académique."""
+        exp_id = exp.get("id", "")
+        tags = [str(t).lower() for t in exp.get("profiles_tags", [])]
+        project_tag_markers = {"project", "projects", "projet", "projets", "academic_project"}
+        return (
+            exp.get("type") == "academic_project"
+            or exp_id in profile_project_ids
+            or any(t in project_tag_markers for t in tags)
+        )
+
     def rank_experiences_for_profile(self, all_experiences: List[Dict], profile_id: str, job_keywords: List[str]) -> Dict:
         """Sépare les expériences en 2 pools distincts : Pro et Projets."""
         pro_pool = []
         project_pool = []
         job_kw_set = set(k.lower() for k in job_keywords)
+        profile_project_ids = self._get_profile_project_ids(profile_id, all_experiences)
 
         for exp in all_experiences:
-            is_project = (exp.get("type") == "academic_project")
+            is_project = self._is_project_experience(exp, profile_project_ids)
             tags = exp.get("profiles_tags", [])
             exp_keywords = set(k.lower() for k in exp.get("K", []))
             keyword_overlap = len(exp_keywords & job_kw_set)
@@ -117,14 +140,15 @@ class PersonalCVGenerator:
             "projects": [e["data"] for e in project_pool[:CONTENT_BUDGET["max_projects"]]]
         }
 
-    def enforce_project_guarantee(self, ranked_content: Dict, all_experiences: List[Dict]) -> Dict:
+    def enforce_project_guarantee(self, ranked_content: Dict, all_experiences: List[Dict], profile_id: str) -> Dict:
         """Garantit qu'au moins un projet est présent."""
         if len(ranked_content["projects"]) > 0:
             return ranked_content
 
+        profile_project_ids = self._get_profile_project_ids(profile_id, all_experiences)
         fallback_projects = []
         for exp in all_experiences:
-            if exp.get("type") == "academic_project":
+            if self._is_project_experience(exp, profile_project_ids):
                 fallback_projects.append(exp)
 
         if fallback_projects:
@@ -134,8 +158,8 @@ class PersonalCVGenerator:
                 return int(match.group()) if match else 0
             
             fallback_projects.sort(key=lambda x: _parse_period(x.get("period", "")), reverse=True)
-            ranked_content["projects"] = [fallback_projects[0]]
-            print(f"      ⚠️ Fallback Projet utilisé : {fallback_projects[0].get('title')}")
+            ranked_content["projects"] = fallback_projects[:CONTENT_BUDGET["max_projects"]]
+            print(f"      ⚠️ Fallback Projet(s) utilisé(s) : {len(ranked_content['projects'])}")
 
         return ranked_content
 
@@ -149,9 +173,9 @@ class PersonalCVGenerator:
         print(f"      → Profil cible : {profile_id.upper()} (Score: {match_score})")
 
         # 2. Classement et Pools
-        all_exps = self.master_profile.get("experiences", [])
+        all_exps = self.master_profile.get("experience_stark") or self.master_profile.get("experiences", [])
         ranked_content = self.rank_experiences_for_profile(all_exps, profile_id, job_keywords)
-        ranked_content = self.enforce_project_guarantee(ranked_content, all_exps)
+        ranked_content = self.enforce_project_guarantee(ranked_content, all_exps, profile_id)
 
         # 3. SHRINK LOOP (Phase 4)
         shrink_configs = [
@@ -214,29 +238,30 @@ class PersonalCVGenerator:
         gen_exps = {exp["id"]: exp for exp in cv_gen.get("experiences", [])}
         for exp in context["experiences"]:
             eid = exp.get("id")
-            if eid in gen_exps:
-                g = gen_exps[eid]
-                final_exps.append({
-                    "position": g.get("rewritten_title", exp.get("title")),
-                    "company": exp.get("company"),
-                    "start_date": exp.get("period", "").split("-")[0].strip(),
-                    "end_date": exp.get("period", "").split("-")[-1].strip() if "-" in exp.get("period", "") else "",
-                    "location": exp.get("location", ""),
-                    "achievements": g.get("bullets", exp.get("A", []))[:CONTENT_BUDGET["max_bullets_pro"]]
-                })
+            g = gen_exps.get(eid, {})
+            fallback_achievements = exp.get("A", [])
+            if isinstance(fallback_achievements, str):
+                fallback_achievements = [fallback_achievements]
+            final_exps.append({
+                "position": g.get("rewritten_title", exp.get("title")),
+                "company": exp.get("company"),
+                "start_date": exp.get("period", "").split("-")[0].strip(),
+                "end_date": exp.get("period", "").split("-")[-1].strip() if "-" in exp.get("period", "") else "",
+                "location": exp.get("location", ""),
+                "achievements": g.get("bullets", fallback_achievements)[:CONTENT_BUDGET["max_bullets_pro"]]
+            })
 
         # Projets (Pool B)
         final_projs = []
         gen_projs = {p["id"]: p for p in cv_gen.get("projects", [])}
         for p in context.get("ranked_projects", []):
             pid = p.get("id")
-            if pid in gen_projs:
-                g = gen_projs[pid]
-                final_projs.append({
-                    "name": g.get("rewritten_title", p.get("title")),
-                    "description": g.get("one_line_description", p.get("D", "")),
-                    "keywords": g.get("keywords_inline", " · ".join(p.get("K", [])))
-                })
+            g = gen_projs.get(pid, {})
+            final_projs.append({
+                "name": g.get("rewritten_title", p.get("title")),
+                "description": g.get("one_line_description", p.get("D", "")),
+                "keywords": g.get("keywords_inline", " · ".join(p.get("K", [])))
+            })
 
         return {
             "identity": context["personal_info"],
