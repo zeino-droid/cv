@@ -40,6 +40,51 @@ HEADLINE :
 - MAXIMUM 90 caractères.
 """
 
+DEFAULT_CONTENT_CONFIG = {
+    "summary_min_chars": 280,
+    "summary_max_chars": 420,
+    "max_pro_exp": 4,
+    "min_pro_exp": 2,
+    "max_projects": 2,
+    "min_projects": 1,
+    "max_bullets": 2,
+    "min_bullet_chars": 35,
+    "max_bullet_chars": 120,
+    "skills_count": 12,
+    "skills_min": 6,
+}
+
+
+def build_one_page_constraints(content_config: dict | None = None) -> str:
+    config = {**DEFAULT_CONTENT_CONFIG, **(content_config or {})}
+    return f"""
+[CONTRAINTES STRICTES — ONE PAGE — NON NÉGOCIABLES]
+
+SUMMARY:
+- MIN {config["summary_min_chars"]} chars, MAX {config["summary_max_chars"]} chars
+- EXACTEMENT 3 phrases
+
+EXPERIENCES:
+- MIN {config["min_pro_exp"]}, MAX {config["max_pro_exp"]} expériences
+- EXACTEMENT {config["max_bullets"]} bullets par expérience
+- MIN {config["min_bullet_chars"]}, MAX {config["max_bullet_chars"]} chars par bullet
+- Obligatoire : [Verbe] + [Outil] + [Résultat chiffré]
+
+PROJETS:
+- MIN {config["min_projects"]}, MAX {config["max_projects"]} projets
+- Titre MAX 70 chars
+- Description MIN 60 chars, MAX 150 chars
+- Keywords: 3 à 4 mots techniques séparés par " · "
+
+SKILLS:
+- MIN {config["skills_min"]}, MAX {config["skills_count"]} hard skills
+- INTERDIT d'en mettre moins que le minimum
+
+HEADLINE:
+- MAX 90 chars
+"""
+
+
 def build_candidate_context(profile_id: str, profile_index: dict, filtered_experiences: list[dict], filtered_skills: dict) -> dict:
     """Prépare le contexte candidat pour le prompt."""
     personal_info = get_safe_personal_info(profile_index.get("personal_info", {}))
@@ -58,12 +103,13 @@ def build_candidate_context(profile_id: str, profile_index: dict, filtered_exper
     }
     return context
 
-def build_generation_prompt(job_offer: dict, candidate_context: dict, profile_id: str) -> dict:
+def build_generation_prompt(job_offer: dict, candidate_context: dict, profile_id: str, content_config: dict | None = None) -> dict:
     """Génère un dictionnaire structuré qui servira de prompt unique avec contraintes One-Page V2."""
+    content_cfg = {**DEFAULT_CONTENT_CONFIG, **(content_config or {})}
     prompt_dict = {
         "role": "Expert en recrutement et chasseur de têtes spécialisé en ingénierie R&D.",
         "objective": f"Générer un CV percutant pour le poste de {job_offer.get('title')} chez {job_offer.get('company')}.",
-        "one_page_policy": ONE_PAGE_CONSTRAINTS,
+        "one_page_policy": build_one_page_constraints(content_cfg),
         "constraints": [
             "INTERDICTION FORMELLE d'utiliser les mots : 'Apprenti', 'Étudiant', 'Élève'.",
             "Présenter le candidat comme un expert opérationnel immédiatement productif.",
@@ -79,12 +125,12 @@ def build_generation_prompt(job_offer: dict, candidate_context: dict, profile_id
         "output_format": {
             "cv": {
                 "headline": {"value": "string — MAX 90 chars", "char_count": "integer"},
-                "summary": {"value": "string — MAX 400 chars", "char_count": "integer"},
+                "summary": {"value": f"string — MIN {content_cfg['summary_min_chars']} / MAX {content_cfg['summary_max_chars']} chars", "char_count": "integer"},
                 "experiences": [
                     {
                         "id": "string",
                         "rewritten_title": "string — MAX 60 chars",
-                        "bullets": ["string — MAX 120 chars (EXACTEMENT 2)"]
+                        "bullets": [f"string — MIN {content_cfg['min_bullet_chars']} / MAX {content_cfg['max_bullet_chars']} chars (EXACTEMENT {content_cfg['max_bullets']})"]
                     }
                 ],
                 "projects": [
@@ -95,7 +141,7 @@ def build_generation_prompt(job_offer: dict, candidate_context: dict, profile_id
                         "keywords_inline": "string — 3 à 4 mots techniques · séparés"
                     }
                 ],
-                "skills_inline": "string — MAX 15 skills séparés par ' · '",
+                "skills_inline": f"string — MIN {content_cfg['skills_min']} / MAX {content_cfg['skills_count']} skills séparés par ' · '",
                 "one_page_compliant": "boolean"
             }
         }
@@ -104,6 +150,7 @@ def build_generation_prompt(job_offer: dict, candidate_context: dict, profile_id
 
 def validate_llm_output_constraints(cv_data: dict) -> dict:
     """Valide et corrige les violations de contraintes One-Page V2."""
+    cfg = DEFAULT_CONTENT_CONFIG
     violations = []
     if "cv" not in cv_data:
         return {"cv_data": cv_data, "violations": ["Missing 'cv' key"], "had_violations": True}
@@ -121,34 +168,42 @@ def validate_llm_output_constraints(cv_data: dict) -> dict:
     # 2. Summary
     summary_obj = cv.get("summary", {})
     summary = summary_obj.get("value", "") if isinstance(summary_obj, dict) else str(summary_obj)
-    if len(summary) > 400:
-        summary = _truncate_at_word(summary, 400)
+    if len(summary) > cfg["summary_max_chars"]:
+        summary = _truncate_at_word(summary, cfg["summary_max_chars"])
         violations.append({"field": "summary", "action": "truncated"})
+    elif summary and len(summary) < cfg["summary_min_chars"]:
+        violations.append({"field": "summary", "action": "below_min"})
     cv["summary"] = {"value": summary, "char_count": len(summary)}
 
-    # 3. Pool A : Expériences Pro (Max 2)
+    # 3. Pool A : Expériences Pro (Min/Max)
     exps = cv.get("experiences", [])
-    if len(exps) > 2:
-        exps = exps[:2]
-        violations.append({"field": "experiences", "action": "cut_to_2"})
+    if len(exps) > cfg["max_pro_exp"]:
+        exps = exps[: cfg["max_pro_exp"]]
+        violations.append({"field": "experiences", "action": "cut_to_max"})
+    if exps and len(exps) < cfg["min_pro_exp"]:
+        violations.append({"field": "experiences", "action": "below_min"})
     
     for i, exp in enumerate(exps):
         bullets = exp.get("bullets", [])
-        if len(bullets) > 2:
-            bullets = bullets[:2]
-            violations.append({"field": f"exp[{i}].bullets", "action": "cut_to_2"})
+        if len(bullets) > cfg["max_bullets"]:
+            bullets = bullets[: cfg["max_bullets"]]
+            violations.append({"field": f"exp[{i}].bullets", "action": "cut_to_max"})
         for j, bullet in enumerate(bullets):
-            if len(bullet) > 120:
-                bullets[j] = _truncate_at_word(bullet, 120)
+            if len(bullet) > cfg["max_bullet_chars"]:
+                bullets[j] = _truncate_at_word(bullet, cfg["max_bullet_chars"])
                 violations.append({"field": f"exp[{i}].bullet[{j}]", "action": "truncated"})
+            elif bullet and len(bullet) < cfg["min_bullet_chars"]:
+                violations.append({"field": f"exp[{i}].bullet[{j}]", "action": "below_min"})
         exp["bullets"] = bullets
     cv["experiences"] = exps
 
-    # 4. Pool B : Projets (Max 2)
+    # 4. Pool B : Projets (Min/Max)
     projs = cv.get("projects", [])
-    if len(projs) > 2:
-        projs = projs[:2]
-        violations.append({"field": "projects", "action": "cut_to_2"})
+    if len(projs) > cfg["max_projects"]:
+        projs = projs[: cfg["max_projects"]]
+        violations.append({"field": "projects", "action": "cut_to_max"})
+    if projs and len(projs) < cfg["min_projects"]:
+        violations.append({"field": "projects", "action": "below_min"})
     
     for i, proj in enumerate(projs):
         title = proj.get("rewritten_title", "")
@@ -162,13 +217,15 @@ def validate_llm_output_constraints(cv_data: dict) -> dict:
             violations.append({"field": f"proj[{i}].desc", "action": "truncated"})
     cv["projects"] = projs
 
-    # 5. Skills inline (Max 15)
+    # 5. Skills inline (Min/Max)
     skills_inline = cv.get("skills_inline", "")
     if isinstance(skills_inline, str) and skills_inline.strip():
         skills = [s.strip() for s in skills_inline.split("·") if s.strip()]
-        if len(skills) > 15:
-            skills = skills[:15]
-            violations.append({"field": "skills_inline", "action": "cut_to_15"})
+        if len(skills) > cfg["skills_count"]:
+            skills = skills[: cfg["skills_count"]]
+            violations.append({"field": "skills_inline", "action": "cut_to_max"})
+        if len(skills) < cfg["skills_min"]:
+            violations.append({"field": "skills_inline", "action": "below_min"})
         cv["skills_inline"] = " · ".join(skills)
 
     cv_data["cv"] = cv

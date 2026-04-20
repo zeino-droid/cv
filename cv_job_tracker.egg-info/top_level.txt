@@ -1,5 +1,0 @@
-engine
-profiles
-templates
-tests
-tools

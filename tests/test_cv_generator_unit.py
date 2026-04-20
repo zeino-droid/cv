@@ -118,6 +118,17 @@ def test_rank_experiences_splits_pools_and_applies_limits(generator):
     assert [e["id"] for e in ranked["projects"]] == ["proj-1", "proj-2"]
 
 
+def test_rank_experiences_applies_floor_when_scoring_excludes_everything(generator):
+    exps = [
+        {"id": "x1", "profiles_tags": ["other"], "K": ["python"]},
+        {"id": "x2", "profiles_tags": ["other"], "K": ["ansys"]},
+        {"id": "x3", "profiles_tags": ["other"], "K": []},
+    ]
+    ranked = generator.rank_experiences_for_profile(exps, "simulation_rd", ["python", "ansys"])
+    assert len(ranked["pro_experiences"]) == 2
+    assert ranked["floor_activated"] is True
+
+
 def test_enforce_project_guarantee_uses_latest_semester(generator):
     ranked = {"pro_experiences": [], "projects": []}
     all_exps = [
@@ -175,3 +186,16 @@ def test_assemble_final_data_does_not_mutate_input_context(generator):
     before = json.loads(json.dumps(context))
     generator._assemble_final_data({"cv": {"experiences": [{"id": "exp-1", "bullets": ["B1", "B2"]}]}}, context)
     assert context == before
+
+
+def test_assemble_final_data_falls_back_to_context_skills(generator):
+    context = {
+        "personal_info": {"name": "Zein", "languages": []},
+        "target_profile": {"headline": "Fallback Headline", "summary": "Fallback Summary"},
+        "experiences": [],
+        "ranked_projects": [],
+        "skills": {"hard_skills": [{"name": "Python"}, {"name": "Abaqus"}]},
+        "education": [],
+    }
+    data = generator._assemble_final_data({"cv": {}}, context)
+    assert data["grouped_skills"]["Compétences"] == [{"name": "Python"}, {"name": "Abaqus"}]
