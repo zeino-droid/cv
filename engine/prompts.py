@@ -28,7 +28,7 @@ SUMMARY :
 EXPERIENCES (Pool A) :
 - MAXIMUM 2 expériences.
 - MAXIMUM 2 bullet points par expérience.
-- MAXIMUM 120 caractères par bullet (espaces inclus).
+- MAXIMUM 80 caractères par bullet (espaces inclus).
 - Format obligatoire : [Verbe d'action] + [Technologie/Méthode] + [Résultat chiffré].
 
 PROJETS (Pool B) :
@@ -82,7 +82,7 @@ def build_generation_prompt(job_offer: dict, candidate_context: dict, profile_id
                     {
                         "id": "string",
                         "rewritten_title": "string — MAX 60 chars",
-                        "bullets": ["string — MAX 120 chars (EXACTEMENT 2)"]
+                        "bullets": ["string — MAX 80 chars (EXACTEMENT 2)"]
                     }
                 ],
                 "projects": [
@@ -136,8 +136,8 @@ def validate_llm_output_constraints(cv_data: dict) -> dict:
             bullets = bullets[:2]
             violations.append({"field": f"exp[{i}].bullets", "action": "cut_to_2"})
         for j, bullet in enumerate(bullets):
-            if len(bullet) > 120:
-                bullets[j] = _truncate_at_word(bullet, 120)
+            if len(bullet) > 80:
+                bullets[j] = _truncate_at_word(bullet, 80)
                 violations.append({"field": f"exp[{i}].bullet[{j}]", "action": "truncated"})
         exp["bullets"] = bullets
     cv["experiences"] = exps
