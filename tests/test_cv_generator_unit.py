@@ -129,6 +129,17 @@ def test_rank_experiences_applies_floor_when_scoring_excludes_everything(generat
     assert ranked["floor_activated"] is True
 
 
+def test_rank_experiences_scoring_ladder_prioritizes_profile_over_all(generator):
+    exps = [
+        {"id": "p_kw", "profiles_tags": ["simulation_rd"], "K": ["python"]},
+        {"id": "p_no_kw", "profiles_tags": ["simulation_rd"], "K": []},
+        {"id": "all_kw", "profiles_tags": ["all"], "K": ["python"]},
+        {"id": "all_no_kw", "profiles_tags": ["all"], "K": []},
+    ]
+    ranked = generator.rank_experiences_for_profile(exps, "simulation_rd", ["python"])
+    assert [e["id"] for e in ranked["pro_experiences"]] == ["p_kw", "p_no_kw", "all_kw", "all_no_kw"]
+
+
 def test_enforce_project_guarantee_uses_latest_semester(generator):
     ranked = {"pro_experiences": [], "projects": []}
     all_exps = [

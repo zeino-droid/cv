@@ -4,6 +4,7 @@ Architecture modulaire avec pools séparés pour garantir la présence des proje
 """
 
 import asyncio
+import copy
 import json
 import re
 from datetime import datetime
@@ -258,12 +259,12 @@ class PersonalCVGenerator:
                 except Exception as e:
                     print(f"      ⚠️ Erreur LLM: {e}. Fallback.")
                     cv_data = self._assemble_fallback_data(candidate_context, job_data)
-                cached_cv_data = json.loads(json.dumps(cv_data))
+                cached_cv_data = copy.deepcopy(cv_data)
             elif cached_cv_data is not None:
-                cv_data = json.loads(json.dumps(cached_cv_data))
+                cv_data = copy.deepcopy(cached_cv_data)
             else:
                 cv_data = self._assemble_fallback_data(candidate_context, job_data)
-                cached_cv_data = json.loads(json.dumps(cv_data))
+                cached_cv_data = copy.deepcopy(cv_data)
 
             fill_report = {
                 "pro_count": len(current_pro),
@@ -330,7 +331,8 @@ class PersonalCVGenerator:
         if skills_inline:
             skills_names = [s.strip() for s in skills_inline.split("·") if s.strip()]
         else:
-            skills_names = [s.get("name", "").strip() for s in context.get("skills", {}).get("hard_skills", []) if s.get("name")]
+            context_skills = context.get("skills", {}).get("hard_skills", [])
+            skills_names = [s.get("name", "").strip() for s in context_skills if s.get("name")]
 
         return {
             "identity": context["personal_info"],

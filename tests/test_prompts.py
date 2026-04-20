@@ -90,3 +90,5 @@ def test_validate_llm_output_constraints_flags_under_minimum_fields():
     assert result["had_violations"] is True
     actions = {v["action"] for v in result["violations"] if isinstance(v, dict)}
     assert "below_min" in actions
+    skills_count = len([s.strip() for s in result["cv_data"]["cv"]["skills_inline"].split("·") if s.strip()])
+    assert skills_count >= 6

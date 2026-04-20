@@ -162,7 +162,10 @@ def filter_skills_by_profile(profile_id: str, profile_index: dict, selected_expe
     all_hard = _dedupe_skills(layer_1 + layer_2 + layer_3)
     selected = all_hard[:CONTENT_BUDGET["skills"]["target"]]
     if len(selected) < CONTENT_BUDGET["skills"]["minimum"]:
-        remaining = [s for s in hard_skills if s not in selected]
+        selected_names = {s.get("name", "").strip().lower() for s in selected}
+        remaining = [
+            s for s in hard_skills if s.get("name", "").strip().lower() not in selected_names
+        ]
         selected += remaining[: CONTENT_BUDGET["skills"]["minimum"] - len(selected)]
 
     filtered_skills = {

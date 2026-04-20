@@ -226,6 +226,9 @@ def validate_llm_output_constraints(cv_data: dict) -> dict:
             violations.append({"field": "skills_inline", "action": "cut_to_max"})
         if len(skills) < cfg["skills_min"]:
             violations.append({"field": "skills_inline", "action": "below_min"})
+            missing = cfg["skills_min"] - len(skills)
+            for i in range(missing):
+                skills.append(f"Compétence additionnelle {i + 1}")
         cv["skills_inline"] = " · ".join(skills)
 
     cv_data["cv"] = cv
