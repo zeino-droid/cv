@@ -2,11 +2,10 @@ import json
 from typing import Dict, List, Tuple, Any
 from pathlib import Path
 
-CONTENT_BUDGET = {
-    "skills": {"target": 12, "minimum": 6},
+FILL_BUDGET = {
+    "skills": 12,
+    "skills_minimum": 6,
 }
-
-TRANSVERSE_SKILL_MARKERS = {"python", "matlab", "simulink"}
 
 
 def _skill_matches_keywords(skill_name: str, keywords: set[str]) -> bool:
@@ -134,44 +133,79 @@ def filter_experiences_by_profile(profile_id: str, profile_index: dict, max_expe
     return filtered[:max_experiences]
 
 def filter_skills_by_profile(profile_id: str, profile_index: dict, selected_experiences: list[dict] | None = None) -> dict:
-    """Filtre les compétences en 3 couches pour éviter une section skills trop pauvre."""
+    """Sélection des hard skills en 3 couches cumulatives avec floor."""
     taxonomy = profile_index.get("skills_taxonomy", {})
     profile_def = profile_index.get("profiles", {}).get(profile_id, {})
-    target_keywords = set(kw.lower() for kw in profile_def.get("target_keywords", []))
     hard_skills = taxonomy.get("hard_skills", [])
+    target_kw_low = {kw.lower() for kw in profile_def.get("target_keywords", [])}
 
     selected_experiences = selected_experiences or []
-    contextual_keywords = set()
-    for exp in selected_experiences:
-        contextual_keywords.update(str(k).lower() for k in exp.get("K", []))
+    contextual_keywords = {
+        str(k).lower()
+        for exp in selected_experiences
+        for k in exp.get("K", [])
+    }
 
-    layer_1 = []
-    layer_2 = []
-    layer_3 = []
-    for skill in hard_skills:
-        skill_name = str(skill.get("name", "")).lower()
-        tags = {str(t).lower() for t in skill.get("profiles_tags", [])}
+    layer_1 = [
+        s
+        for s in hard_skills
+        if any(
+            str(s.get("name", "")).lower() in kw or kw in str(s.get("name", "")).lower()
+            for kw in target_kw_low
+        )
+    ]
 
-        if _skill_matches_keywords(skill_name, target_keywords):
-            layer_1.append(skill)
-        elif "all" in tags or any(marker in skill_name for marker in TRANSVERSE_SKILL_MARKERS):
-            layer_2.append(skill)
-        elif _skill_matches_keywords(skill_name, contextual_keywords):
-            layer_3.append(skill)
+    transversal = {
+        "python",
+        "matlab",
+        "simulink",
+        "matlab / simulink",
+        "git",
+        "linux",
+        "latex",
+        "automatique",
+        "commande",
+    }
+    l1_names = {str(s.get("name", "")).lower() for s in layer_1}
+    layer_2 = [
+        s
+        for s in hard_skills
+        if str(s.get("name", "")).lower() in transversal
+        and str(s.get("name", "")).lower() not in l1_names
+    ]
 
-    all_hard = _dedupe_skills(layer_1 + layer_2 + layer_3)
-    selected = all_hard[:CONTENT_BUDGET["skills"]["target"]]
-    if len(selected) < CONTENT_BUDGET["skills"]["minimum"]:
-        selected_names = {s.get("name", "").strip().lower() for s in selected}
-        remaining = [
-            s for s in hard_skills if s.get("name", "").strip().lower() not in selected_names
-        ]
-        selected += remaining[: CONTENT_BUDGET["skills"]["minimum"] - len(selected)]
+    levels = {"avancé": 3, "intermédiaire": 2, "débutant": 1}
+    selected_names = l1_names | {str(s.get("name", "")).lower() for s in layer_2}
+    layer_3_pool = [
+        s
+        for s in hard_skills
+        if str(s.get("name", "")).lower() not in selected_names
+    ]
+    layer_3_pool.sort(
+        key=lambda s: (
+            levels.get(str(s.get("level", "")).lower(), 0),
+            int(
+                any(
+                    kw in str(s.get("name", "")).lower() or str(s.get("name", "")).lower() in kw
+                    for kw in contextual_keywords
+                )
+            ),
+        ),
+        reverse=True,
+    )
+
+    all_layers = _dedupe_skills(layer_1 + layer_2 + layer_3_pool)
+    selected = all_layers[: max(FILL_BUDGET["skills"], FILL_BUDGET["skills_minimum"])]
 
     filtered_skills = {
         "hard_skills": selected,
         "domain_knowledge": taxonomy.get("domain_knowledge", []),
         "soft_skills": taxonomy.get("soft_skills", []),
+        "fill_layers": {
+            "layer_1_signature": len(layer_1),
+            "layer_2_transversal": len(layer_2),
+            "skills_total": len(selected),
+        },
     }
 
     return filtered_skills
