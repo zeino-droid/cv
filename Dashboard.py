@@ -399,14 +399,28 @@ if page == "🏠 Dashboard":
 
     with col_l:
         st.markdown('<div class="section-card">', unsafe_allow_html=True)
-        st.subheader("⭐ Top Offres à traiter")
-        st.caption("Les offres les plus pertinentes (Score > 70%) prêtes pour toi.")
-
-        top_jobs = db.get_top_to_apply(n=5)
-        if not top_jobs:
-            st.info("Aucune offre à traiter pour le moment. Lance un scan !")
+        st.subheader("⭐ Offres à traiter")
+        
+        # BARRE DE FILTRE DASHBOARD CORRIGÉE
+        dash_filter = st.radio(
+            "Filtrer par statut",
+            ["Top (Score > 70%)", "Tous"] + VALID_STATUSES,
+            horizontal=True,
+            label_visibility="collapsed",
+            format_func=lambda x: f"{STATUS_EMOJI.get(x, '•')} {x.capitalize()}" if x not in ["Tous", "Top (Score > 70%)"] else x
+        )
+        
+        if dash_filter == "Top (Score > 70%)":
+            display_jobs = db.get_top_to_apply(n=10)
+        elif dash_filter == "Tous":
+            display_jobs = db.get_jobs(limit=10)
         else:
-            for j in top_jobs:
+            display_jobs = db.get_jobs(status=dash_filter, limit=10)
+
+        if not display_jobs:
+            st.info(f"Aucune offre avec le statut '{dash_filter}'.")
+        else:
+            for j in display_jobs:
                 score = j["fit_score"]
                 s_class = (
                     "score-high"
@@ -1076,7 +1090,7 @@ elif page == "📊 Tracker":
     # Filtre style "Pills" avec st.radio horizontal
     filter_tab = st.radio(
         "Filtre rapide",
-        ["Tous"] + VALID_STATUSES,
+        ["Tous", "sent", "applied", "interview", "offer", "rejected", "generated", "new"],
         horizontal=True,
         label_visibility="collapsed",
         format_func=lambda x: f"{STATUS_EMOJI.get(x, '•')} {x.capitalize()}" if x != "Tous" else "📋 Tout voir"

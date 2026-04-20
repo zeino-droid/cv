@@ -3,7 +3,8 @@
 
 // ─── Paramètres dynamiques (Inputs) ───
 #let data-path = sys.inputs.at("data-path", default: "_cv_data.json")
-#let font-size-delta = float(sys.inputs.at("font-size-delta", default: "0.0"))
+#let font-size-delta-raw = sys.inputs.at("font-size-delta", default: "0.0")
+#let font-size-delta = float(font-size-delta-raw) * 1pt // Conversion float -> length
 
 // ─── Données JSON ───
 #let cv = json(data-path)
