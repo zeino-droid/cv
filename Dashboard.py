@@ -323,6 +323,20 @@ def save_search_config(cfg: dict) -> None:
     with open(path, "w", encoding="utf-8") as f:
         yaml.dump(cfg, f, allow_unicode=True, default_flow_style=False)
 
+def render_fill_report(fill_report: dict) -> None:
+    if not fill_report:
+        return
+    st.caption("🧪 Fill Report")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Pro", fill_report.get("pro_count", 0))
+    c2.metric("Projets", fill_report.get("project_count", 0))
+    c3.metric("Skills", fill_report.get("skills_total", 0))
+    st.caption(
+        f"floor={fill_report.get('floor_activated', False)} · "
+        f"llm_calls={fill_report.get('llm_calls', 0)} · "
+        f"attempt={fill_report.get('shrink_attempt', '-')}"
+    )
+
 
 # ─── SIDEBAR ─────────────────────────────────────────────────────
 with st.sidebar:
@@ -977,6 +991,7 @@ elif page == "⚡ Générer":
         last = st.session_state.get("last_gen")
         if last:
             st.divider()
+            render_fill_report(last.get("cv_result", {}).get("fill_report", {}))
             
             # --- SECTION ÉDITION CHIRURGICALE ---
             cv_result = last.get("cv_result", {})

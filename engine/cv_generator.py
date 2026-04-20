@@ -4,6 +4,7 @@ Architecture modulaire avec pools séparés pour garantir la présence des proje
 """
 
 import asyncio
+import copy
 import json
 import re
 from datetime import datetime
@@ -22,12 +23,26 @@ DEFAULT_OUTPUT_DIR = Path("vault/resumes")
 # CONSTANTES DU BUDGET CONTENU (Phase 4)
 # ============================================
 CONTENT_BUDGET = {
-    "max_pro_experiences": 4,     # Densité maximale d'expériences professionnelles
-    "max_projects": 2,            # Maximum fixé à 2 (et minimum visé via les configs de shrink)
-    "max_bullets_pro": 2,         # 2 bullets max par expérience pro
-    "max_bullets_project": 0,     # Projets : format compact (pas de bullets)
-    "project_max_desc_chars": 150 # Description courte
+    "pro_experiences": {"target": 4, "minimum": 2},
+    "projects": {"target": 2, "minimum": 1},
+    "skills": {"target": 12, "minimum": 6},
+    "max_bullets_pro": 2,
+    "max_bullets_project": 0,
+    "project_max_desc_chars": 150,
 }
+
+SHRINK_CONFIGS = [
+    {"attempt": 1, "call_llm": True, "font_delta": 0.0, "max_pro": 4, "max_proj": 2},
+    {"attempt": 2, "call_llm": False, "font_delta": -0.3, "max_pro": 4, "max_proj": 2},
+    {"attempt": 3, "call_llm": False, "font_delta": -0.5, "max_pro": 4, "max_proj": 2},
+    {"attempt": 4, "call_llm": True, "font_delta": -0.5, "max_pro": 3, "max_proj": 1},
+]
+
+SCORE_PROFILE_WITH_KW = 4
+SCORE_PROFILE_ONLY = 3
+SCORE_ALL_WITH_KW = 2
+SCORE_ALL_ONLY = 1
+SCORE_OUT_OF_SCOPE = 0
 
 class PersonalCVGenerator:
     """Orchestrateur central du Cerveau avec garantie One-Page et Projets."""
@@ -104,41 +119,69 @@ class PersonalCVGenerator:
 
     def rank_experiences_for_profile(self, all_experiences: List[Dict], profile_id: str, job_keywords: List[str]) -> Dict:
         """Sépare les expériences en 2 pools distincts : Pro et Projets."""
-        pro_pool = []
-        project_pool = []
+        pro_scored = []
+        project_scored = []
         job_kw_set = set(k.lower() for k in job_keywords)
         profile_project_ids = self._get_profile_project_ids(profile_id, all_experiences)
 
         for exp in all_experiences:
             is_project = self._is_project_experience(exp, profile_project_ids)
             tags = exp.get("profiles_tags", [])
+            tags_lower = {str(t).lower() for t in tags}
             exp_keywords = set(k.lower() for k in exp.get("K", []))
             keyword_overlap = len(exp_keywords & job_kw_set)
 
-            if profile_id in tags and keyword_overlap > 0:
-                score = 3
-            elif profile_id in tags:
-                score = 2
-            elif "all" in tags and keyword_overlap > 0:
-                score = 1
+            if profile_id in tags_lower and keyword_overlap > 0:
+                score = SCORE_PROFILE_WITH_KW
+            elif profile_id in tags_lower:
+                score = SCORE_PROFILE_ONLY
+            elif "all" in tags_lower and keyword_overlap > 0:
+                score = SCORE_ALL_WITH_KW
+            elif "all" in tags_lower:
+                score = SCORE_ALL_ONLY
             else:
-                score = 0
-
-            if score == 0: continue
+                score = SCORE_OUT_OF_SCOPE
 
             entry = {"data": exp, "score": score, "keyword_overlap": keyword_overlap}
             if is_project:
-                project_pool.append(entry)
+                project_scored.append(entry)
             else:
-                pro_pool.append(entry)
+                pro_scored.append(entry)
 
-        pro_pool.sort(key=lambda x: (x["score"], x["keyword_overlap"]), reverse=True)
-        project_pool.sort(key=lambda x: (x["score"], x["keyword_overlap"]), reverse=True)
+        pro_scored.sort(key=lambda x: (x["score"], x["keyword_overlap"]), reverse=True)
+        project_scored.sort(key=lambda x: (x["score"], x["keyword_overlap"]), reverse=True)
+
+        pro_selected = [
+            e["data"] for e in pro_scored if e["score"] > SCORE_OUT_OF_SCOPE
+        ][: CONTENT_BUDGET["pro_experiences"]["target"]]
+        proj_selected = [
+            e["data"] for e in project_scored if e["score"] > SCORE_OUT_OF_SCOPE
+        ][: CONTENT_BUDGET["projects"]["target"]]
+
+        pro_with_floor = self._apply_floor(
+            pro_selected, pro_scored, CONTENT_BUDGET["pro_experiences"]["minimum"]
+        )
+        proj_with_floor = self._apply_floor(
+            proj_selected, project_scored, CONTENT_BUDGET["projects"]["minimum"]
+        )
+        floor_activated = (
+            len(pro_with_floor) > len(pro_selected) or len(proj_with_floor) > len(proj_selected)
+        )
 
         return {
-            "pro_experiences": [e["data"] for e in pro_pool[:CONTENT_BUDGET["max_pro_experiences"]]],
-            "projects": [e["data"] for e in project_pool[:CONTENT_BUDGET["max_projects"]]]
+            "pro_experiences": pro_with_floor,
+            "projects": proj_with_floor,
+            "floor_activated": floor_activated,
         }
+
+    def _apply_floor(self, result: List[Dict], all_scored: List[Dict], minimum: int) -> List[Dict]:
+        """Complète avec exclus (score 0) s'il manque du contenu."""
+        if len(result) >= minimum:
+            return result
+        excluded = [e for e in all_scored if e["score"] == SCORE_OUT_OF_SCOPE]
+        excluded.sort(key=lambda x: x["keyword_overlap"], reverse=True)
+        needed = minimum - len(result)
+        return result + [e["data"] for e in excluded[:needed]]
 
     def enforce_project_guarantee(self, ranked_content: Dict, all_experiences: List[Dict], profile_id: str = "") -> Dict:
         """Garantit qu'au moins un projet est présent."""
@@ -158,12 +201,15 @@ class PersonalCVGenerator:
                 return int(match.group()) if match else 0
             
             fallback_projects.sort(key=lambda x: _parse_period(x.get("period", "")), reverse=True)
-            ranked_content["projects"] = fallback_projects[:CONTENT_BUDGET["max_projects"]]
+            ranked_content["projects"] = fallback_projects[:CONTENT_BUDGET["projects"]["target"]]
             print(f"      ⚠️ Fallback Projet(s) utilisé(s) : {len(ranked_content['projects'])}")
 
         return ranked_content
 
     async def generate_cv_for_job(self, job: Dict) -> Dict:
+        return await self.generate_one_page_cv(job)
+
+    async def generate_one_page_cv(self, job: Dict) -> Dict:
         """Génère un CV avec Shrink Loop et séparation des pools Pro/Projets."""
         job_data = self._normalize_job(job)
         job_keywords = job_data.get("description", "").lower().split() # Simplifié pour le matching
@@ -177,30 +223,39 @@ class PersonalCVGenerator:
         ranked_content = self.rank_experiences_for_profile(all_exps, profile_id, job_keywords)
         ranked_content = self.enforce_project_guarantee(ranked_content, all_exps, profile_id)
 
-        # 3. SHRINK LOOP (Phase 4)
-        shrink_configs = [
-            {"max_pro": 4, "max_proj": 2, "font_delta": 0.0},
-            {"max_pro": 4, "max_proj": 2, "font_delta": -0.4},
-            {"max_pro": 4, "max_proj": 2, "font_delta": -0.8},
-        ]
-
         best_result = None
+        cached_cv_data = None
+        llm_calls = 0
         slug = self._slugify(f"{job_data.get('company', 'job')}_{job_data.get('title', 'title')}")
         output_base = DEFAULT_OUTPUT_DIR / f"cv_{slug}_{datetime.now().strftime('%Y%m%d_%H%M')}"
 
-        for attempt, config in enumerate(shrink_configs, 1):
+        for config in SHRINK_CONFIGS:
+            attempt = config["attempt"]
             print(f"      → Tentative {attempt} ({config['max_pro']} Pro, {config['max_proj']} Proj, Font: {config['font_delta']})")
             
             current_pro = ranked_content["pro_experiences"][:config["max_pro"]]
             current_proj = ranked_content["projects"][:config["max_proj"]]
             
-            filtered_skills = matching.filter_skills_by_profile(profile_id, self.master_profile)
+            filtered_skills = matching.filter_skills_by_profile(
+                profile_id, self.master_profile, selected_experiences=current_pro + current_proj
+            )
             candidate_context = prompts.build_candidate_context(profile_id, self.master_profile, current_pro, filtered_skills)
             candidate_context["ranked_projects"] = current_proj # Injecter les projets dans le contexte
+            prompt_content_cfg = {
+                "max_pro_exp": config["max_pro"],
+                "min_pro_exp": CONTENT_BUDGET["pro_experiences"]["minimum"],
+                "max_projects": config["max_proj"],
+                "min_projects": CONTENT_BUDGET["projects"]["minimum"],
+                "skills_count": CONTENT_BUDGET["skills"]["target"],
+                "skills_min": CONTENT_BUDGET["skills"]["minimum"],
+            }
 
             cv_data = {}
-            if self.llm:
-                prompt_dict = prompts.build_generation_prompt(job_data, candidate_context, profile_id)
+            if self.llm and config["call_llm"]:
+                llm_calls += 1
+                prompt_dict = prompts.build_generation_prompt(
+                    job_data, candidate_context, profile_id, content_config=prompt_content_cfg
+                )
                 response_str = await self.llm.generate(json.dumps(prompt_dict, ensure_ascii=False))
                 try:
                     clean_json = re.sub(r"```json\s*|\s*```", "", response_str).strip()
@@ -210,8 +265,21 @@ class PersonalCVGenerator:
                 except Exception as e:
                     print(f"      ⚠️ Erreur LLM: {e}. Fallback.")
                     cv_data = self._assemble_fallback_data(candidate_context, job_data)
+                cached_cv_data = copy.deepcopy(cv_data)
+            elif cached_cv_data is not None:
+                cv_data = copy.deepcopy(cached_cv_data)
             else:
                 cv_data = self._assemble_fallback_data(candidate_context, job_data)
+                cached_cv_data = copy.deepcopy(cv_data)
+
+            fill_report = {
+                "pro_count": len(current_pro),
+                "project_count": len(current_proj),
+                "skills_total": len(filtered_skills.get("hard_skills", [])),
+                "floor_activated": ranked_content.get("floor_activated", False),
+                "llm_calls": llm_calls,
+                "shrink_attempt": attempt,
+            }
 
             # Rendu PDF
             pdf_renderer = self.renderers["pdf"]
@@ -220,13 +288,15 @@ class PersonalCVGenerator:
             if pdf_path:
                 pages = pdf_renderer.get_page_count(pdf_path)
                 print(f"      → Pages: {pages}")
-                res = {"pdf_path": str(pdf_path), "page_count": pages, "cv_data": cv_data}
+                res = {"pdf_path": str(pdf_path), "page_count": pages, "cv_data": cv_data, "fill_report": fill_report}
                 if pages == 1:
                     for f in ["md", "tex"]: 
                         p = self.renderers[f].render(cv_data, output_base)
                         if p: res[f"{f}_path"] = str(p)
                     return res
                 best_result = res
+            else:
+                best_result = {"cv_data": cv_data, "fill_report": fill_report}
         
         return best_result or {"error": "Échec"}
 
@@ -263,13 +333,20 @@ class PersonalCVGenerator:
                 "keywords": g.get("keywords_inline", " · ".join(p.get("K", [])))
             })
 
+        skills_inline = cv_gen.get("skills_inline", "")
+        if skills_inline:
+            skills_names = [s.strip() for s in skills_inline.split("·") if s.strip()]
+        else:
+            context_skills = context.get("skills", {}).get("hard_skills", [])
+            skills_names = [s.get("name", "").strip() for s in context_skills if s.get("name")]
+
         return {
             "identity": context["personal_info"],
             "headline": cv_gen.get("headline", {}).get("value", context["target_profile"]["headline"]),
             "summary": cv_gen.get("summary", {}).get("value", context["target_profile"]["summary"]),
             "experiences": final_exps,
             "projects": final_projs,
-            "grouped_skills": {"Compétences": [{"name": s.strip()} for s in cv_gen.get("skills_inline", "").split("·")]} if cv_gen.get("skills_inline") else {},
+            "grouped_skills": {"Compétences": [{"name": s} for s in skills_names]} if skills_names else {},
             "education": [{"degree": e.get("degree"), "school": e.get("institution"), "year": e.get("period"), "details": e.get("specialization", "")} for e in context["education"]][:2],
             "languages": [{"name": l["language"], "level": l["level"]} for l in context["personal_info"].get("languages", [])]
         }

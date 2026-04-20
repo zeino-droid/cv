@@ -46,12 +46,12 @@ def test_validate_llm_output_constraints_limits_and_truncates_fields():
     result = prompts.validate_llm_output_constraints(data)
     cv = result["cv_data"]["cv"]
     assert result["had_violations"] is True
-    assert len(cv["experiences"]) == 2
+    assert len(cv["experiences"]) == 3
     assert len(cv["experiences"][0]["bullets"]) == 2
     assert len(cv["projects"]) == 2
-    assert len([s.strip() for s in cv["skills_inline"].split("·") if s.strip()]) == 15
+    assert len([s.strip() for s in cv["skills_inline"].split("·") if s.strip()]) == 12
     assert cv["headline"]["char_count"] <= 91
-    assert cv["summary"]["char_count"] <= 401
+    assert cv["summary"]["char_count"] <= 421
 
 
 def test_validate_llm_output_constraints_handles_missing_cv():
@@ -74,3 +74,21 @@ def test_post_process_llm_output_rewrites_forbidden_words():
     assert "Apprenti" not in cleaned["headline"]["value"]
     assert "Étudiant" not in cleaned["summary"]["value"]
     assert "apprentissage" not in cleaned["summary"]["value"].lower()
+
+
+def test_validate_llm_output_constraints_flags_under_minimum_fields():
+    data = {
+        "cv": {
+            "headline": {"value": "Titre"},
+            "summary": {"value": "Court"},
+            "experiences": [{"bullets": ["court"]}],
+            "projects": [{"rewritten_title": "P", "one_line_description": "Ligne"}],
+            "skills_inline": "Python · CFD",
+        }
+    }
+    result = prompts.validate_llm_output_constraints(data)
+    assert result["had_violations"] is True
+    actions = {v["action"] for v in result["violations"] if isinstance(v, dict)}
+    assert "below_min" in actions
+    skills_count = len([s.strip() for s in result["cv_data"]["cv"]["skills_inline"].split("·") if s.strip()])
+    assert skills_count >= 6

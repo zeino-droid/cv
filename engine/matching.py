@@ -2,6 +2,29 @@ import json
 from typing import Dict, List, Tuple, Any
 from pathlib import Path
 
+CONTENT_BUDGET = {
+    "skills": {"target": 12, "minimum": 6},
+}
+
+TRANSVERSE_SKILL_MARKERS = {"python", "matlab", "simulink"}
+
+
+def _skill_matches_keywords(skill_name: str, keywords: set[str]) -> bool:
+    return any(kw in skill_name or skill_name in kw for kw in keywords if kw)
+
+
+def _dedupe_skills(skills: list[dict]) -> list[dict]:
+    seen = set()
+    out = []
+    for skill in skills:
+        name = skill.get("name", "").strip().lower()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        out.append(skill)
+    return out
+
+
 def load_profile_index(json_path: str) -> dict:
     """Charge le JSON et le retourne sous forme de dictionnaire."""
     with open(json_path, 'r', encoding='utf-8') as f:
@@ -110,24 +133,45 @@ def filter_experiences_by_profile(profile_id: str, profile_index: dict, max_expe
             
     return filtered[:max_experiences]
 
-def filter_skills_by_profile(profile_id: str, profile_index: dict) -> dict:
-    """Filtre les compétences pour prioriser celles pertinentes au profil."""
+def filter_skills_by_profile(profile_id: str, profile_index: dict, selected_experiences: list[dict] | None = None) -> dict:
+    """Filtre les compétences en 3 couches pour éviter une section skills trop pauvre."""
     taxonomy = profile_index.get("skills_taxonomy", {})
     profile_def = profile_index.get("profiles", {}).get(profile_id, {})
     target_keywords = set(kw.lower() for kw in profile_def.get("target_keywords", []))
-    
+    hard_skills = taxonomy.get("hard_skills", [])
+
+    selected_experiences = selected_experiences or []
+    contextual_keywords = set()
+    for exp in selected_experiences:
+        contextual_keywords.update(str(k).lower() for k in exp.get("K", []))
+
+    layer_1 = []
+    layer_2 = []
+    layer_3 = []
+    for skill in hard_skills:
+        skill_name = str(skill.get("name", "")).lower()
+        tags = {str(t).lower() for t in skill.get("profiles_tags", [])}
+
+        if _skill_matches_keywords(skill_name, target_keywords):
+            layer_1.append(skill)
+        elif "all" in tags or any(marker in skill_name for marker in TRANSVERSE_SKILL_MARKERS):
+            layer_2.append(skill)
+        elif _skill_matches_keywords(skill_name, contextual_keywords):
+            layer_3.append(skill)
+
+    all_hard = _dedupe_skills(layer_1 + layer_2 + layer_3)
+    selected = all_hard[:CONTENT_BUDGET["skills"]["target"]]
+    if len(selected) < CONTENT_BUDGET["skills"]["minimum"]:
+        selected_names = {s.get("name", "").strip().lower() for s in selected}
+        remaining = [
+            s for s in hard_skills if s.get("name", "").strip().lower() not in selected_names
+        ]
+        selected += remaining[: CONTENT_BUDGET["skills"]["minimum"] - len(selected)]
+
     filtered_skills = {
-        "hard_skills": [],
+        "hard_skills": selected,
         "domain_knowledge": taxonomy.get("domain_knowledge", []),
-        "soft_skills": taxonomy.get("soft_skills", [])
+        "soft_skills": taxonomy.get("soft_skills", []),
     }
-    
-    # Prioritize hard skills that match target keywords
-    for skill in taxonomy.get("hard_skills", []):
-        skill_name = skill.get("name", "").lower()
-        if any(tkw in skill_name or skill_name in tkw for tkw in target_keywords):
-            filtered_skills["hard_skills"].insert(0, skill)
-        else:
-            filtered_skills["hard_skills"].append(skill)
-            
+
     return filtered_skills

@@ -54,6 +54,19 @@ def test_filter_skills_by_profile_prioritizes_keyword_related_skills():
         },
     }
     skills = matching.filter_skills_by_profile("simulation_rd", profile_index)
-    assert [s["name"] for s in skills["hard_skills"]][:2] == ["Ansys Fluent", "Python"]
+    assert [s["name"] for s in skills["hard_skills"]][:2] == ["Python", "Ansys Fluent"]
     assert skills["domain_knowledge"] == ["CFD"]
     assert skills["soft_skills"] == ["Leadership"]
+
+
+def test_filter_skills_by_profile_applies_minimum_floor():
+    profile_index = {
+        "profiles": {"simulation_rd": {"target_keywords": ["abaqus"]}},
+        "skills_taxonomy": {
+            "hard_skills": [{"name": f"S{i}"} for i in range(1, 9)],
+            "domain_knowledge": [],
+            "soft_skills": [],
+        },
+    }
+    skills = matching.filter_skills_by_profile("simulation_rd", profile_index)
+    assert len(skills["hard_skills"]) >= 6
