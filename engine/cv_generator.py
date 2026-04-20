@@ -181,7 +181,7 @@ class PersonalCVGenerator:
         shrink_configs = [
             {"max_pro": 2, "max_proj": 2, "font_delta": 0.0},
             {"max_pro": 2, "max_proj": 1, "font_delta": -0.3},
-            {"max_pro": 2, "max_proj": 1, "font_delta": -0.5},
+            {"max_pro": 2, "max_proj": 1, "font_delta": -0.8},
         ]
 
         best_result = None
