@@ -291,8 +291,21 @@ db = get_db()
 
 
 def load_profile() -> dict:
-    with open(ROOT / "profiles" / "master_profile.json", "r", encoding="utf-8") as f:
-        return json.load(f)
+    # 1. Tentative depuis les secrets (Production / Sécurité)
+    try:
+        if "MASTER_PROFILE_JSON" in st.secrets:
+            return json.loads(st.secrets["MASTER_PROFILE_JSON"])
+    except Exception:
+        pass
+
+    # 2. Fallback sur le fichier local (Local Dev)
+    path = ROOT / "profiles" / "master_profile.json"
+    if path.exists():
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    
+    st.error("❌ Profil introuvable (Secrets ou Fichier).")
+    return {}
 
 
 def load_search_config() -> dict:
@@ -1296,7 +1309,11 @@ elif page == "👤 Profil":
                         ROOT / "profiles" / "master_profile.json", "w", encoding="utf-8"
                     ) as f:
                         json.dump(profile, f, indent=2, ensure_ascii=False)
-                    st.success("✅ Profil sauvegardé !")
+                    
+                    if "MASTER_PROFILE_JSON" in st.secrets:
+                        st.warning("⚠️ Profil sauvegardé localement, mais attention : tu utilises un Secret Streamlit. Pense à mettre à jour ton Secret avec ces nouvelles données pour le Cloud !")
+                    else:
+                        st.success("✅ Profil sauvegardé !")
                     st.rerun()
 
         with right:
