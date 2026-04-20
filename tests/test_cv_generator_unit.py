@@ -89,6 +89,8 @@ def test_rank_experiences_splits_pools_and_applies_limits(generator):
         {"id": "pro-1", "title": "A", "profiles_tags": ["simulation_rd"], "K": ["python"]},
         {"id": "pro-2", "title": "B", "profiles_tags": ["all"], "K": ["ansys"]},
         {"id": "pro-3", "title": "C", "profiles_tags": ["simulation_rd"], "K": []},
+        {"id": "pro-4", "title": "D", "profiles_tags": ["simulation_rd"], "K": ["python"]},
+        {"id": "pro-5", "title": "E", "profiles_tags": ["all"], "K": ["python"]},
         {
             "id": "proj-1",
             "type": "academic_project",
@@ -112,7 +114,7 @@ def test_rank_experiences_splits_pools_and_applies_limits(generator):
         },
     ]
     ranked = generator.rank_experiences_for_profile(exps, "simulation_rd", ["python", "ansys"])
-    assert [e["id"] for e in ranked["pro_experiences"]] == ["pro-1", "pro-3"]
+    assert [e["id"] for e in ranked["pro_experiences"]] == ["pro-1", "pro-4", "pro-3", "pro-2"]
     assert [e["id"] for e in ranked["projects"]] == ["proj-1", "proj-2"]
 
 
@@ -123,7 +125,7 @@ def test_enforce_project_guarantee_uses_latest_semester(generator):
         {"id": "p2", "type": "academic_project", "title": "Recent", "period": "S10"},
     ]
     updated = generator.enforce_project_guarantee(ranked, all_exps)
-    assert [p["id"] for p in updated["projects"]] == ["p2"]
+    assert [p["id"] for p in updated["projects"]] == ["p2", "p1"]
 
 
 def test_assemble_final_data_maps_llm_output_and_falls_back_to_context(generator):
