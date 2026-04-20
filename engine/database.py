@@ -72,6 +72,21 @@ class JobDatabase:
                     updated_at      TEXT DEFAULT (datetime('now'))
                 )
             """)
+            
+            # Migration chirurgicale pour les colonnes Phase 3
+            cursor = conn.execute("PRAGMA table_info(jobs)")
+            columns = [row[1] for row in cursor.fetchall()]
+            new_cols = {
+                "sent_via": "TEXT",
+                "sent_at": "TEXT",
+                "final_headline": "TEXT",
+                "final_summary": "TEXT",
+                "vault_path": "TEXT"
+            }
+            for col, col_type in new_cols.items():
+                if col not in columns:
+                    conn.execute(f"ALTER TABLE jobs ADD COLUMN {col} {col_type}")
+                    
             conn.execute("CREATE INDEX IF NOT EXISTS idx_status ON jobs(status)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_score  ON jobs(fit_score)")
             conn.commit()
@@ -166,6 +181,26 @@ class JobDatabase:
             cur = conn.execute(
                 f"UPDATE jobs SET status=?, notes=?, updated_at=datetime('now'){extra_sql} WHERE id=?",
                 [status, notes] + extra_params + [job_id],
+            )
+            conn.commit()
+            return cur.rowcount > 0
+
+    def mark_as_sent(self, job_id: str, via: str, edited_headline: str = None, edited_summary: str = None, vault_path: str = None) -> bool:
+        """Marque une offre comme envoyée avec les métadonnées de candidature."""
+        now = datetime.now().strftime("%Y-%m-%d %H:%M")
+        with self._connect() as conn:
+            cur = conn.execute(
+                """UPDATE jobs SET 
+                   status = 'sent',
+                   sent_via = ?,
+                   sent_at = ?,
+                   applied_date = ?,
+                   final_headline = ?,
+                   final_summary = ?,
+                   vault_path = ?,
+                   updated_at = datetime('now')
+                   WHERE id = ?""",
+                (via, now, now, edited_headline, edited_summary, vault_path, job_id)
             )
             conn.commit()
             return cur.rowcount > 0

@@ -326,181 +326,112 @@ def save_search_config(cfg: dict) -> None:
 
 # ─── SIDEBAR ─────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("## 🎯 Job Copilot")
-    st.markdown("**Zein ELAJAMY**")
-    st.markdown("*Ingénieur R&D | ENSEM 2026*")
     st.markdown(
-        '<span class="pill">🇫🇷 France · CDI · mobilité nationale</span>',
+        f"""
+        <div style="padding: 20px 0;">
+            <div style="font-size: 1.5rem; font-weight: 800; color: white;">JOB COPILOT</div>
+            <div style="font-size: 0.85rem; color: var(--text-muted); letter-spacing: 0.05em;">ZEIN ELAJAMY — ENSEM 2026</div>
+        </div>
+        """,
         unsafe_allow_html=True,
     )
     st.divider()
 
-    stats = db.get_stats()
-    st.metric("📋 Offres", stats["total"])
-    st.metric("📤 Candidatures", stats["sent"])
-    st.metric("🎤 Entretiens", stats["interviews"])
-
-    st.divider()
-
     page = st.radio(
         "Navigation",
-        options=[
-            "🏠 Dashboard",
-            "🔍 Scanner",
-            "📋 Offres",
-            "⚡ Générer",
-            "📊 Tracker",
-            "👤 Profil",
-        ],
+        ["🏠 Dashboard", "🔍 Scanner", "📋 Offres", "⚡ Générer", "📊 Tracker", "👤 Profil"],
         label_visibility="collapsed",
     )
 
     st.divider()
-    st.caption(f"MAJ : {datetime.now().strftime('%d/%m %H:%M')}")
+    stats = db.get_stats()
+    st.caption("STATISTIQUES")
+    c1, c2 = st.columns(2)
+    c1.metric("Total", stats["total"])
+    c2.metric("Postulé", stats["sent"])
+
+    st.divider()
+    if st.button("🔄 Refresh Data", use_container_width=True):
+        st.rerun()
 
 
 # ═══════════════════════════════════════════════════════════════
 # PAGE : DASHBOARD
 # ═══════════════════════════════════════════════════════════════
 if page == "🏠 Dashboard":
-    # --- États du filtre ---
-    if "dashboard_filter" not in st.session_state:
-        st.session_state["dashboard_filter"] = "Toutes"
-    if "location_filter" not in st.session_state:
-        st.session_state["location_filter"] = None
-    if "today_only" not in st.session_state:
-        st.session_state["today_only"] = False
+    st.markdown(
+        """
+        <div class="hero-container">
+            <div class="hero-h1">Bonjour, Zein.</div>
+            <div class="hero-h2">
+                Voici l'état de ton pipeline de recherche pour ton CDI en France en 2026.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    # Hero Section Premium
-    st.markdown('<div class="hero-container">', unsafe_allow_html=True)
-    h1_col, scan_col = st.columns([4, 1.2])
-    with h1_col:
-        st.markdown('<div class="hero-h1">Job Intelligence</div>', unsafe_allow_html=True)
-        st.markdown('<div class="hero-h2">Ta plateforme stratégique pour cibler les meilleures opportunités CDI en 2026.</div>', unsafe_allow_html=True)
-    with scan_col:
-        st.markdown("<br><br>", unsafe_allow_html=True) # Alignement vertical
-        if st.button("🔍 SCAN OFFRES", use_container_width=True, type="primary"):
-            with st.status("Extraction des opportunités...", expanded=True) as status:
-                from engine.sourcing_jobspy import scan_all_france
-                new_jobs = scan_all_france()
-                db.upsert_jobs(new_jobs)
-                status.update(label="Analyse terminée !", state="complete", expanded=False)
-                st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    # --- KPIs Pills ---
-    c1, c2, c3, c4, c5 = st.columns(5)
+    # KPIs Row
+    k1, k2, k3, k4 = st.columns(4)
     kpis = [
-        (stats["total"], "Flux", "#38bdf8", "Sourcing", "Toutes"),
-        (stats["by_status"].get("new", 0), "Tri", "#f59e0b", "Sélection", "new"),
-        (stats["by_status"].get("generated", 0), "CVs", "#60a5fa", "Production", "generated"),
-        (stats["sent"], "Postulé", "#22c55e", "Envoi", "sent"),
-        (stats["interviews"], "Entretiens", "#a855f7", "Résultat", "interview"),
+        (stats["total"], "Offres trouvées", "#38bdf8", "Sourcing"),
+        (stats["sent"], "Candidatures", "#4ade80", "Action"),
+        (stats["interviews"], "Entretiens", "#a855f7", "Progression"),
+        (stats["offers"], "Offres", "#f59e0b", "Succès"),
     ]
-    
-    for col, (val, kicker, color, label, status_key) in zip([c1, c2, c3, c4, c5], kpis):
+
+    for col, (val, label, color, kicker) in zip([k1, k2, k3, k4], kpis):
         with col:
-            active_style = f"border-color: {color}; background: rgba(56, 189, 248, 0.1);" if st.session_state["dashboard_filter"] == status_key else ""
             st.markdown(
-                f"""<div class="metric-pill" style="{active_style}">
-                <div style="font-size:10px; color:{color}; font-weight:700; text-transform:uppercase; margin-bottom:8px;">{kicker}</div>
-                <div class="metric-value">{val}</div>
-                <div class="metric-label">{label}</div>
-            </div>""",
+                f"""
+                <div class="metric-card" style="border-top: 3px solid {color}">
+                    <div class="metric-kicker">{kicker}</div>
+                    <div class="metric-value">{val}</div>
+                    <div class="metric-label">{label}</div>
+                </div>
+                """,
                 unsafe_allow_html=True,
             )
-            if st.button(f"VOIR {label.upper()}", key=f"btn_{status_key}", use_container_width=True):
-                st.session_state["dashboard_filter"] = status_key
-                st.session_state["location_filter"] = None
-                st.rerun()
 
-    if st.session_state["dashboard_filter"] != "Toutes" or st.session_state["location_filter"]:
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🔄 RÉINITIALISER TOUS LES FILTRES", type="primary", use_container_width=True):
-            st.session_state["dashboard_filter"] = "Toutes"
-            st.session_state["location_filter"] = None
-            st.rerun()
+    st.divider()
 
-    st.markdown("<br><br>", unsafe_allow_html=True)
-    col_l, col_r = st.columns([1.8, 1])
+    col_l, col_r = st.columns([2, 1])
 
     with col_l:
         st.markdown('<div class="section-card">', unsafe_allow_html=True)
-        
-        # Sélecteur de vue
-        header_col, filter_col = st.columns([1.1, 1.4])
-        with header_col:
-            st.subheader("🎯 Sélection d'offres")
-        with filter_col:
-            c_view, c_today = st.columns([1, 1])
-            with c_view:
-                view_mode = st.radio("Affichage", ["🔥 Top", "🆕 Toutes"], horizontal=True, label_visibility="collapsed")
-            with c_today:
-                st.session_state["today_only"] = st.toggle("📅 Aujourd'hui", value=st.session_state["today_only"])
+        st.subheader("⭐ Top Offres à traiter")
+        st.caption("Les offres les plus pertinentes (Score > 70%) prêtes pour toi.")
 
-        # Calcul de la liste
-        filt_status = st.session_state["dashboard_filter"]
-        filt_loc = st.session_state["location_filter"]
-        
-        if view_mode == "🔥 Top":
-            # Le top ignore un peu les filtres pour rester pertinent, mais on peut les appliquer
-            jobs_to_show = db.get_top_to_apply(n=12)
+        top_jobs = db.get_top_to_apply(n=5)
+        if not top_jobs:
+            st.info("Aucune offre à traiter pour le moment. Lance un scan !")
         else:
-            status_val = None if filt_status == "Toutes" else filt_status
-            jobs_to_show = db.get_jobs(status=status_val, location_filter=filt_loc, limit=60)
+            for j in top_jobs:
+                score = j["fit_score"]
+                s_class = (
+                    "score-high"
+                    if score >= 70
+                    else "score-mid" if score >= 40 else "score-low"
+                )
 
-        if st.session_state["today_only"]:
-            today = date.today().isoformat()
-            jobs_to_show = [j for j in jobs_to_show if j.get("sourcing_date") == today]
-
-        # Titre dynamique de la liste
-        active_filters = []
-        if st.session_state["dashboard_filter"] != "Toutes": active_filters.append(st.session_state['dashboard_filter'].upper())
-        if st.session_state["location_filter"]: active_filters.append(st.session_state['location_filter'].upper())
-        
-        if active_filters:
-            st.info(f"Filtre actif : {' + '.join(active_filters)}. Clique sur SOURCING ou la ville pour réinitialiser.")
-
-        if not jobs_to_show:
-            st.info("Aucune offre. Lance un scan → **🔍 Scanner**")
-        else:
-            for j in jobs_to_show:
-                s = j["fit_score"]
-                cls = ("score-high" if s >= 70 else "score-mid" if s >= 50 else "score-low")
-                url_btn = (f'<a href="{j["url"]}" target="_blank" style="color:#60a5fa;text-decoration:none;font-weight:700">Postuler ↗</a>' if j.get("url") else "")
-                
-                # Formatage de la date
-                try:
-                    dt = datetime.strptime(j.get("sourcing_date", ""), "%Y-%m-%d")
-                    date_str = dt.strftime("%d %b")
-                except:
-                    date_str = "Récemment"
-
-                skills_str = ", ".join(j.get("matched_skills", [])[:6])
-                
                 st.markdown(
-                    f"""<div class="job-card">
-                    <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;">
-                        <div style="flex:1">
-                            <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
-                                <span class="{cls}">{s}%</span>
-                                <span style="color:var(--muted); font-size:0.8rem;">📅 {date_str}</span>
-                                <span style="background:rgba(148,163,184,0.1); padding:2px 8px; border-radius:4px; font-size:0.7rem; color:var(--muted)">{j.get("source", "").upper()}</span>
+                    f"""
+                    <div class="job-card">
+                        <div style="display:flex; justify-content:space-between; align-items:start;">
+                            <div>
+                                <strong>{j['title']}</strong><br>
+                                <span style="color:var(--text-muted); font-size:0.9rem;">{j.get('company', '?')} — {j.get('location', '?')}</span>
                             </div>
-                            <strong style="color:white; font-size:1.05rem;">{j["title"][:70]}</strong><br>
-                            <span style="color:var(--brand); font-weight:600; font-size:0.95rem">{j.get("company", "?")}</span>
-                            <span style="color:var(--muted); font-size:0.9rem"> · 📍 {j.get("location", "?")}</span><br>
-                            <div style="margin-top:8px; line-height:1.4">
-                                <small style="color:#93c5fd; font-size:0.82rem">✨ {skills_str}</small>
-                            </div>
-                        </div>
-                        <div style="text-align:right;">
-                            {url_btn}
+                            <span class="{s_class}">{score}% Fit</span>
                         </div>
                     </div>
-                </div>""",
+                    """,
                     unsafe_allow_html=True,
                 )
+                if st.button(f"Générer CV pour {j['title'][:20]}...", key=f"gen_{j['id']}"):
+                    st.session_state["generate_job"] = j
+                    st.session_state["page"] = "⚡ Générer"
+                    st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
     with col_r:
@@ -544,7 +475,7 @@ if page == "🏠 Dashboard":
             for loc in locs:
                 l_name = loc["location"]
                 l_count = loc["cnt"]
-                is_active = st.session_state["location_filter"] == l_name
+                is_active = st.session_state.get("location_filter") == l_name
                 btn_label = f"{l_name} ({l_count})"
                 if st.button(btn_label, key=f"loc_{l_name}", use_container_width=True, type="secondary" if not is_active else "primary"):
                     if is_active:
@@ -769,96 +700,64 @@ elif page == "📋 Offres":
     if not jobs:
         st.info("Lance un scan d'abord → **🔍 Scanner**")
     else:
-        rows = []
-        for j in jobs:
-            rows.append(
-                {
-                    "Score": j["fit_score"],
-                    "Statut": STATUS_EMOJI.get(j["status"], "•") + " " + j["status"],
-                    "Poste": j["title"][:55],
-                    "Entreprise": j.get("company", "?")[:30],
-                    "Ville": j.get("location", "?")[:25],
-                    "Source": j.get("source", "").upper(),
-                    "_id": j["id"],
-                }
-            )
+        for job in jobs:
+            with st.container():
+                col_d, col_a = st.columns([3, 1])
 
-        df = pd.DataFrame(rows)
-        st.dataframe(
-            df.drop(columns=["_id"]),
-            hide_index=True,
-            use_container_width=True,
-            selection_mode="single-row",
-            on_select="rerun",
-        )
-
-        # Sélection assistée via session_state si dispo
-        if len(jobs) > 0:
-            selected_job = jobs[0]
-            st.divider()
-
-            col_d, col_a = st.columns([2, 1])
-
-            with col_d:
-                s = selected_job["fit_score"]
-                ico = "🟢" if s >= 70 else "🟡" if s >= 50 else "🔴"
-                st.markdown(f"## {ico} {selected_job['title']}")
-                st.markdown(
-                    f"**{selected_job.get('company', '?')}** — 📍 {selected_job.get('location', '?')}"
-                )
-                if selected_job.get("url"):
-                    st.markdown(f"🔗 [Voir l'offre originale]({selected_job['url']})")
-                m = selected_job.get("matched_skills", [])
-                if m:
+                with col_d:
+                    s = job["fit_score"]
+                    ico = "🟢" if s >= 70 else "🟡" if s >= 50 else "🔴"
+                    st.markdown(f"## {ico} {job['title']}")
                     st.markdown(
-                        "**Skills matchés :** " + " ".join([f"`{sk}`" for sk in m[:8]])
+                        f"**{job.get('company', '?')}** — 📍 {job.get('location', '?')}"
                     )
-                desc = selected_job.get("description", "")
-                if desc:
-                    with st.expander("📄 Description complète"):
-                        st.markdown(desc[:3000])
+                    if job.get("url"):
+                        st.markdown(f"🔗 [Voir l'offre originale]({job['url']})")
+                    m = job.get("matched_skills", [])
+                    if m:
+                        st.markdown(
+                            "**Skills matchés :** " + " ".join([f"`{sk}`" for sk in m[:8]])
+                        )
+                    desc = job.get("description", "")
+                    if desc:
+                        with st.expander("📄 Description complète"):
+                            st.markdown(desc[:3000])
 
-            with col_a:
-                st.markdown("### Actions")
-                cur = selected_job["status"]
-                new_s = st.selectbox(
-                    "Statut",
-                    VALID_STATUSES,
-                    index=VALID_STATUSES.index(cur) if cur in VALID_STATUSES else 0,
-                    key=f"sel_status_{selected_job['id']}",
-                )
-                notes = st.text_area(
-                    "Notes",
-                    value=selected_job.get("notes", "") or "",
-                    height=80,
-                    key=f"sel_notes_{selected_job['id']}",
-                )
-                if st.button(
-                    "💾 Sauvegarder",
-                    use_container_width=True,
-                    key=f"sel_save_{selected_job['id']}",
-                ):
-                    db.update_status(selected_job["id"], new_s, notes)
-                    st.success("✅ Mis à jour !")
-                    st.rerun()
-
-                st.divider()
-
-                if st.button(
-                    "⚡ Générer CV + Lettre",
-                    type="primary",
-                    use_container_width=True,
-                    key=f"sel_gen_{selected_job['id']}",
-                ):
-                    st.session_state["generate_job"] = selected_job
-                    st.rerun()
-
-                if selected_job.get("url"):
-                    st.link_button(
-                        "🌐 Postuler en ligne",
-                        selected_job["url"],
+                with col_a:
+                    st.markdown("### Actions")
+                    cur = job["status"]
+                    new_s = st.selectbox(
+                        "Statut",
+                        VALID_STATUSES,
+                        index=VALID_STATUSES.index(cur) if cur in VALID_STATUSES else 0,
+                        key=f"sel_status_{job['id']}",
+                    )
+                    notes = st.text_area(
+                        "Notes",
+                        value=job.get("notes", "") or "",
+                        height=80,
+                        key=f"sel_notes_{job['id']}",
+                    )
+                    if st.button(
+                        "💾 Sauvegarder",
                         use_container_width=True,
-                    )
+                        key=f"sel_save_{job['id']}",
+                    ):
+                        db.update_status(job["id"], new_s, notes)
+                        st.success("✅ Mis à jour !")
+                        st.rerun()
+
+                    st.divider()
+
+                    if st.button(
+                        "⚡ Générer CV + Lettre",
+                        type="primary",
+                        use_container_width=True,
+                        key=f"sel_gen_{job['id']}",
+                    ):
+                        st.session_state["generate_job"] = job
+                        st.session_state["page"] = "⚡ Générer"
+                        st.rerun()
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1047,7 +946,25 @@ elif page == "⚡ Générer":
         last = st.session_state.get("last_gen")
         if last:
             st.divider()
-            st.subheader("📥 Téléchargements")
+            
+            # --- SECTION ÉDITION CHIRURGICALE ---
+            cv_result = last.get("cv_result", {})
+            if cv_result and cv_result.get("cv_data"):
+                st.subheader("✍️ Personnalisation finale")
+                cv_data = cv_result.get("cv_data", {})
+                
+                default_headline = cv_data.get("personal_info", {}).get("headline", "")
+                default_summary = cv_data.get("personal_info", {}).get("summary_default", "")
+                
+                edited_headline = st.text_area("Accroche (Headline)", value=default_headline, height=70)
+                edited_summary = st.text_area("Résumé (Summary)", value=default_summary, height=150)
+                
+                # Sauvegarde dans le session state pour mark_as_sent
+                st.session_state["edited_headline"] = edited_headline
+                st.session_state["edited_summary"] = edited_summary
+                st.divider()
+
+            st.subheader("📥 Téléchargements & Envoi")
 
             d1, d2, d3 = st.columns(3)
 
@@ -1060,9 +977,7 @@ elif page == "⚡ Générer":
                         st.download_button(
                             "📄 Télécharger CV",
                             data=f.read(),
-                            file_name=f"CV_Zein_{job.get('company', '')}_{job.get('title', '')}{ext}"[
-                                :80
-                            ],
+                            file_name=f"CV_Zein_{job.get('company', '')}_{job.get('title', '')}{ext}"[:80],
                             mime=mime,
                             use_container_width=True,
                             type="primary",
@@ -1084,31 +999,35 @@ elif page == "⚡ Générer":
             with d3:
                 if job.get("url"):
                     st.link_button(
-                        "🌐 Postuler maintenant",
+                        "🌐 Voir l'offre originale",
                         job["url"],
                         use_container_width=True,
                     )
 
+            st.divider()
+            
+            # --- BLOC ACTION (VOIE A) CHIRURGICAL ---
+            st.markdown("### ⚡ Bloc Action (Voie A)")
+            ca, cb_ = st.columns(2)
+            with ca:
+                if st.button("✅ J'ai postulé manuellement", type="primary", use_container_width=True):
+                    db.mark_as_sent(
+                        job_id=job["id"],
+                        via="manual",
+                        edited_headline=st.session_state.get("edited_headline"),
+                        edited_summary=st.session_state.get("edited_summary"),
+                        vault_path=last.get("cv_path")
+                    )
+                    st.session_state.pop("generate_job", None)
+                    st.session_state.pop("last_gen", None)
+                    st.success("✅ Candidature enregistrée ! Offre suivante...")
+                    st.rerun()
+            with cb_:
+                st.button("🤖 Lancer l'Auto-Apply AIHawk (Bientôt)", disabled=True, use_container_width=True)
+
             if last.get("letter_text"):
                 with st.expander("👁️ Aperçu de la lettre"):
                     st.text(last["letter_text"])
-
-            st.divider()
-            ca, cb_ = st.columns(2)
-            with ca:
-                if st.button(
-                    "✅ Marquer comme envoyée", type="primary", use_container_width=True
-                ):
-                    db.update_status(job["id"], "sent")
-                    st.session_state.pop("generate_job", None)
-                    st.session_state.pop("last_gen", None)
-                    st.success("✅ Candidature enregistrée !")
-                    st.rerun()
-            with cb_:
-                if st.button("🔄 Générer une autre offre", use_container_width=True):
-                    st.session_state.pop("generate_job", None)
-                    st.session_state.pop("last_gen", None)
-                    st.rerun()
 
 
 # ═══════════════════════════════════════════════════════════════
