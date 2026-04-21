@@ -142,7 +142,7 @@
           }
         }
 
-        #// Bloc soft_skills supprimé car fusionné dans grouped_skills
+        // Bloc soft_skills supprimé car fusionné dans grouped_skills
 
         #{
           sidebar-title("LANGUES")
