@@ -116,44 +116,44 @@ SHRINK_CONFIGS = [
         "call_llm": True,
         "max_pro_exp": 4,
         "max_projects": 2,
-        "max_bullets": 3,
-        "font_size": 9.5,
-        "leading": 0.55,
-        "section_gap": 5,
-        "margin_sides": 14,
+        "max_bullets": 2,
+        "font_size": 9.0,
+        "leading": 0.50,
+        "section_gap": 3,
+        "margin_sides": 12,
     },
     {
         "attempt": 2,
         "call_llm": False,
-        "max_pro_exp": 4,
+        "max_pro_exp": 3,
         "max_projects": 2,
-        "max_bullets": 3,
-        "font_size": 9.2,
-        "leading": 0.50,
-        "section_gap": 4,
-        "margin_sides": 13,
+        "max_bullets": 2,
+        "font_size": 8.7,
+        "leading": 0.47,
+        "section_gap": 2,
+        "margin_sides": 11,
     },
     {
         "attempt": 3,
         "call_llm": False,
-        "max_pro_exp": 4,
-        "max_projects": 2,
-        "max_bullets": 3,
-        "font_size": 9.0,
-        "leading": 0.47,
-        "section_gap": 3,
-        "margin_sides": 12,
+        "max_pro_exp": 3,
+        "max_projects": 1,
+        "max_bullets": 1,
+        "font_size": 8.4,
+        "leading": 0.45,
+        "section_gap": 2,
+        "margin_sides": 10,
     },
     {
         "attempt": 4,
-        "call_llm": True,
-        "max_pro_exp": 3,
-        "max_projects": 2,
+        "call_llm": False,
+        "max_pro_exp": 2,
+        "max_projects": 1,
         "max_bullets": 2,
-        "font_size": 9.0,
-        "leading": 0.47,
-        "section_gap": 3,
-        "margin_sides": 12,
+        "font_size": 8.0,
+        "leading": 0.43,
+        "section_gap": 1,
+        "margin_sides": 10,
     },
 ]
 
@@ -662,6 +662,21 @@ class PersonalCVGenerator:
                 }
             )
 
+        # Regroupement par entreprise (fix fusion Typst)
+        seen_companies = []
+        grouped_exps = []
+        # On garde l'ordre original mais on tire les expériences de la même boîte ensemble
+        temp_exps = list(final_exps)
+        while temp_exps:
+            current = temp_exps.pop(0)
+            grouped_exps.append(current)
+            # Chercher les autres de la même boîte
+            others = [x for x in temp_exps if x["company"] == current["company"]]
+            for o in others:
+                grouped_exps.append(o)
+                temp_exps.remove(o)
+        final_exps = grouped_exps
+
         # Projets (Pool B)
         final_projs = []
         gen_projs = {p["id"]: p for p in cv_gen.get("projects", [])}
@@ -699,6 +714,13 @@ class PersonalCVGenerator:
                 grouped_skills["Connaissances Métier"] = [
                     {"name": d.strip()} for d in context_domain if d.strip()
                 ][:6]
+            
+            context_soft = context.get("skills", {}).get("soft_skills", [])
+            if context_soft:
+                grouped_skills["Savoir-être"] = [
+                    {"name": s.strip()} for s in context_soft if s.strip()
+                ][:5]
+
 
         return {
             "identity": context["personal_info"],
@@ -717,10 +739,11 @@ class PersonalCVGenerator:
                     "degree": e.get("degree"),
                     "school": e.get("institution"),
                     "year": e.get("period"),
-                    "details": " — ".join(
-                        [v for v in [e.get("specialization"), e.get("details")] if v]
-                    ),
-                    "modules": e.get("curriculum_highlights", {}),
+                    "specialization": e.get("specialization"),
+                    "details": e.get("details", ""),
+                    "modules": e.get("curriculum_highlights", {})
+                    if "ENSEM" in (e.get("institution") or "")
+                    else {},
                 }
                 for e in context["education"]
             ][:2],

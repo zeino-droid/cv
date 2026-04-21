@@ -291,20 +291,13 @@ db = get_db()
 
 
 def load_profile() -> dict:
-    # 1. Tentative depuis les secrets (Production / Sécurité)
-    try:
-        if "MASTER_PROFILE_JSON" in st.secrets:
-            return json.loads(st.secrets["MASTER_PROFILE_JSON"])
-    except Exception:
-        pass
-
-    # 2. Fallback sur le fichier local (Local Dev)
+    # On utilise uniquement le fichier local pour garantir la synchronisation
     path = ROOT / "profiles" / "master_profile.json"
     if path.exists():
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
     
-    st.error("❌ Profil introuvable (Secrets ou Fichier).")
+    st.error("❌ Profil local introuvable dans profiles/master_profile.json")
     return {}
 
 

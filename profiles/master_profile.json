@@ -1,23 +1,23 @@
 {
-   "personal_info": {
-     "name": "Zein ELAJAMY",
-     "email": "zeinfrance4@gmail.com",
-     "phone": "+33 7 54 45 47 42",
-     "location": "France (mobilité nationale)",
-     "linkedin": "https://www.linkedin.com/in/zein-elajamy",
-     "github": "",
-     "hobbies": ["Basketball (compétition)", "Lecture technique", "Hackathons", "Voyages"],
-     "current_status": {
+  "personal_info": {
+    "name": "Zein ELAJAMY",
+    "email": "zeinfrance4@gmail.com",
+    "phone": "+33 7 54 45 47 42",
+    "location": "France (mobilité nationale)",
+    "linkedin": "https://www.linkedin.com/in/zein-elajamy",
+    "github": "",
+    "hobbies": ["Basketball", "Randonnée", "F1"],
+    "current_status": {
       "value": "Élève-ingénieur ENSEM (3A) en apprentissage chez ArcelorMittal R&D",
       "hidden": true,
       "inject_in_prompt": false
     },
     "headline_default": "Ingénieur Simulation & Énergie | EF · CFD · Jumeaux Numériques | R&D Procédés Industriels",
-    "summary_default": "Ingénieur R&D spécialisé en simulation numérique et performance énergétique industrielle. Éléments finis (Abaqus/Metafor), CFD (Ansys Fluent), jumeaux numériques et outils Python d'analyse à grande échelle. Expérience terrain chez ArcelorMittal : modèle thermique validé à 95%, trajectoire de décarbonation orientée par audit Python/Plotly. Flambage dynamique de tôles minces (PFE en cours).",
+    "summary_default": "Ingénieur R&D spécialisé en simulation numérique et performance énergétique. Éléments finis (Abaqus/Metafor), CFD (Ansys Fluent), jumeaux numériques et Python. Expérience ArcelorMittal : modèle thermique validé à 95%, audit énergétique automatisé. PFE : flambage dynamique de tôles minces.",
     "languages": [
-      {"language": "Anglais", "level": "C1", "certification": "TOEIC 860"},
-      {"language": "Français", "level": "Courant"},
-      {"language": "Arabe", "level": "Maternel"}
+      { "language": "Anglais", "level": "C1", "certification": "TOEIC 860" },
+      { "language": "Français", "level": "Courant" },
+      { "language": "Arabe", "level": "Maternel" }
     ]
   },
   "education": [
@@ -25,7 +25,7 @@
       "degree": "Diplôme d'Ingénieur",
       "institution": "ENSEM (École Nationale Supérieure d'Électricité et de Mécanique)",
       "period": "2023 - 2026",
-      "specialization": "Énergie & Systèmes (FISA) — Modules clés : Simulations Numériques (Abaqus/Fluent), Thermomécanique, Smart Grids, Automatique & Commande.",
+      "specialization": "Énergie & Systèmes — Conversion d'énergies, Pilotage des systèmes énergétiques, Énergétique des procédés",
       "curriculum_highlights": {
         "S5_S6": [
           "Bases de la Mécanique des Milieux Continus (MMC)",
@@ -58,9 +58,9 @@
     },
     {
       "degree": "Licence Mécanique des Fluides & Énergétique",
-      "institution": "Faculté des Sciences",
+      "institution": "Université de Lorraine, Nancy",
       "period": "2022 - 2023",
-      "details": "Formation approfondie sur les principes fondamentaux de l'énergétique et de la mécanique. Acquisition de compétences solides en dynamique des fluides (écoulements laminaires et turbulents), thermodynamique technique, transferts de chaleur (conduction, convection, rayonnement) et méthodes mathématiques appliquées à la physique."
+      "details": "Fondamentaux : dynamique des fluides, thermodynamique, transferts thermiques"
     }
   ],
   "experience_stark": [
@@ -74,7 +74,13 @@
       "T": "Développer et valider des modèles numériques robustes pour fournir des outils d'analyse pertinents à ArcelorMittal R&D.",
       "A": "Modélisation de cas tests sous Abaqus et Metafor. Réalisation d'études de sensibilité numérique (maillage, type d'éléments, conditions de symétrie). Optimisation du couple maillage/pas de temps et comparaison des solveurs Implicite vs Explicite. Analyse comparative des performances et de la stabilité entre Metafor et Abaqus.",
       "R": "Validation de la physique du modèle par rapport à la littérature. Synthèse des paramètres optimaux pour simuler le flambage dynamique de manière fiable. Intégration du phénomène dans un cas industriel de laminage.",
-      "K": ["Abaqus", "Metafor", "Flambage Dynamique", "Laminage", "Éléments Finis"]
+      "K": [
+        "Abaqus",
+        "Metafor",
+        "Flambage Dynamique",
+        "Laminage",
+        "Éléments Finis"
+      ]
     },
     {
       "id": "AM_A2",
@@ -86,31 +92,51 @@
       "T": "Développer un jumeau numérique pour quantifier et optimiser la consommation.",
       "A": "Développement d'un module de calcul en Python pour les bilans énergétiques. Implémentation d'une logique de calcul multi-niveaux et inversion mathématique de corrélations physiques. Création de dashboards interactifs pour la visualisation des données.",
       "R": "Identification du rendement global des systèmes de refroidissement et aide à la décision pour les trajectoires de décarbonation. Automatisation de l'audit énergétique.",
-      "K": ["Efficacité énergétique", "Optimisation", "Python", "Visualisation de données"]
+      "K": [
+        "Efficacité énergétique",
+        "Optimisation",
+        "Python",
+        "Visualisation de données"
+      ]
     },
     {
       "id": "AM_A1",
       "title": "Jumeau Numérique Thermique",
       "company": "ArcelorMittal R&D",
       "period": "Année 1 (2023-2024)",
-      "profiles_tags": ["simulation_rd", "energie_cfd", "calcul_digital", "all"],
+      "profiles_tags": [
+        "simulation_rd",
+        "energie_cfd",
+        "calcul_digital",
+        "all"
+      ],
       "S": "Suivi des températures de procédés industriels critiques.",
       "T": "Concevoir et mettre en œuvre un modèle thermique (jumeau numérique).",
       "A": "Développement d'un modèle thermique hors-ligne en Python pour simuler le refroidissement industriel. Utilisation de corrélations physiques et intégration de données géométriques. Structuration du dossier logiciel pour la reproductibilité.",
       "R": "Validation du modèle avec une corrélation de 95% entre les températures théoriques et réelles. Accélération du post-traitement des simulations.",
-      "K": ["Modélisation thermique", "Jumeau numérique", "Python", "Simulation"]
+      "K": [
+        "Modélisation thermique",
+        "Jumeau numérique",
+        "Python",
+        "Simulation"
+      ]
     },
     {
       "id": "IJL_STAGE",
       "title": "Stagiaire Recherche - Thermodynamique des Alliages",
       "company": "Institut Jean Lamour (IJL)",
-      "period": "2023",
+      "period": "Mai - Juin 2023",
       "profiles_tags": ["simulation_rd", "all"],
       "S": "Compréhension du comportement thermodynamique des alliages au sein d'un laboratoire CNRS de rang mondial.",
       "T": "Modéliser les équilibres de phases et les propriétés thermodynamiques.",
       "A": "Utilisation de logiciels spécialisés (ThermoCalc) pour le calcul de diagrammes de phases. Analyse et interprétation des résultats expérimentaux.",
       "R": "Expertise acquise en modélisation CALPHAD des équilibres de phases. Contribution à la compréhension des transformations de phases sous gradient thermique, directement transférable aux procédés de traitement thermique industriel.",
-      "K": ["Thermodynamique", "Science des matériaux", "Modélisation", "CALPHAD"]
+      "K": [
+        "Thermodynamique",
+        "Science des matériaux",
+        "Modélisation",
+        "CALPHAD"
+      ]
     },
     {
       "id": "ENSEM_TP_SOLAR",
@@ -181,51 +207,112 @@
   "profiles": {
     "simulation_rd": {
       "headline": "Ingénieur Simulation Numérique | Éléments Finis & Flambage Dynamique | R&D Industrielle",
-      "target_keywords": ["Abaqus", "Metafor", "Éléments Finis", "CAE", "Flambage", "Science des matériaux"],
-      "priority_experiences": ["AM_PFE", "ENSEM_PROJ_COMPOSITES", "IJL_STAGE", "AM_A1"]
+      "target_keywords": [
+        "Abaqus",
+        "Metafor",
+        "Éléments Finis",
+        "CAE",
+        "Flambage",
+        "Science des matériaux"
+      ],
+      "priority_experiences": [
+        "AM_PFE",
+        "ENSEM_PROJ_COMPOSITES",
+        "IJL_STAGE",
+        "AM_A1"
+      ]
     },
     "energie_cfd": {
       "headline": "Ingénieur Énergie & CFD | Jumeaux Numériques & Décarbonation | Ansys Fluent",
-      "target_keywords": ["CFD", "Ansys Fluent", "Jumeau Numérique", "Décarbonation", "Audit Énergétique", "Transferts thermiques"],
+      "target_keywords": [
+        "CFD",
+        "Ansys Fluent",
+        "Jumeau Numérique",
+        "Décarbonation",
+        "Audit Énergétique",
+        "Transferts thermiques"
+      ],
       "priority_experiences": ["AM_A2", "AM_A1", "ENSEM_PROJ_FLUENT", "AM_PFE"]
     },
     "energie_enr": {
       "headline": "Ingénieur Énergie Renouvelable | Systèmes PV · Éolien · Hydro | Smart Grids",
-      "target_keywords": ["ENR", "Photovoltaïque", "Éolien", "Hydraulique", "Smart Grid", "Électronique de puissance"],
-      "priority_experiences": ["ENSEM_TP_SOLAR", "ENSEM_TP_WIND", "ENSEM_TP_HYDRO", "AM_A2"]
+      "target_keywords": [
+        "ENR",
+        "Photovoltaïque",
+        "Éolien",
+        "Hydraulique",
+        "Smart Grid",
+        "Électronique de puissance"
+      ],
+      "priority_experiences": [
+        "ENSEM_TP_SOLAR",
+        "ENSEM_TP_WIND",
+        "ENSEM_TP_HYDRO",
+        "AM_A2"
+      ]
     },
     "calcul_digital": {
       "headline": "Ingénieur Calcul Scientifique & Digital | Python · Simulation · Jumeaux Numériques",
-      "target_keywords": ["Python", "Simulation", "Jumeau numérique", "Data", "Bureau d'études", "Automatisation"],
+      "target_keywords": [
+        "Python",
+        "Simulation",
+        "Jumeau numérique",
+        "Data",
+        "Bureau d'études",
+        "Automatisation"
+      ],
       "priority_experiences": ["AM_A1", "AM_A2", "AM_PFE", "ENSEM_PROJ_FLUENT"]
     }
   },
   "skills_taxonomy": {
     "hard_skills": [
-      {"name": "Abaqus", "level": "Avancé", "context": "PFE Flambage Dynamique"},
-      {"name": "Metafor", "level": "Intermédiaire", "context": "PFE Exploration"},
-      {"name": "Ansys Fluent", "level": "Avancé", "context": "Projet S9 CFD"},
-      {"name": "Python", "level": "Avancé", "context": "ArcelorMittal, Automatisation"},
-      {"name": "Matlab / Simulink", "level": "Avancé", "context": "ENR, Turbomachines, Optimisation"},
-      {"name": "Smart Grids / Réseaux électriques", "level": "Intermédiaire", "context": "Cours S7-S8 ENSEM"},
-      {"name": "Automatique & Commande", "level": "Intermédiaire", "context": "ENSEM TP Éolien, MPPT"},
-      {"name": "Électronique de puissance", "level": "Intermédiaire", "context": "Cours S6-S8 ENSEM"}
+      {
+        "name": "Abaqus",
+        "level": "Avancé",
+        "context": "PFE Flambage Dynamique"
+      },
+      {
+        "name": "Metafor",
+        "level": "Intermédiaire",
+        "context": "PFE Exploration"
+      },
+      { "name": "Ansys Fluent", "level": "Avancé", "context": "Projet S9 CFD" },
+      {
+        "name": "Python",
+        "level": "Avancé",
+        "context": "ArcelorMittal, Automatisation"
+      },
+      {
+        "name": "Matlab / Simulink",
+        "level": "Avancé",
+        "context": "ENR, Turbomachines, Optimisation"
+      },
+      {
+        "name": "Smart Grids / Réseaux électriques",
+        "level": "Intermédiaire",
+        "context": "Cours S7-S8 ENSEM"
+      },
+      {
+        "name": "Automatique & Commande",
+        "level": "Intermédiaire",
+        "context": "ENSEM TP Éolien, MPPT"
+      },
+      {
+        "name": "Électronique de puissance",
+        "level": "Intermédiaire",
+        "context": "Cours S6-S8 ENSEM"
+      }
     ],
     "domain_knowledge": [
       "Modélisation Thermomécanique",
-      "Flambage et Stabilité des structures",
       "Jumeaux Numériques",
       "Énergies Renouvelables (Solaire, Éolien, Hydro)",
-      "Électronique de puissance & Drives",
       "Réseaux électriques & Smart Grids",
-      "Contrôle des systèmes & Automatique",
-      "Machines électriques & Turbomachines",
       "Science des matériaux"
     ],
     "soft_skills": [
-      "Adaptabilité internationale",
-      "Communication technique",
-      "Gestion de projet R&D"
+      "Curiosité technique & veille scientifique",
+      "Transfert de compétences & documentation technique"
     ]
   }
 }
