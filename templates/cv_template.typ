@@ -168,7 +168,6 @@
         }
         
         #v(1fr)
-        #align(center, text(size: 6pt, fill: secondary.lighten(30%), "VER 5.2 (AIRY_FIXED)"))
      ]
    ),
 
