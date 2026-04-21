@@ -433,10 +433,24 @@ class PersonalCVGenerator:
 
         return ranked_content
 
-    async def generate_cv_for_job(self, job: Dict) -> Dict:
-        return await self.generate_one_page_cv(job)
+    async def generate_cv_for_job(
+        self,
+        job: Dict,
+        headline_override: Optional[str] = None,
+        summary_override: Optional[str] = None,
+    ) -> Dict:
+        return await self.generate_one_page_cv(
+            job,
+            headline_override=headline_override,
+            summary_override=summary_override,
+        )
 
-    async def generate_one_page_cv(self, job: Dict) -> Dict:
+    async def generate_one_page_cv(
+        self,
+        job: Dict,
+        headline_override: Optional[str] = None,
+        summary_override: Optional[str] = None,
+    ) -> Dict:
         """Génère un CV avec Shrink Loop et séparation des pools Pro/Projets."""
         job_data = self._normalize_job(job)
 
@@ -554,6 +568,12 @@ class PersonalCVGenerator:
                 )
                 cached_cv_data = copy.deepcopy(cv_data)
 
+            cv_data = self._apply_text_overrides(
+                cv_data,
+                headline_override=headline_override,
+                summary_override=summary_override,
+            )
+
             rank_fill_report = ranked_content.get("fill_report", {})
             skill_fill_layers = filtered_skills.get("fill_layers", {})
             fill_report = {
@@ -618,6 +638,21 @@ class PersonalCVGenerator:
                 best_result = {"cv_data": cv_data, "fill_report": fill_report}
 
         return best_result or {"error": "Échec"}
+
+    def _apply_text_overrides(
+        self,
+        cv_data: Dict,
+        headline_override: Optional[str] = None,
+        summary_override: Optional[str] = None,
+    ) -> Dict:
+        data = copy.deepcopy(cv_data)
+        headline = (headline_override or "").strip()
+        summary = (summary_override or "").strip()
+        if headline:
+            data["headline"] = re.sub(r"\s*:\s*", " : ", headline)
+        if summary:
+            data["summary"] = re.sub(r"\s*:\s*", " : ", summary)
+        return data
 
     def _assemble_final_data(
         self, llm_output: Dict, context: Dict, max_bullets: Optional[int] = None
