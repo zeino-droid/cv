@@ -660,8 +660,11 @@ class PersonalCVGenerator:
                     if "-" in exp.get("period", "")
                     else "",
                     "location": exp.get("location", ""),
-                    "achievements": g.get("bullets", fallback_achievements)[
-                        :effective_max_bullets
+                    "achievements": [
+                        re.sub(r"\s*:\s*", " : ", a)
+                        for a in g.get("bullets", fallback_achievements)[
+                            :effective_max_bullets
+                        ]
                     ],
                 }
             )
@@ -732,11 +735,19 @@ class PersonalCVGenerator:
 
         return {
             "identity": context["personal_info"],
-            "headline": cv_gen.get("headline", {}).get(
-                "value", context["target_profile"]["headline"]
+            "headline": re.sub(
+                r"\s*:\s*",
+                " : ",
+                cv_gen.get("headline", {}).get(
+                    "value", context["target_profile"]["headline"]
+                ),
             ),
-            "summary": cv_gen.get("summary", {}).get(
-                "value", context["target_profile"]["summary"]
+            "summary": re.sub(
+                r"\s*:\s*",
+                " : ",
+                cv_gen.get("summary", {}).get(
+                    "value", context["target_profile"]["summary"]
+                ),
             ),
             "experiences": final_exps,
             "projects": final_projs,
