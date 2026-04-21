@@ -4,8 +4,8 @@
 // ─── Paramètres dynamiques (Inputs) ───
 #let data-path          = sys.inputs.at("data-path",       default: "_cv_data.json")
 #let font-size-delta    = float(sys.inputs.at("font-size-delta", default: "0.0"))  * 1pt
-#let leading-val        = float(sys.inputs.at("leading",        default: "0.55"))  * 1em
-#let section-gap-val    = float(sys.inputs.at("section-gap",    default: "15.0"))  * 1pt
+#let leading-val        = float(sys.inputs.at("leading",        default: "0.58"))  * 1em
+#let section-gap-val    = float(sys.inputs.at("section-gap",    default: "18.0"))  * 1pt
 #let margin-sides-val   = float(sys.inputs.at("margin-sides",   default: "14.0"))  * 1pt
 
 // ─── Données JSON ───
