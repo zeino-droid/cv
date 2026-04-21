@@ -119,7 +119,7 @@ SHRINK_CONFIGS = [
         "max_bullets": 2,
         "font_size": 10.4,
         "leading": 0.65,
-        "section_gap": 22,
+        "section_gap": 16,
         "margin_sides": 18,
     },
     {

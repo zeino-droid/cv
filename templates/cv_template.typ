@@ -197,12 +197,12 @@
                 text(size: 10.2pt + font-size-delta, weight: "bold", fill: primary, exp.position),
                 text(size: 9.5pt + font-size-delta, weight: "medium", fill: secondary, exp.start_date + " — " + exp.end_date)
               )
-              v(-0.45em)
+              v(-0.4em)
               if not same_company {
                 text(size: 9.8pt + font-size-delta, weight: "bold", fill: primary, exp.company)
                 v(0.1em)
               } else {
-                v(-0.3em)
+                v(0.5em)
               }
 
               if exp.keys().contains("achievements") {
