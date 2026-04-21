@@ -58,9 +58,9 @@
 }
 
 #let sidebar-title(title) = {
-  v(0.4em)
+  v(0.8em)
   text(size: 9.0pt + font-size-delta, weight: "bold", fill: primary, tracking: 0.5pt, upper(title))
-  v(0.15em)
+  v(0.3em)
 }
 
 #let render-project(proj, index) = {
@@ -80,16 +80,16 @@
     )
     // Description conditionnelle (si présente)
     #if proj.description != "" and proj.description != none {
-      v(0.1em)
+      v(0.25em)
       text(size: 8.5pt, style: "italic", fill: secondary)[#proj.description]
     }
     // Keywords toujours affichés, proches du titre
-    #v(0.1em)
+    #v(0.2em)
     #text(size: 9.0pt, fill: secondary)[#proj.keywords]
   ]
   // Ligne de séparation fine après chaque projet
   line(length: 100%, stroke: 0.3pt + divider-color.lighten(40%))
-  v(0.5em)
+  v(0.85em)
 }
 
 // ─── Structure ───
@@ -218,23 +218,23 @@
                       text(size: 9.5pt + font-size-delta, fill: primary, "•"),
                       text(size: 9.8pt + font-size-delta, fill: secondary, ach)
                     )
-                    v(0.02em)
+                    v(0.12em)
                   }
               }
-              v(0.3em)
+              v(0.65em)
             }
         }
       }
 
       #if cv_data.keys().contains("projects") and cv_data.projects.len() > 0 {
-        v(0.5em)
+        v(0.8em)
         section-title("PROJETS TECHNIQUES")
         for (i, proj) in cv_data.projects.enumerate() {
           render-project(proj, i)
         }
       }
 
-      #v(0.5em)
+      #v(0.8em)
       #section-title("FORMATION")
       #{
         if cv_data.keys().contains("education") {
