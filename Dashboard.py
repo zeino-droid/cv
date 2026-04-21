@@ -4,9 +4,11 @@ Zein ELAJAMY | Ingénieur R&D | ENSEM 2026
 Frontend premium inspiré des standards Apple / Indeed / Nike.
 """
 
+import atexit
 import asyncio
 import json
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, date, timedelta
 from pathlib import Path
 
@@ -18,6 +20,25 @@ sys.path.insert(0, str(ROOT))
 
 from engine.database import STATUS_EMOJI, VALID_STATUSES, JobDatabase
 from engine.sourcing_jobspy import scan_all_france
+
+ASYNC_EXECUTOR = ThreadPoolExecutor(max_workers=1)
+atexit.register(lambda: ASYNC_EXECUTOR.shutdown(wait=False, cancel_futures=True))
+
+
+def run_coroutine_sync(coro, context: str = "operation"):
+    """Run a coroutine safely in Streamlit, even if an event loop is already active."""
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        try:
+            return asyncio.run(coro)
+        except Exception as exc:
+            raise RuntimeError(f"Async {context} failed: {exc}") from exc
+
+    try:
+        return ASYNC_EXECUTOR.submit(lambda: asyncio.run(coro)).result()
+    except Exception as exc:
+        raise RuntimeError(f"Async {context} failed: {exc}") from exc
 
 # ─── PAGE CONFIG ─────────────────────────────────────────────────
 st.set_page_config(
@@ -918,12 +939,13 @@ elif page == "⚡ Générer":
                             from engine.cv_generator import PersonalCVGenerator
 
                             gen_obj = PersonalCVGenerator()
-                            cv_result = asyncio.run(
+                            cv_result = run_coroutine_sync(
                                 gen_obj.generate_cv_for_job(
                                     job,
                                     headline_override=st.session_state.get("edited_headline"),
                                     summary_override=st.session_state.get("edited_summary"),
-                                )
+                                ),
+                                context="CV generation",
                             )
 
                         letter_text = ""
@@ -937,10 +959,11 @@ elif page == "⚡ Générer":
                                     )
 
                                     letter_text = (
-                                        asyncio.run(
+                                        run_coroutine_sync(
                                             generate_cover_letter_llm(
                                                 _CG(), profile, job
-                                            )
+                                            ),
+                                            context="cover letter generation",
                                         )
                                         or ""
                                     )
