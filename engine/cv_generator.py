@@ -117,10 +117,10 @@ SHRINK_CONFIGS = [
         "max_pro_exp": 4,
         "max_projects": 2,
         "max_bullets": 2,
-        "font_size": 10.2,
-        "leading": 0.58,
-        "section_gap": 18,
-        "margin_sides": 15,
+        "font_size": 10.4,
+        "leading": 0.65,
+        "section_gap": 22,
+        "margin_sides": 18,
     },
     {
         "attempt": 2,
@@ -128,10 +128,10 @@ SHRINK_CONFIGS = [
         "max_pro_exp": 3,
         "max_projects": 2,
         "max_bullets": 2,
-        "font_size": 9.5,
-        "leading": 0.52,
-        "section_gap": 11,
-        "margin_sides": 13,
+        "font_size": 9.8,
+        "leading": 0.58,
+        "section_gap": 14,
+        "margin_sides": 15,
     },
     {
         "attempt": 3,
@@ -139,10 +139,10 @@ SHRINK_CONFIGS = [
         "max_pro_exp": 3,
         "max_projects": 1,
         "max_bullets": 1,
-        "font_size": 8.8,
-        "leading": 0.48,
-        "section_gap": 6,
-        "margin_sides": 12,
+        "font_size": 9.2,
+        "leading": 0.54,
+        "section_gap": 10,
+        "margin_sides": 13,
     },
     {
         "attempt": 4,
@@ -150,10 +150,10 @@ SHRINK_CONFIGS = [
         "max_pro_exp": 2,
         "max_projects": 1,
         "max_bullets": 2,
-        "font_size": 8.2,
-        "leading": 0.44,
-        "section_gap": 3,
-        "margin_sides": 11,
+        "font_size": 8.6,
+        "leading": 0.48,
+        "section_gap": 6,
+        "margin_sides": 12,
     },
 ]
 
@@ -650,6 +650,10 @@ class PersonalCVGenerator:
             raw_title = g.get("rewritten_title", exp.get("title"))
             # Correction typographique française : espace avant les deux points
             rewritten_title = re.sub(r"\s*:\s*", " : ", raw_title)
+            
+            # Cas spécial : Jumeau Numérique -> Jumeau Numérique : Sujet
+            if "jumeau numérique" in rewritten_title.lower() and ":" not in rewritten_title:
+                rewritten_title = re.sub(r"(?i)jumeau numérique\s+", "Jumeau Numérique : ", rewritten_title)
 
             final_exps.append(
                 {
@@ -752,7 +756,6 @@ class PersonalCVGenerator:
             "experiences": final_exps,
             "projects": final_projs,
             "grouped_skills": grouped_skills,
-            "soft_skills": context.get("skills", {}).get("soft_skills", []),
             "education": [
                 {
                     "degree": e.get("degree"),

@@ -142,16 +142,7 @@
           }
         }
 
-        #{
-          if cv_data.keys().contains("soft_skills") and cv_data.soft_skills.len() > 0 {
-            sidebar-title("SOFT SKILLS")
-            for ss in cv_data.soft_skills {
-              pill(ss)
-              h(1.5pt)
-            }
-            v(0.1em)
-          }
-        }
+        #// Bloc soft_skills supprimé car fusionné dans grouped_skills
 
         #{
           sidebar-title("LANGUES")
@@ -176,8 +167,8 @@
           }
         }
         
-        v(1fr)
-        align(center, text(size: 6pt, fill: secondary.lighten(30%), "VER 5.1.b (SPACING_FIXED)"))
+        #v(1fr)
+        #align(center, text(size: 6pt, fill: secondary.lighten(30%), "VER 5.2 (AIRY_FIXED)"))
      ]
    ),
 
@@ -194,7 +185,7 @@
       #section-title("RÉSUMÉ")
       #text(size: 9.8pt + font-size-delta, fill: secondary, weight: "medium", cv_data.summary)
 
-      #v(1.4em)
+      #v(2.2em)
 
       #section-title("EXPÉRIENCES")
       #{
