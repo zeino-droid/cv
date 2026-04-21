@@ -210,3 +210,15 @@ def test_assemble_final_data_falls_back_to_context_skills(generator):
     }
     data = generator._assemble_final_data({"cv": {}}, context)
     assert data["grouped_skills"]["Compétences"] == [{"name": "Python"}, {"name": "Abaqus"}]
+
+
+def test_apply_text_overrides_replaces_headline_and_summary(generator):
+    cv_data = {"headline": "Old", "summary": "Old summary"}
+    updated = generator._apply_text_overrides(
+        cv_data,
+        headline_override="Nouvelle accroche: test",
+        summary_override="Nouveau résumé: test",
+    )
+    assert updated["headline"] == "Nouvelle accroche : test"
+    assert updated["summary"] == "Nouveau résumé : test"
+    assert cv_data == {"headline": "Old", "summary": "Old summary"}

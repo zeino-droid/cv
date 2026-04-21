@@ -918,7 +918,13 @@ elif page == "⚡ Générer":
                             from engine.cv_generator import PersonalCVGenerator
 
                             gen_obj = PersonalCVGenerator()
-                            cv_result = asyncio.run(gen_obj.generate_cv_for_job(job))
+                            cv_result = asyncio.run(
+                                gen_obj.generate_cv_for_job(
+                                    job,
+                                    headline_override=st.session_state.get("edited_headline"),
+                                    summary_override=st.session_state.get("edited_summary"),
+                                )
+                            )
 
                         letter_text = ""
                         letter_path = ""
