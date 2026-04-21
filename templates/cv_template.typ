@@ -175,6 +175,9 @@
             }
           }
         }
+        
+        v(1fr)
+        align(center, text(size: 6pt, fill: secondary.lighten(30%), "VER 5.1.b (SPACING_FIXED)"))
      ]
    ),
 

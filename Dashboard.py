@@ -992,8 +992,8 @@ elif page == "⚡ Générer":
                 st.subheader("✍️ Personnalisation finale")
                 cv_data = cv_result.get("cv_data", {})
                 
-                default_headline = cv_data.get("personal_info", {}).get("headline", "")
-                default_summary = cv_data.get("personal_info", {}).get("summary_default", "")
+                default_headline = cv_data.get("headline", "")
+                default_summary = cv_data.get("summary", "")
                 
                 edited_headline = st.text_area("Accroche (Headline)", value=default_headline, height=70)
                 edited_summary = st.text_area("Résumé (Summary)", value=default_summary, height=150)
