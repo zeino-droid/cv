@@ -647,9 +647,13 @@ class PersonalCVGenerator:
                     sentences if len(sentences) > 1 else [fallback_achievements]
                 )
 
+            raw_title = g.get("rewritten_title", exp.get("title"))
+            # Correction typographique française : espace avant les deux points
+            rewritten_title = re.sub(r"\s*:\s*", " : ", raw_title)
+
             final_exps.append(
                 {
-                    "position": g.get("rewritten_title", exp.get("title")),
+                    "position": rewritten_title,
                     "company": exp.get("company"),
                     "start_date": exp.get("period", "").split("-")[0].strip(),
                     "end_date": exp.get("period", "").split("-")[-1].strip()
@@ -683,9 +687,13 @@ class PersonalCVGenerator:
         for p in context.get("ranked_projects", []):
             pid = p.get("id")
             g = gen_projs.get(pid, {})
+            raw_proj_title = g.get("rewritten_title", p.get("title"))
+            # Correction typographique française : espace avant les deux points
+            rewritten_proj_title = re.sub(r"\s*:\s*", " : ", raw_proj_title)
+            
             final_projs.append(
                 {
-                    "name": g.get("rewritten_title", p.get("title")),
+                    "name": rewritten_proj_title,
                     "description": g.get("one_line_description", p.get("D", "")),
                     "keywords": g.get("keywords_inline", " · ".join(p.get("K", []))),
                 }

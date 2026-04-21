@@ -191,7 +191,7 @@
       #section-title("RÉSUMÉ")
       #text(size: 9.8pt + font-size-delta, fill: secondary, weight: "medium", cv_data.summary)
 
-      #v(0.5em)
+      #v(1.4em)
 
       #section-title("EXPÉRIENCES")
       #{
