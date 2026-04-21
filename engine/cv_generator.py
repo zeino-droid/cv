@@ -75,7 +75,7 @@ STOPWORDS_FR = {
     "mais",
     "ou",
     "donc",
-bf     "or",
+    "or",
     "ni",
     "car",
     "très",
