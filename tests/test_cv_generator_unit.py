@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pytest
 
@@ -222,3 +223,14 @@ def test_apply_text_overrides_replaces_headline_and_summary(generator):
     assert updated["headline"] == "Nouvelle accroche : test"
     assert updated["summary"] == "Nouveau résumé : test"
     assert cv_data == {"headline": "Old", "summary": "Old summary"}
+
+
+@pytest.mark.asyncio
+async def test_generate_cv_for_job_returns_markdown_when_typst_missing(generator):
+    result = await generator.generate_cv_for_job(
+        {"title": "Ingénieur R&D", "company": "ACME", "description": "Python Abaqus"}
+    )
+    assert "pdf_path" not in result
+    md_path = result.get("md_path")
+    assert md_path
+    assert Path(md_path).exists()

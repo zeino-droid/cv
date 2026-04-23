@@ -635,7 +635,12 @@ class PersonalCVGenerator:
                     return res
                 best_result = res
             else:
-                best_result = {"cv_data": cv_data, "fill_report": fill_report}
+                fallback_result = {"cv_data": cv_data, "fill_report": fill_report}
+                for f in ["md", "tex"]:
+                    p = self.renderers[f].render(cv_data, output_base)
+                    if p:
+                        fallback_result[f"{f}_path"] = str(p)
+                best_result = fallback_result
 
         return best_result or {"error": "Échec"}
 
