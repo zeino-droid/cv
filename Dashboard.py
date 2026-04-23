@@ -312,9 +312,16 @@ db = get_db()
 
 
 def update_job_callback(job_id: int, status_key: str, notes_key: str) -> None:
-    new_status = st.session_state[status_key]
-    new_notes = st.session_state[notes_key]
-    db.update_status(job_id, new_status, new_notes)
+    new_status = st.session_state.get(status_key)
+    if new_status is None:
+        st.toast("❌ Statut introuvable")
+        return
+    new_notes = st.session_state.get(notes_key, "")
+    try:
+        db.update_status(job_id, new_status, new_notes)
+    except Exception:
+        st.toast("❌ Échec de la mise à jour")
+        return
     st.toast("✅ Statut mis à jour")
 
 
