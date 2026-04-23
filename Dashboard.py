@@ -196,6 +196,12 @@ def score_class(score: int) -> str:
     return "score-low"
 
 
+def google_fallback_url(company: str, title: str) -> str:
+    """URL de secours : recherche Google 'entreprise carrières titre'."""
+    query = f"{(company or '').strip()} carrières {(title or '').strip()}".strip()
+    return "https://www.google.com/search?q=" + query.replace(" ", "+")
+
+
 def safe_filename(value: str, max_len: int = 60) -> str:
     cleaned = "".join(c if c.isalnum() or c in "._- " else "_" for c in value).strip()
     return cleaned.replace(" ", "_")[:max_len] or "file"
@@ -310,8 +316,21 @@ def studio_dialog(job_id: str):
             unsafe_allow_html=True,
         )
 
-        if job.get("url"):
-            st.link_button("🌐 Voir l'offre d'origine", job["url"], use_container_width=True)
+        link_cols = st.columns(2)
+        with link_cols[0]:
+            if job.get("url"):
+                st.link_button("🌐 Voir l'offre d'origine", job["url"],
+                               use_container_width=True)
+            else:
+                st.button("🌐 Voir l'offre d'origine", disabled=True,
+                          use_container_width=True, key=f"no_url_{job['id']}")
+        with link_cols[1]:
+            st.link_button(
+                "🔍 Chercher sur Google",
+                google_fallback_url(job.get("company", ""), job.get("title", "")),
+                use_container_width=True,
+                help="Lien de secours si l'offre d'origine a expiré",
+            )
 
     # ── COLONNE DROITE : GÉNÉRATION ──────────────────────────────
     with right:
