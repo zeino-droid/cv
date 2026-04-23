@@ -446,15 +446,57 @@ st.markdown("<div class='section-card'>", unsafe_allow_html=True)
 st.markdown("<div class='section-title'>① SMART MATCH</div>", unsafe_allow_html=True)
 st.markdown("<div class='section-h2'>Tes meilleures offres</div>", unsafe_allow_html=True)
 
-filt_c1, filt_c2, filt_c3 = st.columns([1, 1, 2])
-with filt_c1:
-    min_score = st.slider("Score minimum", 0, 100, 60, step=5)
-with filt_c2:
-    only_open = st.checkbox("Seulement non traitées", value=True)
-with filt_c3:
-    search = st.text_input("🔎 Recherche", placeholder="poste, entreprise...")
+all_jobs_for_filters = db.get_jobs(limit=1000)
+locations = sorted({(j.get("location") or "").strip() for j in all_jobs_for_filters if j.get("location")})
+sourcing_dates = [j.get("sourcing_date") for j in all_jobs_for_filters if j.get("sourcing_date")]
 
-raw_jobs = db.get_jobs(min_score=min_score, search=search or None, limit=200)
+def _parse_date(value: str):
+    try:
+        return datetime.strptime(value[:10], "%Y-%m-%d").date()
+    except Exception:
+        return None
+
+parsed_dates = [d for d in (_parse_date(s) for s in sourcing_dates) if d]
+min_d = min(parsed_dates) if parsed_dates else datetime.today().date()
+max_d = max(parsed_dates) if parsed_dates else datetime.today().date()
+
+f1, f2, f3, f4 = st.columns([2, 1.4, 1.6, 1])
+with f1:
+    search = st.text_input("🔎 Recherche", placeholder="poste, entreprise...")
+with f2:
+    city_filter = st.selectbox("📍 Ville", ["Toutes"] + locations, index=0)
+with f3:
+    if min_d == max_d:
+        date_range = st.date_input("📅 Découverte (depuis)", value=min_d)
+        date_from, date_to = date_range, max_d
+    else:
+        date_range = st.date_input(
+            "📅 Période de découverte",
+            value=(min_d, max_d), min_value=min_d, max_value=max_d,
+        )
+        if isinstance(date_range, tuple) and len(date_range) == 2:
+            date_from, date_to = date_range
+        else:
+            date_from, date_to = min_d, max_d
+with f4:
+    min_score = st.slider("Score min", 0, 100, 60, step=5)
+
+only_open = st.checkbox("Afficher uniquement les offres non traitées", value=True)
+
+raw_jobs = db.get_jobs(
+    min_score=min_score,
+    search=search or None,
+    location_filter=city_filter if city_filter != "Toutes" else None,
+    limit=500,
+)
+
+def _within_range(job: dict) -> bool:
+    d = _parse_date(job.get("sourcing_date") or "")
+    if d is None:
+        return True
+    return date_from <= d <= date_to
+
+raw_jobs = [j for j in raw_jobs if _within_range(j)]
 if only_open:
     smart_jobs = [j for j in raw_jobs if j.get("status") in {"new", "selected", "generated"}]
 else:
@@ -471,6 +513,7 @@ else:
             "Poste": j.get("title", ""),
             "Entreprise": j.get("company", ""),
             "Lieu": j.get("location", ""),
+            "Découverte": (j.get("sourcing_date") or "")[:10],
             "Source": j.get("source", ""),
             "Lien": j.get("url", "") or None,
         }
@@ -495,7 +538,8 @@ else:
 
     for j in smart_jobs[:15]:
         score = int(j.get("fit_score", 0))
-        c_info, c_btn = st.columns([5, 1.2])
+        sourcing = (j.get("sourcing_date") or "")[:10] or "—"
+        c_info, c_btn, c_del = st.columns([5, 1.2, 0.8])
         with c_info:
             st.markdown(
                 f"""
@@ -503,7 +547,10 @@ else:
                     <div style='display:flex;justify-content:space-between;align-items:center;gap:12px;'>
                         <div>
                             <div class='row-title'>{j.get('title','')}</div>
-                            <div class='row-meta'>{j.get('company','?')} — {j.get('location','?')}</div>
+                            <div class='row-meta'>
+                                {j.get('company','?')} — {j.get('location','?')}
+                                &nbsp;·&nbsp; 📅 Découverte le <b>{sourcing}</b>
+                            </div>
                         </div>
                         <span class='score-pill {score_class(score)}'>{score}%</span>
                     </div>
@@ -515,6 +562,12 @@ else:
             if st.button("Préparer la candidature", key=f"prep_{j['id']}",
                          use_container_width=True):
                 st.session_state["studio_open_for"] = j["id"]
+                st.rerun()
+        with c_del:
+            if st.button("🗑️", key=f"del_{j['id']}",
+                         use_container_width=True, help="Supprimer définitivement"):
+                db.delete_job(j["id"])
+                st.toast(f"Offre supprimée : {j.get('title','')[:40]}")
                 st.rerun()
 
 st.markdown("</div>", unsafe_allow_html=True)
@@ -542,15 +595,17 @@ else:
     st.caption(f"{len(sent_jobs)} candidature(s) envoyée(s)")
     for j in sent_jobs:
         with st.container():
-            top, actions = st.columns([4, 2])
+            top, actions = st.columns([4, 2.5])
             with top:
+                sourcing = (j.get("sourcing_date") or "")[:10] or "—"
                 sent_at = j.get("sent_at") or j.get("applied_date") or "—"
                 st.markdown(
                     f"""
                     <div class='row-card'>
                         <div class='row-title'>{j.get('title','')}</div>
                         <div class='row-meta'>
-                            🏢 {j.get('company','?')} — 📍 {j.get('location','?')}
+                            🏢 {j.get('company','?')} — 📍 {j.get('location','?')}<br/>
+                            📅 Découverte le <b>{sourcing}</b>
                             &nbsp;·&nbsp; 📤 Envoyé le <b>{sent_at}</b>
                             &nbsp;·&nbsp; via <b>{j.get('sent_via') or 'manual'}</b>
                         </div>
@@ -559,7 +614,7 @@ else:
                     unsafe_allow_html=True,
                 )
             with actions:
-                a1, a2 = st.columns(2)
+                a1, a2, a3 = st.columns([1, 1, 0.7])
                 cv_path = j.get("cv_path") or j.get("vault_path") or ""
                 letter_path = j.get("letter_path") or ""
                 with a1:
@@ -588,6 +643,12 @@ else:
                     else:
                         st.button("✉️ Lettre", disabled=True, use_container_width=True,
                                   key=f"arch_lt_na_{j['id']}")
+                with a3:
+                    if st.button("🗑️", key=f"arch_del_{j['id']}",
+                                 use_container_width=True, help="Supprimer définitivement"):
+                        db.delete_job(j["id"])
+                        st.toast(f"Candidature supprimée : {j.get('title','')[:40]}")
+                        st.rerun()
 
 st.markdown("</div>", unsafe_allow_html=True)
 

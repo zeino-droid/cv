@@ -230,6 +230,13 @@ class JobDatabase:
             )
             conn.commit()
 
+    def delete_job(self, job_id: str) -> bool:
+        """Supprime définitivement une offre de la base."""
+        with self._connect() as conn:
+            cur = conn.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
+            conn.commit()
+            return cur.rowcount > 0
+
     def get_jobs(
         self,
         min_score: int = 0,
