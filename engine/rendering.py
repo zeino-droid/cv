@@ -48,9 +48,10 @@ class TypstRenderer(Renderer):
         Renders the CV using Typst.
         Supported kwargs:
             font_size_delta (float): Adjust font size globally.
-            leading (float): Paragraph leading in em.
-            section_gap (float): Section spacing in pt.
+            leading (float): Paragraph leading in em (default 0.65 for better readability).
+            section_gap (float): Section spacing in pt (default 20.0 for clearer visual blocks).
             margin_sides (float): Right margin in pt.
+        Defaults are aligned with the Typst template to avoid dense text rendering.
         """
         if not self.available or not self.template_path.exists():
             return None
