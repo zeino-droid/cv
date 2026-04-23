@@ -39,8 +39,8 @@ class TypstRenderer(Renderer):
         cv_data: Dict,
         output_path: Path,
         font_size_delta: float = 0.0,
-        leading: float = 0.50,
-        section_gap: float = 5.0,
+        leading: float = 0.65,
+        section_gap: float = 20.0,
         margin_sides: float = 14.0,
         **kwargs,
     ) -> Optional[Path]:

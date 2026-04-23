@@ -82,6 +82,8 @@ SKILLS:
 
 HEADLINE:
 - MAX 90 chars
+- Format recommandé : [Métier ciblé] | [2-3 expertises techniques clés]
+- Éviter les formulations génériques ("Ingénieur", "Profil polyvalent", etc.)
 """
 
 
@@ -116,6 +118,7 @@ def build_generation_prompt(job_offer: Dict, candidate_context: Dict, profile_id
             "Le ton doit être professionnel, technique et axé sur les résultats.",
             "Utiliser un vocabulaire technique dense et précis pour maximiser l'information par ligne.",
             "Utiliser des verbes d'action forts.",
+            "La headline doit être ultra-ciblée au poste visé et inclure des expertises techniques concrètes.",
             "Toutes les sorties doivent être en Français."
         ],
         "input_data": {
