@@ -314,11 +314,14 @@ db = get_db()
 
 
 def get_file_mtime_ns(path: Path) -> int:
-    return path.stat().st_mtime_ns if path.exists() else -1
+    try:
+        return path.stat().st_mtime_ns
+    except OSError:
+        return -1
 
 
 @st.cache_data
-def load_profile(profile_path: str, _profile_mtime_ns: int) -> dict:
+def load_profile(profile_path: str, profile_mtime_ns: int) -> dict:
     """Load master profile from disk, with mtime used as cache-busting key."""
     # On utilise uniquement le fichier local pour garantir la synchronisation
     path = Path(profile_path)
@@ -331,7 +334,7 @@ def load_profile(profile_path: str, _profile_mtime_ns: int) -> dict:
 
 
 @st.cache_data
-def load_search_config(search_config_path: str, _search_config_mtime_ns: int) -> dict:
+def load_search_config(search_config_path: str, search_config_mtime_ns: int) -> dict:
     """Load search config from disk, with mtime used as cache-busting key."""
     import yaml
 
