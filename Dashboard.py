@@ -317,7 +317,6 @@ def _file_mtime_ns(path: Path) -> int:
 
 @st.cache_data
 def load_profile(profile_mtime_ns: int) -> dict:
-    _ = profile_mtime_ns
     # On utilise uniquement le fichier local pour garantir la synchronisation
     path = ROOT / "profiles" / "master_profile.json"
     if path.exists():
@@ -330,7 +329,6 @@ def load_profile(profile_mtime_ns: int) -> dict:
 
 @st.cache_data
 def load_search_config(search_config_mtime_ns: int) -> dict:
-    _ = search_config_mtime_ns
     import yaml
 
     path = ROOT / "profiles" / "search_config.yaml"
