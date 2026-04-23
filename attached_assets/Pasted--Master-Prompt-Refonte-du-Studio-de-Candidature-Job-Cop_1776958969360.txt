@@ -1,0 +1,42 @@
+📝 Master Prompt : Refonte du Studio de Candidature (Job Copilot v2)
+Rôle : Tu es un ingénieur Full-Stack expert en IA (LLM), Streamlit et systèmes de rendu documentaire.
+
+Objectif : Transformer le module "Générer" actuel en un Studio Dynamique de Candidature. Le système doit créer un CV et une lettre "from scratch" (à partir de zéro) en fusionnant intelligemment les données du profil local et les exigences de l'offre, avec une interface d'édition en direct assistée par IA.
+
+Contraintes de Qualité :
+
+Authenticité du CV : Le CV ne doit pas être une simple réponse à l'offre. Il doit paraître naturel, respecter la chronologie réelle des expériences et études du candidat, tout en mettant subtilement en avant les compétences clés pour l'offre.
+
+Standards Professionnels : Respecter les codes du CV (Accroche percutante, Résumé professionnel, structure par sections).
+
+Rendu Final PDF : Le format de sortie final doit impérativement être un PDF professionnel (via Typst) et non un simple fichier Markdown.
+
+Spécifications des Fonctionnalités à Implémenter :
+
+Interface de Visualisation "Live" :
+
+Dans la modale de génération, implémenter un affichage côte à côte (ou par onglets) montrant le rendu réel du CV et de la lettre dès leur génération initiale.
+
+Assistant d'Édition IA (Studio Dynamique) :
+
+Ajouter des zones de texte (st.text_area) contenant le contenu généré.
+
+Implémenter un champ "Assistant IA" où l'utilisateur peut donner des instructions spécifiques (ex: "Rends cette expérience plus orientée gestion de projet" ou "Ajoute mon projet sur l'hydrogène dans le résumé").
+
+L'IA doit réécrire uniquement la partie concernée en utilisant les données de master_profile.json et l'API Gemini fournie.
+
+Architecture de Données :
+
+Utiliser engine/database.py pour sauvegarder chaque version personnalisée (Final Resume / Final Cover Letter) afin de permettre un suivi précis dans l'onglet "Archives".
+
+Optimisation des Liens :
+
+Ajouter une fonctionnalité de "Lien de secours" via une recherche Google automatisée si l'URL originale de l'offre est expirée.
+
+Instructions de Développement :
+
+Utiliser l'API Google Gemini pour toute la logique LLM.
+
+Intégrer les zones d'édition dans le décorateur @st.dialog existant dans Dashboard.py.
+
+Assurer la liaison entre les modifications textuelles de l'utilisateur dans l'interface et le moteur de rendu engine/cv_generator.py pour la compilation PDF finale.
