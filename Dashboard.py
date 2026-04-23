@@ -311,7 +311,13 @@ def get_db() -> JobDatabase:
 db = get_db()
 
 
-def load_profile() -> dict:
+def _file_mtime_ns(path: Path) -> int:
+    return path.stat().st_mtime_ns if path.exists() else -1
+
+
+@st.cache_data
+def load_profile(profile_mtime_ns: int) -> dict:
+    _ = profile_mtime_ns
     # On utilise uniquement le fichier local pour garantir la synchronisation
     path = ROOT / "profiles" / "master_profile.json"
     if path.exists():
@@ -322,7 +328,9 @@ def load_profile() -> dict:
     return {}
 
 
-def load_search_config() -> dict:
+@st.cache_data
+def load_search_config(search_config_mtime_ns: int) -> dict:
+    _ = search_config_mtime_ns
     import yaml
 
     path = ROOT / "profiles" / "search_config.yaml"
@@ -561,7 +569,8 @@ elif page == "🔍 Scanner":
         unsafe_allow_html=True,
     )
 
-    cfg = load_search_config()
+    search_config_path = ROOT / "profiles" / "search_config.yaml"
+    cfg = load_search_config(_file_mtime_ns(search_config_path))
     search_cfg = cfg.get("search", {})
     filter_cfg = cfg.get("filters", {})
 
@@ -634,6 +643,7 @@ elif page == "🔍 Scanner":
                 new_cfg["search"]["results_per_query"] = results_per_q
                 new_cfg.setdefault("filters", {})["min_score"] = min_score
                 save_search_config(new_cfg)
+                load_search_config.clear()
 
                 prog = st.progress(0, text="Démarrage...")
                 msg_area = st.empty()
@@ -932,7 +942,8 @@ elif page == "⚡ Générer":
             if st.button("🚀 GÉNÉRER", type="primary", use_container_width=True):
                 with st.spinner("Génération en cours..."):
                     try:
-                        profile = load_profile()
+                        profile_path = ROOT / "profiles" / "master_profile.json"
+                        profile = load_profile(_file_mtime_ns(profile_path))
 
                         cv_result: dict = {}
                         if gen_cv:
@@ -1233,7 +1244,8 @@ elif page == "👤 Profil":
         unsafe_allow_html=True,
     )
 
-    profile = load_profile()
+    profile_path = ROOT / "profiles" / "master_profile.json"
+    profile = load_profile(_file_mtime_ns(profile_path))
     identity = profile.get("identity", {})
 
     left, right = st.columns([1.2, 0.8])
@@ -1296,6 +1308,7 @@ elif page == "👤 Profil":
                         ROOT / "profiles" / "master_profile.json", "w", encoding="utf-8"
                     ) as f:
                         json.dump(profile, f, indent=2, ensure_ascii=False)
+                    load_profile.clear()
                     
                     if "MASTER_PROFILE_JSON" in st.secrets:
                         st.warning("⚠️ Profil sauvegardé localement, mais attention : tu utilises un Secret Streamlit. Pense à mettre à jour ton Secret avec ces nouvelles données pour le Cloud !")
