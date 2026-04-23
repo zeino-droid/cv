@@ -987,7 +987,10 @@ elif page == "⚡ Générer":
                             Path(letter_path).write_text(letter_text, encoding="utf-8")
 
                         cv_path = (
-                            cv_result.get("pdf_path") or cv_result.get("markdown") or ""
+                            cv_result.get("pdf_path")
+                            or cv_result.get("md_path")
+                            or cv_result.get("markdown")
+                            or ""
                         )
                         db.save_generation(job["id"], cv_path, letter_path)
 
