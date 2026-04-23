@@ -147,6 +147,7 @@ def scan_with_jobspy(
     locations: List[str],
     hours_old: int = 168,
     results_per_query: int = 20,
+    sites: Optional[List[str]] = None,
     progress_callback: Optional[Callable] = None,
 ) -> List[Dict]:
     """
@@ -162,6 +163,7 @@ def scan_with_jobspy(
     all_jobs: List[Dict] = []
     total = max(len(keywords) * len(locations), 1)
     done = 0
+    active_sites = sites or ["google", "glassdoor"]
 
     for keyword in keywords:
         for location in locations:
@@ -171,12 +173,12 @@ def scan_with_jobspy(
                     progress_callback(pct, f"🔍 '{keyword}' → {location}")
 
                 df = scrape_jobs(
-                    site_name=["linkedin", "indeed", "google"],
+                    site_name=active_sites,
                     search_term=keyword,
                     location=location,
                     results_wanted=results_per_query,
                     country_indeed="France",
-                    linkedin_fetch_description=True,
+                    linkedin_fetch_description=("linkedin" in active_sites),
                     job_type="fulltime",
                     verbose=0,
                 )
@@ -184,7 +186,8 @@ def scan_with_jobspy(
                 if df is not None and len(df) > 0:
                     for _, row in df.iterrows():
                         job = jobspy_to_standard(row.to_dict())
-                        if job:
+                        # On garde uniquement les offres avec une URL exploitable
+                        if job and job.get("url"):
                             all_jobs.append(job)
 
             except Exception as e:
@@ -233,13 +236,15 @@ def scan_all_france(
 
     keywords: List[str] = config["search"]["keywords"]
     locations: List[str] = config["search"]["locations"]
+    sites: List[str] = config["search"].get("sites") or ["google", "glassdoor"]
     min_score: int = int(config["filters"].get("min_score", 40))
 
-    report(0.04, f"🔍 {len(keywords)} requêtes × {len(locations)} zones...")
+    report(0.04, f"🔍 {len(keywords)} requêtes × {len(locations)} zones · sources: {', '.join(sites)}")
 
     jobspy_jobs = scan_with_jobspy(
         keywords=keywords,
         locations=locations,
+        sites=sites,
         progress_callback=progress_callback,
     )
     report(0.90, f"✅ JobSpy : {len(jobspy_jobs)} offres")

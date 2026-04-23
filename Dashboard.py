@@ -467,7 +467,12 @@ st.markdown("<div class='section-h2'>Tes meilleures offres</div>", unsafe_allow_
 
 all_jobs_for_filters = db.get_jobs(limit=1000)
 locations = sorted({(j.get("location") or "").strip() for j in all_jobs_for_filters if j.get("location")})
+all_sources = sorted({(j.get("source") or "").strip().lower() for j in all_jobs_for_filters if j.get("source")})
 sourcing_dates = [j.get("sourcing_date") for j in all_jobs_for_filters if j.get("sourcing_date")]
+
+# Sources réputées fiables (liens qui n'expirent pas) → cochées par défaut
+RELIABLE_SOURCES = {"google", "glassdoor", "francetravail", "pole_emploi"}
+default_sources = [s for s in all_sources if s in RELIABLE_SOURCES] or all_sources
 
 def _parse_date(value: str):
     try:
@@ -500,7 +505,17 @@ with f3:
 with f4:
     min_score = st.slider("Score min", 0, 100, 60, step=5)
 
-only_open = st.checkbox("Afficher uniquement les offres non traitées", value=True)
+cb1, cb2 = st.columns([2, 3])
+with cb1:
+    only_open = st.checkbox("Uniquement les offres non traitées", value=True)
+with cb2:
+    selected_sources = st.multiselect(
+        "🔗 Sources (liens fiables cochés par défaut)",
+        options=all_sources,
+        default=default_sources,
+        help="LinkedIn / Indeed sont décochés par défaut car leurs liens expirent souvent. "
+             "Décoche-les complètement pour ne voir que des offres avec liens stables.",
+    )
 
 raw_jobs = db.get_jobs(
     min_score=min_score,
@@ -516,6 +531,9 @@ def _within_range(job: dict) -> bool:
     return date_from <= d <= date_to
 
 raw_jobs = [j for j in raw_jobs if _within_range(j)]
+if selected_sources:
+    sel = {s.lower() for s in selected_sources}
+    raw_jobs = [j for j in raw_jobs if (j.get("source") or "").lower() in sel]
 if only_open:
     smart_jobs = [j for j in raw_jobs if j.get("status") in {"new", "selected", "generated"}]
 else:

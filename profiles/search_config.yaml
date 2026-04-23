@@ -25,6 +25,12 @@ search:
   hours_old: 168
   results_per_query: 20
   job_type: "fulltime"
+  # Sources actives (les liens LinkedIn/Indeed expirent → désactivés par défaut)
+  # Sources fiables : "google" (Google Jobs), "glassdoor"
+  # Pour réactiver : ajoute "linkedin" ou "indeed"
+  sites:
+    - "google"
+    - "glassdoor"
 
 filters:
   min_score: 40
