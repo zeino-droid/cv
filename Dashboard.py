@@ -17,6 +17,8 @@ import streamlit as st
 
 ROOT = Path(__file__).parent
 sys.path.insert(0, str(ROOT))
+PROFILE_PATH = ROOT / "profiles" / "master_profile.json"
+SEARCH_CONFIG_PATH = ROOT / "profiles" / "search_config.yaml"
 
 from engine.database import STATUS_EMOJI, VALID_STATUSES, JobDatabase
 from engine.sourcing_jobspy import scan_all_france
@@ -316,9 +318,9 @@ def _file_mtime_ns(path: Path) -> int:
 
 
 @st.cache_data
-def load_profile(profile_mtime_ns: int) -> dict:
+def load_profile(profile_path: str, profile_mtime_ns: int) -> dict:
     # On utilise uniquement le fichier local pour garantir la synchronisation
-    path = ROOT / "profiles" / "master_profile.json"
+    path = Path(profile_path)
     if path.exists():
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -328,10 +330,10 @@ def load_profile(profile_mtime_ns: int) -> dict:
 
 
 @st.cache_data
-def load_search_config(search_config_mtime_ns: int) -> dict:
+def load_search_config(search_config_path: str, search_config_mtime_ns: int) -> dict:
     import yaml
 
-    path = ROOT / "profiles" / "search_config.yaml"
+    path = Path(search_config_path)
     with open(path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
 
@@ -339,8 +341,7 @@ def load_search_config(search_config_mtime_ns: int) -> dict:
 def save_search_config(cfg: dict) -> None:
     import yaml
 
-    path = ROOT / "profiles" / "search_config.yaml"
-    with open(path, "w", encoding="utf-8") as f:
+    with open(SEARCH_CONFIG_PATH, "w", encoding="utf-8") as f:
         yaml.dump(cfg, f, allow_unicode=True, default_flow_style=False)
 
 def render_fill_report(fill_report: dict) -> None:
@@ -567,8 +568,7 @@ elif page == "🔍 Scanner":
         unsafe_allow_html=True,
     )
 
-    search_config_path = ROOT / "profiles" / "search_config.yaml"
-    cfg = load_search_config(_file_mtime_ns(search_config_path))
+    cfg = load_search_config(str(SEARCH_CONFIG_PATH), _file_mtime_ns(SEARCH_CONFIG_PATH))
     search_cfg = cfg.get("search", {})
     filter_cfg = cfg.get("filters", {})
 
@@ -940,8 +940,7 @@ elif page == "⚡ Générer":
             if st.button("🚀 GÉNÉRER", type="primary", use_container_width=True):
                 with st.spinner("Génération en cours..."):
                     try:
-                        profile_path = ROOT / "profiles" / "master_profile.json"
-                        profile = load_profile(_file_mtime_ns(profile_path))
+                        profile = load_profile(str(PROFILE_PATH), _file_mtime_ns(PROFILE_PATH))
 
                         cv_result: dict = {}
                         if gen_cv:
@@ -1242,8 +1241,7 @@ elif page == "👤 Profil":
         unsafe_allow_html=True,
     )
 
-    profile_path = ROOT / "profiles" / "master_profile.json"
-    profile = load_profile(_file_mtime_ns(profile_path))
+    profile = load_profile(str(PROFILE_PATH), _file_mtime_ns(PROFILE_PATH))
     identity = profile.get("identity", {})
 
     left, right = st.columns([1.2, 0.8])
@@ -1303,7 +1301,7 @@ elif page == "👤 Profil":
                     profile["current_status"] = cur_status
 
                     with open(
-                        ROOT / "profiles" / "master_profile.json", "w", encoding="utf-8"
+                        PROFILE_PATH, "w", encoding="utf-8"
                     ) as f:
                         json.dump(profile, f, indent=2, ensure_ascii=False)
                     load_profile.clear()
