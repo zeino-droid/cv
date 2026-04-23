@@ -311,6 +311,12 @@ def get_db() -> JobDatabase:
 db = get_db()
 
 
+def update_job_callback(job_id: int, status_key: str, notes_key: str) -> None:
+    new_status = st.session_state[status_key]
+    new_notes = st.session_state[notes_key]
+    db.update_status(job_id, new_status, new_notes)
+
+
 def load_profile() -> dict:
     # On utilise uniquement le fichier local pour garantir la synchronisation
     path = ROOT / "profiles" / "master_profile.json"
@@ -785,26 +791,27 @@ elif page == "📋 Offres":
                 with col_a:
                     st.markdown("### Actions")
                     cur = job["status"]
-                    new_s = st.selectbox(
+                    s_key = f"sel_status_{job['id']}"
+                    n_key = f"sel_notes_{job['id']}"
+                    st.selectbox(
                         "Statut",
                         VALID_STATUSES,
                         index=VALID_STATUSES.index(cur) if cur in VALID_STATUSES else 0,
-                        key=f"sel_status_{job['id']}",
+                        key=s_key,
                     )
-                    notes = st.text_area(
+                    st.text_area(
                         "Notes",
                         value=job.get("notes", "") or "",
                         height=80,
-                        key=f"sel_notes_{job['id']}",
+                        key=n_key,
                     )
-                    if st.button(
+                    st.button(
                         "💾 Sauvegarder",
                         use_container_width=True,
                         key=f"sel_save_{job['id']}",
-                    ):
-                        db.update_status(job["id"], new_s, notes)
-                        st.success("✅ Mis à jour !")
-                        st.rerun()
+                        on_click=update_job_callback,
+                        args=(job["id"], s_key, n_key),
+                    )
 
                     st.divider()
 
@@ -1197,23 +1204,29 @@ elif page == "📊 Tracker":
                 with cu:
                     # Zone de mise à jour (Panneau droit)
                     st.markdown('<div class="section-card" style="padding: 15px; margin-bottom:0;">', unsafe_allow_html=True)
-                    ns = st.selectbox(
+                    s_key = f"trk_s_{j['id']}"
+                    n_key = f"trk_n_{j['id']}"
+                    st.selectbox(
                         "Mettre à jour le statut",
                         VALID_STATUSES,
                         index=VALID_STATUSES.index(j["status"]) if j["status"] in VALID_STATUSES else 0,
-                        key=f"trk_s_{j['id']}",
+                        key=s_key,
                         label_visibility="collapsed"
                     )
-                    nn = st.text_input(
+                    st.text_input(
                         "Note rapide",
                         value=j.get("notes", "") or "",
-                        key=f"trk_n_{j['id']}",
+                        key=n_key,
                         placeholder="Ex: Refus, Entretien prévu..."
                     )
-                    if st.button("💾 Enregistrer", key=f"trk_b_{j['id']}", use_container_width=True, type="primary"):
-                        db.update_status(j["id"], ns, nn)
-                        st.success("Synchronisé ⚡")
-                        st.rerun()
+                    st.button(
+                        "💾 Enregistrer",
+                        key=f"trk_b_{j['id']}",
+                        use_container_width=True,
+                        type="primary",
+                        on_click=update_job_callback,
+                        args=(j["id"], s_key, n_key),
+                    )
                     st.markdown('</div>', unsafe_allow_html=True)
 
 
