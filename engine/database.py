@@ -45,14 +45,17 @@ class JobDatabase:
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
         conn.row_factory = sqlite3.Row
-        journal_mode = conn.execute("PRAGMA journal_mode=WAL;").fetchone()
-        current_mode = journal_mode[0] if journal_mode else "unknown"
-        if str(current_mode).lower() != "wal":
+        try:
+            pragma_result = conn.execute("PRAGMA journal_mode=WAL;").fetchone()
+            current_mode = pragma_result[0] if pragma_result else "unknown"
+            if str(current_mode).lower() != "wal":
+                raise sqlite3.OperationalError(
+                    "Unable to enable SQLite WAL journal mode, "
+                    f"currently using: {current_mode}. Check filesystem/permissions compatibility."
+                )
+        except Exception:
             conn.close()
-            raise sqlite3.OperationalError(
-                "Unable to enable SQLite WAL journal mode, "
-                f"currently using: {current_mode}. Check filesystem/permissions compatibility."
-            )
+            raise
         return conn
 
     def _init_db(self) -> None:
