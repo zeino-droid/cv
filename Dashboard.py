@@ -834,38 +834,53 @@ with tab_auto:
             key="auto_kw_custom",
         )
 
-    sc1, sc2, sc3 = st.columns([2, 1.2, 1])
+    sc1, sc2 = st.columns([3, 1])
     with sc1:
         sel_locations = st.multiselect(
             "📍 Zones géographiques", options=cfg_locations,
             default=cfg_locations[:4], key="auto_locs",
         )
     with sc2:
-        # LinkedIn / Indeed retirés : leurs liens expirent et provoquent souvent des erreurs.
-        # On garde Google Jobs + Glassdoor (fiables) et on ajoute ZipRecruiter (gratuit, supporté par JobSpy).
-        site_options = ["google", "glassdoor", "zip_recruiter"]
-        safe_default = [s for s in cfg_sites if s in site_options] or ["google", "glassdoor"]
-        sel_sites = st.multiselect(
-            "🔗 Sources", options=site_options,
-            default=safe_default, key="auto_sites",
-            help="Sources fiables et gratuites pour la France. LinkedIn/Indeed sont exclus (liens qui expirent).",
-        )
-    with sc3:
         results_per_q = st.number_input(
             "Résultats / requête", min_value=5, max_value=50, value=15, step=5,
             key="auto_npq",
         )
 
-    if st.button("🚀 Lancer la recherche", type="primary",
+    st.markdown("##### 🧠 Moteur avancé")
+    ai1, ai2, ai3, ai4 = st.columns(4)
+    with ai1:
+        use_expansion = st.toggle(
+            "💡 Expansion sémantique", value=True, key="ai_exp",
+            help="Gemini génère des variantes pertinentes de tes mots-clés (synonymes, intitulés équivalents).",
+        )
+    with ai2:
+        use_rerank = st.toggle(
+            "🧠 Re-classement IA", value=True, key="ai_rerank",
+            help="Gemini évalue le fit profond de chaque top candidat (score + raisonnement).",
+        )
+    with ai3:
+        use_skills = st.toggle(
+            "🔍 Extraction compétences", value=True, key="ai_skills",
+            help="Gemini extrait les vraies compétences requises depuis chaque description.",
+        )
+    with ai4:
+        use_remotive = st.toggle(
+            "🌐 Source bonus Remotive", value=True, key="ai_remotive",
+            help="Ajoute Remotive (offres tech ouvertes au remote France) en complément.",
+        )
+
+    st.caption(
+        "Sources actives : **Google Jobs · Glassdoor · ZipRecruiter** (+ Remotive si activé). "
+        "LinkedIn et Indeed sont définitivement exclus — leurs liens expirent et cassent le pipeline."
+    )
+
+    if st.button("🚀 Lancer la recherche avancée", type="primary",
                  use_container_width=True, key="btn_auto_scan"):
         keywords = [k.strip() for k in kw_text.splitlines() if k.strip()]
-        if not keywords or not sel_locations or not sel_sites:
-            st.warning("Indique au moins un mot-clé, une zone et une source.")
+        if not keywords or not sel_locations:
+            st.warning("Indique au moins un mot-clé et une zone géographique.")
         else:
-            from engine.sourcing_jobspy import (
-                deduplicate, load_config, score_job, scan_with_jobspy,
-            )
-            cfg_full = load_config()
+            from engine.sourcing_advanced import scan_advanced
             progress = st.progress(0.0, text="Initialisation...")
 
             def _cb(p: float, msg: str):
@@ -875,19 +890,18 @@ with tab_auto:
                     pass
 
             try:
-                raw = scan_with_jobspy(
+                scored = scan_advanced(
                     keywords=keywords,
                     locations=sel_locations,
-                    sites=sel_sites,
+                    sites=["google", "glassdoor", "zip_recruiter"],
                     results_per_query=int(results_per_q),
+                    use_llm_expansion=use_expansion,
+                    use_llm_rerank=use_rerank,
+                    use_llm_skills=use_skills,
+                    use_remotive=use_remotive,
                     progress_callback=_cb,
                 )
-                progress.progress(0.92, text=f"🔄 Déduplication ({len(raw)} brut)...")
-                unique = deduplicate(raw)
-                progress.progress(0.96, text="⭐ Scoring en cours...")
-                scored = [score_job(j, profile_data, cfg_full) for j in unique]
                 added = db.upsert_jobs(scored)
-                progress.progress(1.0, text="✅ Terminé !")
                 st.success(
                     f"✅ Recherche terminée : {len(scored)} offres analysées · "
                     f"**{added} nouvelles** ajoutées au pipeline."
@@ -963,7 +977,7 @@ all_sources = sorted({(j.get("source") or "").strip().lower() for j in all_jobs_
 sourcing_dates = [j.get("sourcing_date") for j in all_jobs_for_filters if j.get("sourcing_date")]
 
 # Sources réputées fiables (liens qui n'expirent pas) → cochées par défaut
-RELIABLE_SOURCES = {"google", "glassdoor", "francetravail", "pole_emploi"}
+RELIABLE_SOURCES = {"google", "glassdoor", "zip_recruiter", "remotive", "manual"}
 default_sources = [s for s in all_sources if s in RELIABLE_SOURCES] or all_sources
 
 def _parse_date(value: str):
@@ -1002,11 +1016,10 @@ with cb1:
     only_open = st.checkbox("Uniquement les offres non traitées", value=True)
 with cb2:
     selected_sources = st.multiselect(
-        "🔗 Sources (liens fiables cochés par défaut)",
+        "🔗 Sources",
         options=all_sources,
         default=default_sources,
-        help="LinkedIn / Indeed sont décochés par défaut car leurs liens expirent souvent. "
-             "Décoche-les complètement pour ne voir que des offres avec liens stables.",
+        help="Filtre par source d'origine. Toutes les sources affichées ici ont des liens stables.",
     )
 
 raw_jobs = db.get_jobs(
@@ -1068,18 +1081,29 @@ else:
     for j in smart_jobs[:15]:
         score = int(j.get("fit_score", 0))
         sourcing = (j.get("sourcing_date") or "")[:10] or "—"
+        ai_score = j.get("ai_score")
+        ai_reason = (j.get("ai_reason") or "").strip()
+        ai_badge = (
+            f"&nbsp;·&nbsp; 🧠 IA <b>{int(ai_score)}%</b>" if ai_score is not None else ""
+        )
+        ai_line = (
+            f"<div class='row-meta' style='margin-top:4px;font-style:italic;opacity:0.85;'>💬 {ai_reason}</div>"
+            if ai_reason else ""
+        )
         c_info, c_btn, c_del = st.columns([5, 1.2, 0.8])
         with c_info:
             st.markdown(
                 f"""
                 <div class='row-card'>
                     <div style='display:flex;justify-content:space-between;align-items:center;gap:12px;'>
-                        <div>
+                        <div style='flex:1;'>
                             <div class='row-title'>{j.get('title','')}</div>
                             <div class='row-meta'>
                                 {j.get('company','?')} — {j.get('location','?')}
-                                &nbsp;·&nbsp; 📅 Découverte le <b>{sourcing}</b>
+                                &nbsp;·&nbsp; 📅 <b>{sourcing}</b>
+                                {ai_badge}
                             </div>
+                            {ai_line}
                         </div>
                         <span class='score-pill {score_class(score)}'>{score}%</span>
                     </div>
@@ -1190,6 +1214,335 @@ else:
                             db.delete_job(j["id"])
                             st.toast(f"Candidature supprimée : {j.get('title','')[:40]}")
                             st.rerun()
+
+st.markdown("</div>", unsafe_allow_html=True)
+
+
+# ═══════════════════════════════════════════════════════════════
+# SECTION 4 — PROFIL (édition visuelle de master_profile.json)
+# ═══════════════════════════════════════════════════════════════
+st.markdown("<div class='section-card'>", unsafe_allow_html=True)
+st.markdown("<div class='section-title'>④ PROFIL</div>", unsafe_allow_html=True)
+st.markdown("<div class='section-h2'>Édite ton profil maître</div>", unsafe_allow_html=True)
+st.caption(
+    "Toutes les modifications sont sauvegardées dans `profiles/master_profile.json` "
+    "et utilisées immédiatement par le moteur de génération de CV/lettre."
+)
+
+PROFILE_PATH = Path("profiles/master_profile.json")
+
+
+def _load_profile() -> dict:
+    if PROFILE_PATH.exists():
+        return json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+    return {}
+
+
+def _save_profile(data: dict) -> None:
+    PROFILE_PATH.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
+
+prof = _load_profile()
+pi = prof.setdefault("personal_info", {})
+
+p_tab1, p_tab2, p_tab3, p_tab4, p_tab5 = st.tabs([
+    "👤 Identité", "🎓 Formation", "💼 Expériences",
+    "🛠️ Compétences", "📦 JSON brut",
+])
+
+# ─── IDENTITÉ ───────────────────────────────────────────────────
+with p_tab1:
+    with st.form("form_identity", clear_on_submit=False):
+        i1, i2 = st.columns(2)
+        with i1:
+            n_name = st.text_input("Nom complet", value=pi.get("name", ""))
+            n_email = st.text_input("Email", value=pi.get("email", ""))
+            n_phone = st.text_input("Téléphone", value=pi.get("phone", ""))
+            n_location = st.text_input("Localisation", value=pi.get("location", ""))
+        with i2:
+            n_linkedin = st.text_input("LinkedIn", value=pi.get("linkedin", ""))
+            n_github = st.text_input("GitHub", value=pi.get("github", ""))
+            n_hobbies = st.text_input(
+                "Loisirs (séparés par virgules)",
+                value=", ".join(pi.get("hobbies", [])),
+            )
+
+        n_headline = st.text_input(
+            "Headline par défaut", value=pi.get("headline_default", "")
+        )
+        n_summary = st.text_area(
+            "Résumé par défaut", value=pi.get("summary_default", ""), height=100
+        )
+
+        st.markdown("**🌍 Langues** (une par ligne, format : `Langue | Niveau | Certification`)")
+        langs = pi.get("languages", [])
+        lang_text = "\n".join(
+            f"{l.get('language','')} | {l.get('level','')} | {l.get('certification','')}"
+            for l in langs
+        )
+        n_langs = st.text_area("Langues", value=lang_text, height=100, label_visibility="collapsed")
+
+        if st.form_submit_button("💾 Enregistrer Identité", type="primary",
+                                 use_container_width=True):
+            pi["name"] = n_name.strip()
+            pi["email"] = n_email.strip()
+            pi["phone"] = n_phone.strip()
+            pi["location"] = n_location.strip()
+            pi["linkedin"] = n_linkedin.strip()
+            pi["github"] = n_github.strip()
+            pi["hobbies"] = [h.strip() for h in n_hobbies.split(",") if h.strip()]
+            pi["headline_default"] = n_headline.strip()
+            pi["summary_default"] = n_summary.strip()
+            new_langs = []
+            for line in n_langs.splitlines():
+                parts = [p.strip() for p in line.split("|")]
+                if not parts or not parts[0]:
+                    continue
+                lang_obj = {"language": parts[0]}
+                if len(parts) > 1 and parts[1]:
+                    lang_obj["level"] = parts[1]
+                if len(parts) > 2 and parts[2]:
+                    lang_obj["certification"] = parts[2]
+                new_langs.append(lang_obj)
+            pi["languages"] = new_langs
+            _save_profile(prof)
+            st.success("✅ Identité enregistrée.")
+            st.rerun()
+
+# ─── FORMATION ──────────────────────────────────────────────────
+with p_tab2:
+    educations = prof.setdefault("education", [])
+    st.caption(f"{len(educations)} formation(s) enregistrée(s).")
+
+    for idx, edu in enumerate(educations):
+        with st.expander(
+            f"🎓 {edu.get('degree','(sans titre)')} — {edu.get('institution','?')}",
+            expanded=False,
+        ):
+            with st.form(f"form_edu_{idx}"):
+                e1, e2 = st.columns(2)
+                with e1:
+                    n_deg = st.text_input("Diplôme", value=edu.get("degree", ""), key=f"deg_{idx}")
+                    n_inst = st.text_input("Établissement", value=edu.get("institution", ""), key=f"inst_{idx}")
+                with e2:
+                    n_per = st.text_input("Période", value=edu.get("period", ""), key=f"per_{idx}")
+                    n_spec = st.text_input("Spécialisation", value=edu.get("specialization", ""), key=f"spec_{idx}")
+                n_det = st.text_area("Détails", value=edu.get("details", ""), height=80, key=f"det_{idx}")
+
+                bc1, bc2 = st.columns(2)
+                with bc1:
+                    if st.form_submit_button("💾 Mettre à jour", use_container_width=True):
+                        edu["degree"] = n_deg.strip()
+                        edu["institution"] = n_inst.strip()
+                        edu["period"] = n_per.strip()
+                        if n_spec.strip(): edu["specialization"] = n_spec.strip()
+                        if n_det.strip(): edu["details"] = n_det.strip()
+                        _save_profile(prof)
+                        st.success("✅ Formation mise à jour.")
+                        st.rerun()
+                with bc2:
+                    if st.form_submit_button("🗑️ Supprimer", use_container_width=True):
+                        educations.pop(idx)
+                        _save_profile(prof)
+                        st.toast("Formation supprimée.")
+                        st.rerun()
+
+    with st.form("form_new_edu", clear_on_submit=True):
+        st.markdown("**➕ Ajouter une formation**")
+        c1, c2 = st.columns(2)
+        with c1:
+            new_deg = st.text_input("Diplôme")
+            new_inst = st.text_input("Établissement")
+        with c2:
+            new_per = st.text_input("Période")
+            new_spec = st.text_input("Spécialisation (optionnel)")
+        new_det = st.text_area("Détails (optionnel)", height=70)
+        if st.form_submit_button("➕ Ajouter", type="primary", use_container_width=True):
+            if not new_deg.strip() or not new_inst.strip():
+                st.warning("Le diplôme et l'établissement sont obligatoires.")
+            else:
+                educations.append({
+                    "degree": new_deg.strip(),
+                    "institution": new_inst.strip(),
+                    "period": new_per.strip(),
+                    **({"specialization": new_spec.strip()} if new_spec.strip() else {}),
+                    **({"details": new_det.strip()} if new_det.strip() else {}),
+                })
+                _save_profile(prof)
+                st.success("✅ Formation ajoutée.")
+                st.rerun()
+
+# ─── EXPÉRIENCES ────────────────────────────────────────────────
+with p_tab3:
+    exps = prof.setdefault("experience_stark", [])
+    st.caption(
+        f"{len(exps)} expérience(s) au format STARK (Situation, Tâche, Action, Résultat, Keywords). "
+        "Format utilisé par Gemini pour générer un CV ciblé."
+    )
+
+    for idx, exp in enumerate(exps):
+        with st.expander(
+            f"💼 {exp.get('title','(sans titre)')} — {exp.get('company','?')}",
+            expanded=False,
+        ):
+            with st.form(f"form_exp_{idx}"):
+                x1, x2 = st.columns(2)
+                with x1:
+                    e_id = st.text_input("ID interne", value=exp.get("id", ""), key=f"eid_{idx}")
+                    e_title = st.text_input("Intitulé", value=exp.get("title", ""), key=f"et_{idx}")
+                    e_company = st.text_input("Entreprise", value=exp.get("company", ""), key=f"ec_{idx}")
+                with x2:
+                    e_period = st.text_input("Période", value=exp.get("period", ""), key=f"ep_{idx}")
+                    e_tags = st.text_input(
+                        "Tags profils (séparés par virgules)",
+                        value=", ".join(exp.get("profiles_tags", [])),
+                        key=f"etag_{idx}",
+                    )
+                    e_keywords = st.text_input(
+                        "Keywords / outils (séparés par virgules)",
+                        value=", ".join(exp.get("K", []) if isinstance(exp.get("K"), list) else []),
+                        key=f"ek_{idx}",
+                    )
+
+                e_s = st.text_area("S — Situation", value=exp.get("S", ""), height=70, key=f"es_{idx}")
+                e_t = st.text_area("T — Tâche", value=exp.get("T", ""), height=70, key=f"et2_{idx}")
+                e_a = st.text_area("A — Action", value=exp.get("A", ""), height=100, key=f"ea_{idx}")
+                e_r = st.text_area("R — Résultat", value=exp.get("R", ""), height=80, key=f"er_{idx}")
+
+                bc1, bc2 = st.columns(2)
+                with bc1:
+                    if st.form_submit_button("💾 Mettre à jour", use_container_width=True):
+                        exp["id"] = e_id.strip()
+                        exp["title"] = e_title.strip()
+                        exp["company"] = e_company.strip()
+                        exp["period"] = e_period.strip()
+                        exp["profiles_tags"] = [t.strip() for t in e_tags.split(",") if t.strip()]
+                        exp["K"] = [k.strip() for k in e_keywords.split(",") if k.strip()]
+                        exp["S"] = e_s.strip()
+                        exp["T"] = e_t.strip()
+                        exp["A"] = e_a.strip()
+                        exp["R"] = e_r.strip()
+                        _save_profile(prof)
+                        st.success("✅ Expérience mise à jour.")
+                        st.rerun()
+                with bc2:
+                    if st.form_submit_button("🗑️ Supprimer", use_container_width=True):
+                        exps.pop(idx)
+                        _save_profile(prof)
+                        st.toast("Expérience supprimée.")
+                        st.rerun()
+
+    with st.form("form_new_exp", clear_on_submit=True):
+        st.markdown("**➕ Ajouter une expérience**")
+        n1, n2 = st.columns(2)
+        with n1:
+            ne_title = st.text_input("Intitulé")
+            ne_company = st.text_input("Entreprise")
+        with n2:
+            ne_period = st.text_input("Période")
+            ne_tags = st.text_input("Tags profils (séparés par virgules)", value="all")
+        ne_a = st.text_area("Action principale (A)", height=80)
+        ne_r = st.text_area("Résultat (R)", height=70)
+        ne_k = st.text_input("Keywords (séparés par virgules)")
+        if st.form_submit_button("➕ Ajouter", type="primary", use_container_width=True):
+            if not ne_title.strip() or not ne_company.strip():
+                st.warning("Intitulé et entreprise obligatoires.")
+            else:
+                new_id = f"EXP_{abs(hash(ne_title + ne_company)) % 10**6}"
+                exps.append({
+                    "id": new_id,
+                    "title": ne_title.strip(),
+                    "company": ne_company.strip(),
+                    "period": ne_period.strip(),
+                    "profiles_tags": [t.strip() for t in ne_tags.split(",") if t.strip()] or ["all"],
+                    "S": "", "T": "",
+                    "A": ne_a.strip(),
+                    "R": ne_r.strip(),
+                    "K": [k.strip() for k in ne_k.split(",") if k.strip()],
+                })
+                _save_profile(prof)
+                st.success("✅ Expérience ajoutée.")
+                st.rerun()
+
+# ─── COMPÉTENCES ────────────────────────────────────────────────
+with p_tab4:
+    tax = prof.setdefault("skills_taxonomy", {})
+    hard = tax.setdefault("hard_skills", [])
+    soft = tax.setdefault("soft_skills", [])
+    domain = tax.setdefault("domain_knowledge", [])
+
+    with st.form("form_skills"):
+        st.markdown("**🔧 Hard skills** (un par ligne, format : `Nom | Niveau`)")
+        hs_text = "\n".join(
+            f"{s.get('name','')} | {s.get('level','')}" if s.get("level") else s.get("name", "")
+            for s in hard
+        )
+        n_hard = st.text_area("Hard skills", value=hs_text, height=180, label_visibility="collapsed")
+
+        st.markdown("**🤝 Soft skills** (un par ligne)")
+        n_soft = st.text_area(
+            "Soft skills",
+            value="\n".join(s if isinstance(s, str) else s.get("name", "") for s in soft),
+            height=120, label_visibility="collapsed",
+        )
+
+        st.markdown("**🌐 Domaines d'expertise** (un par ligne)")
+        n_dom = st.text_area(
+            "Domaines",
+            value="\n".join(domain),
+            height=120, label_visibility="collapsed",
+        )
+
+        if st.form_submit_button("💾 Enregistrer Compétences", type="primary",
+                                 use_container_width=True):
+            new_hard = []
+            for line in n_hard.splitlines():
+                parts = [p.strip() for p in line.split("|")]
+                if not parts or not parts[0]:
+                    continue
+                obj = {"name": parts[0]}
+                if len(parts) > 1 and parts[1]:
+                    obj["level"] = parts[1]
+                new_hard.append(obj)
+            tax["hard_skills"] = new_hard
+            tax["soft_skills"] = [s.strip() for s in n_soft.splitlines() if s.strip()]
+            tax["domain_knowledge"] = [d.strip() for d in n_dom.splitlines() if d.strip()]
+            _save_profile(prof)
+            st.success("✅ Compétences enregistrées.")
+            st.rerun()
+
+# ─── JSON BRUT ──────────────────────────────────────────────────
+with p_tab5:
+    st.caption(
+        "Édition directe du JSON pour les champs avancés (profils, configs imbriquées). "
+        "⚠️ Le JSON doit rester valide — un bouton de validation t'aide."
+    )
+    raw_json = st.text_area(
+        "master_profile.json",
+        value=json.dumps(prof, ensure_ascii=False, indent=2),
+        height=500,
+        key="raw_profile_json",
+    )
+    rj1, rj2 = st.columns(2)
+    with rj1:
+        if st.button("✅ Valider & Enregistrer", type="primary", use_container_width=True):
+            try:
+                parsed = json.loads(raw_json)
+                _save_profile(parsed)
+                st.success("✅ Profil enregistré avec succès.")
+                st.rerun()
+            except json.JSONDecodeError as exc:
+                st.error(f"❌ JSON invalide : {exc}")
+    with rj2:
+        st.download_button(
+            "⬇️ Télécharger le profil",
+            data=json.dumps(prof, ensure_ascii=False, indent=2).encode("utf-8"),
+            file_name="master_profile.json",
+            mime="application/json",
+            use_container_width=True,
+        )
 
 st.markdown("</div>", unsafe_allow_html=True)
 

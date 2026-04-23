@@ -92,7 +92,11 @@ class JobDatabase:
                 "sent_at": "TEXT",
                 "final_headline": "TEXT",
                 "final_summary": "TEXT",
-                "vault_path": "TEXT"
+                "vault_path": "TEXT",
+                "ai_score": "INTEGER",
+                "ai_reason": "TEXT",
+                "extracted_skills": "TEXT",
+                "posted_date": "TEXT",
             }
             for col, col_type in new_cols.items():
                 if col not in columns:
@@ -211,7 +215,7 @@ class JobDatabase:
 
     def _row_to_dict(self, row: sqlite3.Row) -> Dict:
         d = dict(row)
-        for field in ("matched_skills", "required_skills"):
+        for field in ("matched_skills", "required_skills", "extracted_skills"):
             raw = d.get(field)
             if raw:
                 try:
@@ -237,14 +241,20 @@ class JobDatabase:
 
                 ms_json = json.dumps(job.get("matched_skills", []), ensure_ascii=False)
                 rs_json = json.dumps(job.get("required_skills", []), ensure_ascii=False)
+                es_json = json.dumps(job.get("extracted_skills", []), ensure_ascii=False)
+                ai_score_val = job.get("ai_score")
+                ai_score_int = int(ai_score_val) if ai_score_val is not None else None
+                ai_reason = job.get("ai_reason") or None
+                posted_date = job.get("posted_date") or None
 
                 if existing is None:
                     conn.execute(
                         """INSERT INTO jobs
                            (id, title, company, location, description, url, source,
                             fit_score, matched_skills, required_skills, status,
-                            sourcing_date, created_at, updated_at)
-                           VALUES (?,?,?,?,?,?,?,?,?,?,'new',?,datetime('now'),datetime('now'))""",
+                            sourcing_date, ai_score, ai_reason, extracted_skills, posted_date,
+                            created_at, updated_at)
+                           VALUES (?,?,?,?,?,?,?,?,?,?,'new',?,?,?,?,?,datetime('now'),datetime('now'))""",
                         (
                             job_id,
                             job.get("title", ""),
@@ -257,18 +267,26 @@ class JobDatabase:
                             ms_json,
                             rs_json,
                             job.get("sourcing_date") or date.today().isoformat(),
+                            ai_score_int,
+                            ai_reason,
+                            es_json,
+                            posted_date,
                         ),
                     )
                     new_count += 1
                 else:
                     conn.execute(
                         """UPDATE jobs SET
-                               fit_score       = ?,
-                               matched_skills  = ?,
+                               fit_score        = ?,
+                               matched_skills   = ?,
                                required_skills = ?,
                                description     = COALESCE(NULLIF(?, ''), description),
                                url             = COALESCE(NULLIF(?, ''), url),
-                               updated_at      = datetime('now')
+                               ai_score         = COALESCE(?, ai_score),
+                               ai_reason        = COALESCE(NULLIF(?, ''), ai_reason),
+                               extracted_skills = CASE WHEN ?='[]' THEN extracted_skills ELSE ? END,
+                               posted_date      = COALESCE(NULLIF(?, ''), posted_date),
+                               updated_at       = datetime('now')
                            WHERE id = ?""",
                         (
                             int(job.get("fit_score", 0)),
@@ -276,6 +294,10 @@ class JobDatabase:
                             rs_json,
                             job.get("description", ""),
                             job.get("url", ""),
+                            ai_score_int,
+                            ai_reason or "",
+                            es_json, es_json,
+                            posted_date or "",
                             job_id,
                         ),
                     )
