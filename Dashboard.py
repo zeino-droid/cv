@@ -315,6 +315,7 @@ def update_job_callback(job_id: int, status_key: str, notes_key: str) -> None:
     new_status = st.session_state[status_key]
     new_notes = st.session_state[notes_key]
     db.update_status(job_id, new_status, new_notes)
+    st.toast("✅ Statut mis à jour")
 
 
 def load_profile() -> dict:
