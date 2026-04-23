@@ -423,9 +423,9 @@ def studio_dialog(job_id: str):
         gen_state["edited_summary"] = default_summary
         st.session_state[state_key] = gen_state
 
-    # ── 3 ONGLETS ───────────────────────────────────────────────
-    tab_analyse, tab_edit, tab_copilot = st.tabs(
-        ["🔬 Analyse", "✏️ Édition Live", "🤖 Copilote IA"]
+    # ── 2 ONGLETS ───────────────────────────────────────────────
+    tab_analyse, tab_studio = st.tabs(
+        ["🔬 Analyse", "🎬 Studio CV + Lettre"]
     )
 
     # === ONGLET 1 : ANALYSE =====================================
@@ -466,286 +466,247 @@ def studio_dialog(job_id: str):
                 help="Lien de secours si l'offre d'origine a expiré",
             )
 
-    # === ONGLET 2 : ÉDITION LIVE ================================
-    with tab_edit:
-        col_cv, col_letter = st.columns(2)
+    # === ONGLET 2 : STUDIO UNIFIÉ (Génération + Édition + Copilote + PDF live) ===
+    with tab_studio:
+        already_generated = bool(gen_state.get("cv_path")) or bool(
+            gen_state.get("studio_initialized")
+        )
 
-        with col_cv:
-            st.markdown("#### 📄 Résumé du CV")
-            st.caption("Injecté dans le header Typst.")
-            edited_summary = st.text_area(
-                "summary", value=gen_state.get("edited_summary", ""),
-                height=180, label_visibility="collapsed",
-                key=f"sm_{job_id}",
-            )
-            gen_state["edited_summary"] = edited_summary
-            cnt = len(edited_summary)
-            color = "#4ade80" if cnt <= 400 else "#f87171"
+        # ─── PHASE 1 : génération initiale via Gemini ──────────
+        if not already_generated:
             st.markdown(
-                f"<span style='font-size:0.72rem;color:{color};'>"
-                f"{cnt}/400 caractères recommandés</span>",
+                "<div style='background:rgba(56,189,248,0.08);border:1px solid "
+                "rgba(56,189,248,0.25);border-radius:8px;padding:14px;"
+                "color:#e2e8f0;font-size:0.92rem;line-height:1.55;'>"
+                "<strong>🧠 Génération intelligente.</strong> "
+                "Gemini va lire ton profil complet et l'offre ciblée, puis "
+                "rédiger un CV professionnel et une lettre personnalisée. "
+                "Tu pourras ensuite tout éditer ou demander des retouches au copilote."
+                "</div>",
                 unsafe_allow_html=True,
             )
-
-            st.markdown("##### ✨ Accroche")
-            edited_headline = st.text_area(
-                "headline",
-                value=gen_state.get("edited_headline", ""),
-                height=70, label_visibility="collapsed",
-                key=f"hl_{job_id}",
-                placeholder="Ex: Ingénieur Modélisation Thermomécanique · Python · Abaqus",
-            )
-            gen_state["edited_headline"] = edited_headline
-
-        with col_letter:
-            st.markdown("#### ✉️ Lettre de motivation")
-            st.caption("Corps complet, exporté en .txt.")
-            edited_letter = st.text_area(
-                "letter", value=gen_state.get("letter_text", ""),
-                height=320, label_visibility="collapsed",
-                key=f"lt_{job_id}",
-            )
-            gen_state["letter_text"] = edited_letter
-
-        st.session_state[state_key] = gen_state
-
-        # ── APERÇU LIVE PDF ──────────────────────────────────────
-        st.markdown("##### 👁 Aperçu live")
-        st.caption(
-            "Compile le brouillon courant en PDF pour voir le rendu réel "
-            "avant l'export final."
-        )
-        pa, pb = st.columns(2)
-        with pa:
-            if st.button("🔄 Compiler aperçu CV",
-                         key=f"prev_cv_{job_id}",
-                         use_container_width=True):
-                with st.spinner("Compilation Typst..."):
+            st.markdown("&nbsp;")
+            if st.button("🚀 Générer le CV + Lettre avec Gemini",
+                         type="primary", use_container_width=True,
+                         key=f"btn_studio_gen_{job_id}"):
+                with st.spinner("Gemini rédige ton CV et ta lettre..."):
                     try:
+                        result = generate_documents(
+                            job, gen_cv=True, gen_letter=True, use_llm=True,
+                            headline_override=gen_state.get("edited_headline"),
+                            summary_override=gen_state.get("edited_summary"),
+                        )
+                        gen_state.update(result)
+                        if result.get("letter_text"):
+                            gen_state["letter_text"] = result["letter_text"]
+                        # Récupère headline/summary réellement utilisés par le générateur
+                        cv_res = result.get("cv_result") or {}
+                        if cv_res.get("headline"):
+                            gen_state["edited_headline"] = cv_res["headline"]
+                        if cv_res.get("summary"):
+                            gen_state["edited_summary"] = cv_res["summary"]
+                        gen_state["studio_initialized"] = True
+                        st.session_state[state_key] = gen_state
+                        st.success("✅ Génération terminée. Aperçu PDF disponible ci-dessous.")
+                        st.rerun()
+                    except Exception as exc:
+                        st.error(f"❌ Erreur Gemini : {exc}")
+                        st.caption("Vérifie que la clé `GEMINI_API_KEY` est bien configurée.")
+
+        # ─── PHASE 2 : aperçu PDF + édition + copilote ─────────
+        else:
+            preview_col, edit_col = st.columns([1, 1], gap="medium")
+
+            # ───── COLONNE GAUCHE : APERÇU PDF ─────────────────
+            with preview_col:
+                st.markdown("##### 📄 Aperçu PDF live")
+                cv_preview = gen_state.get("cv_path") or ""
+                if cv_preview and Path(cv_preview).exists() and cv_preview.endswith(".pdf"):
+                    import base64 as _b64
+                    with open(cv_preview, "rb") as f:
+                        pdf_bytes = f.read()
+                    b64 = _b64.b64encode(pdf_bytes).decode("utf-8")
+                    st.markdown(
+                        f"<iframe src='data:application/pdf;base64,{b64}#view=FitH' "
+                        f"width='100%' height='620' style='border:1px solid "
+                        f"rgba(148,163,184,0.25);border-radius:6px;background:white;'></iframe>",
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.warning(
+                        "PDF non disponible. Le moteur Typst n'a pas pu générer le rendu. "
+                        "Clique sur **Recompiler PDF** ci-dessous."
+                    )
+
+                if st.button("🔄 Recompiler PDF avec mes éditions",
+                             use_container_width=True,
+                             key=f"recomp_{job_id}"):
+                    with st.spinner("Recompilation..."):
+                        try:
+                            result = generate_documents(
+                                job, gen_cv=True, gen_letter=False, use_llm=False,
+                                headline_override=gen_state.get("edited_headline"),
+                                summary_override=gen_state.get("edited_summary"),
+                            )
+                            gen_state["cv_path"] = result.get("cv_path", "")
+                            st.session_state[state_key] = gen_state
+                            st.rerun()
+                        except Exception as exc:
+                            st.error(f"Erreur : {exc}")
+
+            # ───── COLONNE DROITE : ÉDITION + COPILOTE ─────────
+            with edit_col:
+                st.markdown("##### ✏️ Édition manuelle")
+                edited_headline = st.text_area(
+                    "Accroche",
+                    value=gen_state.get("edited_headline", ""),
+                    height=70, key=f"hl_{job_id}",
+                    placeholder="Ex: Ingénieur R&D · Python · Simulation thermomécanique",
+                )
+                gen_state["edited_headline"] = edited_headline
+
+                edited_summary = st.text_area(
+                    "Résumé professionnel",
+                    value=gen_state.get("edited_summary", ""),
+                    height=140, key=f"sm_{job_id}",
+                )
+                gen_state["edited_summary"] = edited_summary
+                cnt = len(edited_summary)
+                color = "#4ade80" if cnt <= 400 else "#f87171"
+                st.markdown(
+                    f"<span style='font-size:0.72rem;color:{color};'>"
+                    f"{cnt}/400 caractères recommandés</span>",
+                    unsafe_allow_html=True,
+                )
+
+                edited_letter = st.text_area(
+                    "Lettre de motivation",
+                    value=gen_state.get("letter_text", ""),
+                    height=240, key=f"lt_{job_id}",
+                )
+                gen_state["letter_text"] = edited_letter
+                st.session_state[state_key] = gen_state
+
+                st.markdown("---")
+                st.markdown("##### 🤖 Copilote IA")
+                st.caption(
+                    "Demande des retouches ciblées. "
+                    "Ex : *Rends l'intro plus orientée résultats* · "
+                    "*Ajoute une mention CFD* · *Raccourcis la lettre*"
+                )
+                cop_target = st.radio(
+                    "Cible",
+                    ["Résumé CV", "Lettre complète", "Introduction lettre uniquement"],
+                    horizontal=True, key=f"cop_target_{job_id}",
+                )
+                cop_cmd = st.text_input(
+                    "Instruction",
+                    placeholder="Ex: Reformule en orienté impact business",
+                    key=f"cop_cmd_{job_id}",
+                )
+                if st.button("⚡ Appliquer", type="primary",
+                             use_container_width=True,
+                             key=f"cop_run_{job_id}"):
+                    if not cop_cmd.strip():
+                        st.warning("Tape une instruction d'abord.")
+                    else:
+                        with st.spinner("Le copilote réécrit..."):
+                            rewritten = _copilot_rewrite(
+                                target=cop_target, command=cop_cmd,
+                                current_summary=gen_state.get("edited_summary", ""),
+                                current_letter=gen_state.get("letter_text", ""),
+                                job=job, profile=profile,
+                            )
+                        if rewritten:
+                            if cop_target == "Résumé CV":
+                                gen_state["edited_summary"] = rewritten
+                            else:
+                                gen_state["letter_text"] = rewritten
+                            st.session_state[state_key] = gen_state
+                            st.success("✅ Texte mis à jour. Pense à recompiler le PDF.")
+                            st.rerun()
+                        else:
+                            st.error("Le copilote n'a rien renvoyé (clé API manquante ?).")
+
+            # ───── BLOC VALIDATION & EXPORT ────────────────────
+            st.markdown("---")
+            st.markdown("#### ✅ Valider & Exporter")
+            v1, v2, v3 = st.columns(3)
+            with v1:
+                cv_path_dl = gen_state.get("cv_path") or ""
+                if cv_path_dl and Path(cv_path_dl).exists() and cv_path_dl.endswith(".pdf"):
+                    with open(cv_path_dl, "rb") as f:
+                        st.download_button(
+                            "📄 Télécharger CV (PDF)", data=f.read(),
+                            file_name=f"CV_{safe_filename(job.get('company','job'))}.pdf",
+                            mime="application/pdf",
+                            use_container_width=True, type="primary",
+                            key=f"dl_cv_{job_id}",
+                        )
+                else:
+                    st.button("📄 CV PDF indisponible", disabled=True,
+                              use_container_width=True,
+                              key=f"dl_cv_dis_{job_id}")
+            with v2:
+                if gen_state.get("letter_text"):
+                    st.download_button(
+                        "✉️ Télécharger lettre (.txt)",
+                        data=gen_state["letter_text"].encode("utf-8"),
+                        file_name=f"Lettre_{safe_filename(job.get('company','job'))}.txt",
+                        mime="text/plain", use_container_width=True,
+                        key=f"dl_lt_{job_id}",
+                    )
+                else:
+                    st.button("✉️ Lettre vide", disabled=True,
+                              use_container_width=True,
+                              key=f"dl_lt_dis_{job_id}")
+            with v3:
+                if st.button("⭐ Valider comme version finale",
+                             use_container_width=True,
+                             key=f"final_{job_id}"):
+                    try:
+                        # On recompile une dernière fois avec les éditions
                         result = generate_documents(
                             job, gen_cv=True, gen_letter=False, use_llm=False,
                             headline_override=gen_state.get("edited_headline"),
                             summary_override=gen_state.get("edited_summary"),
                         )
-                        gen_state["cv_path"] = result.get("cv_path", "")
-                        st.session_state[state_key] = gen_state
-                    except Exception as exc:
-                        st.error(f"Erreur compilation : {exc}")
-        with pb:
-            cv_preview = gen_state.get("cv_path") or ""
-            if cv_preview and Path(cv_preview).exists() and cv_preview.endswith(".pdf"):
-                with open(cv_preview, "rb") as f:
-                    pdf_bytes = f.read()
-                import base64 as _b64
-                b64 = _b64.b64encode(pdf_bytes).decode("utf-8")
-                st.markdown(
-                    f"<iframe src='data:application/pdf;base64,{b64}' "
-                    f"width='100%' height='420' style='border:1px solid "
-                    f"rgba(148,163,184,0.25);border-radius:6px;'></iframe>",
-                    unsafe_allow_html=True,
-                )
-            else:
-                st.info("Clique sur **Compiler aperçu CV** pour voir le rendu PDF ici.")
-
-        # Aperçu lettre (texte brut, mise en forme conservée)
-        if gen_state.get("letter_text"):
-            with st.expander("✉️ Aperçu lettre (texte)"):
-                st.markdown(
-                    f"<div style='background:#0f172a;border:1px solid "
-                    f"rgba(148,163,184,0.25);border-radius:6px;padding:14px;"
-                    f"white-space:pre-wrap;font-family:Georgia,serif;"
-                    f"font-size:0.92rem;line-height:1.55;color:#e2e8f0;'>"
-                    f"{gen_state['letter_text']}</div>",
-                    unsafe_allow_html=True,
-                )
-
-        # ── HISTORIQUE DES VERSIONS ──────────────────────────────
-        with st.expander("🗂 Historique des versions"):
-            cv_vers = db.get_resume_versions(job_id)
-            lt_vers = db.get_cover_letter_versions(job_id)
-            cva, cvb = st.columns(2)
-            with cva:
-                st.markdown("**CV**")
-                if not cv_vers:
-                    st.caption("Aucune version sauvegardée.")
-                for v in cv_vers[:8]:
-                    flag = " ⭐" if v.get("is_final") else ""
-                    st.markdown(
-                        f"<div style='font-size:0.78rem;color:#94a3b8;'>"
-                        f"v{v['version']}{flag} · {v.get('created_at','')[:16]}"
-                        f"</div>",
-                        unsafe_allow_html=True,
-                    )
-            with cvb:
-                st.markdown("**Lettre**")
-                if not lt_vers:
-                    st.caption("Aucune version sauvegardée.")
-                for v in lt_vers[:8]:
-                    flag = " ⭐" if v.get("is_final") else ""
-                    st.markdown(
-                        f"<div style='font-size:0.78rem;color:#94a3b8;'>"
-                        f"v{v['version']}{flag} · {v.get('created_at','')[:16]}"
-                        f"</div>",
-                        unsafe_allow_html=True,
-                    )
-
-    # === ONGLET 3 : COPILOTE IA =================================
-    with tab_copilot:
-        st.markdown("#### 🤖 Demande au Copilote")
-        st.caption(
-            "Exemples : *Rends l'intro plus dynamique* · "
-            "*Ajoute une référence à Python et CFD* · "
-            "*Reformule en orienté résultats*"
-        )
-        target = st.radio(
-            "Cible",
-            ["Résumé CV", "Lettre complète", "Introduction lettre uniquement"],
-            horizontal=True, key=f"cop_target_{job_id}",
-        )
-        command = st.text_input(
-            "Instruction",
-            placeholder="Ex: Rends l'introduction plus dynamique et orientée résultats",
-            key=f"cop_cmd_{job_id}",
-        )
-        if st.button("⚡ Appliquer la commande IA", type="primary",
-                     use_container_width=True, key=f"cop_run_{job_id}"):
-            if not command.strip():
-                st.warning("Tape une instruction d'abord.")
-            else:
-                with st.spinner("Le Copilote réécrit..."):
-                    rewritten = _copilot_rewrite(
-                        target=target, command=command,
-                        current_summary=gen_state.get("edited_summary", ""),
-                        current_letter=gen_state.get("letter_text", ""),
-                        job=job, profile=profile,
-                    )
-                if rewritten:
-                    if target == "Résumé CV":
-                        gen_state["edited_summary"] = rewritten
-                    else:
-                        gen_state["letter_text"] = rewritten
-                    st.session_state[state_key] = gen_state
-                    st.success("✅ Texte réécrit. Va dans **✏️ Édition Live**.")
-                    st.rerun()
-                else:
-                    st.error("Le Copilote n'a rien renvoyé (clé API manquante ?).")
-
-    # ── BARRE D'ACTIONS BAS ─────────────────────────────────────
-    st.divider()
-    g1, g2 = st.columns([1, 1])
-    with g1:
-        gen_cv = st.checkbox("📄 CV PDF (Typst)", value=True, key=f"opt_cv_{job_id}")
-        gen_letter = st.checkbox("✉️ Lettre", value=True, key=f"opt_lt_{job_id}")
-    with g2:
-        use_llm = st.checkbox(
-            "🤖 Régénérer la lettre via Gemini",
-            value=False, key=f"opt_llm_{job_id}",
-            help="Si décoché, la lettre que tu as éditée à l'écran est utilisée telle quelle.",
-        )
-
-    if st.button("🚀 Générer les fichiers", type="primary",
-                 use_container_width=True, key=f"btn_gen_{job_id}"):
-        with st.spinner("Génération en cours..."):
-            try:
-                result = generate_documents(
-                    job, gen_cv=gen_cv, gen_letter=gen_letter and use_llm,
-                    use_llm=True,
-                    headline_override=gen_state.get("edited_headline"),
-                    summary_override=gen_state.get("edited_summary"),
-                )
-                # Si on n'a pas régénéré la lettre via Gemini, on persiste la version éditée
-                if gen_letter and not use_llm:
-                    out_dir = ROOT / "vault" / safe_filename(
-                        f"{job.get('company','job')}_{job.get('title','cv')}"
-                    )
-                    out_dir.mkdir(parents=True, exist_ok=True)
-                    lp = out_dir / "lettre.txt"
-                    lp.write_text(gen_state.get("letter_text", ""), encoding="utf-8")
-                    result["letter_path"] = str(lp)
-                    result["letter_text"] = gen_state.get("letter_text", "")
-                    db.save_generation(
-                        job["id"],
-                        result.get("cv_path", ""),
-                        str(lp),
-                    )
-                gen_state.update(result)
-                # Si Gemini a régénéré, on remplace le draft local
-                if use_llm and result.get("letter_text"):
-                    gen_state["letter_text"] = result["letter_text"]
-                st.session_state[state_key] = gen_state
-                st.success("✅ Documents générés !")
-            except Exception as exc:
-                st.error(f"❌ {exc}")
-
-    # Persiste la lettre éditée sur disque si elle existe déjà
-    if gen_state.get("letter_path") and gen_state.get("letter_text"):
-        try:
-            Path(gen_state["letter_path"]).write_text(
-                gen_state["letter_text"], encoding="utf-8"
-            )
-        except Exception:
-            pass
-
-    if gen_state.get("cv_path") or gen_state.get("letter_path"):
-        st.divider()
-        st.markdown("##### 📥 Téléchargements")
-        d1, d2 = st.columns(2)
-        with d1:
-            cv_path = gen_state.get("cv_path") or ""
-            if cv_path and Path(cv_path).exists():
-                ext = Path(cv_path).suffix or ".pdf"
-                mime = "application/pdf" if ext == ".pdf" else "text/plain"
-                with open(cv_path, "rb") as f:
-                    st.download_button(
-                        "📄 CV", data=f.read(),
-                        file_name=f"CV_Zein_{safe_filename(job.get('company',''))}{ext}",
-                        mime=mime, use_container_width=True, type="primary",
-                        key=f"dl_cv_{job_id}",
-                    )
-            else:
-                st.caption("CV non encore généré")
-        with d2:
-            if gen_state.get("letter_text"):
-                st.download_button(
-                    "✉️ Lettre",
-                    data=gen_state["letter_text"].encode("utf-8"),
-                    file_name=f"Lettre_{safe_filename(job.get('company',''))}.txt",
-                    mime="text/plain", use_container_width=True,
-                    key=f"dl_lt_{job_id}",
-                )
-            else:
-                st.caption("Lettre vide")
-
-        st.divider()
-        fa, fb = st.columns(2)
-        with fa:
-            if st.button("⭐ Marquer comme version finale",
-                         use_container_width=True,
-                         key=f"final_{job_id}"):
-                try:
-                    if gen_state.get("cv_path"):
+                        gen_state["cv_path"] = result.get("cv_path", "") or gen_state.get("cv_path", "")
+                        # Persiste la lettre éditée
+                        if gen_state.get("letter_text"):
+                            out_dir = ROOT / "vault" / safe_filename(
+                                f"{job.get('company','job')}_{job.get('title','cv')}"
+                            )
+                            out_dir.mkdir(parents=True, exist_ok=True)
+                            lp = out_dir / "lettre.txt"
+                            lp.write_text(gen_state["letter_text"], encoding="utf-8")
+                            gen_state["letter_path"] = str(lp)
+                        # Sauvegarde versions finales
                         db.save_resume_version(
                             job_id=job_id,
                             headline=gen_state.get("edited_headline", ""),
                             summary=gen_state.get("edited_summary", ""),
                             cv_path=gen_state.get("cv_path", ""),
                             is_final=True,
-                            notes="Marquée finale par l'utilisateur",
+                            notes="Validée finale par l'utilisateur",
                         )
-                    if gen_state.get("letter_text"):
-                        db.save_cover_letter_version(
-                            job_id=job_id,
-                            letter_text=gen_state.get("letter_text", ""),
-                            letter_path=gen_state.get("letter_path", ""),
-                            is_final=True,
-                            notes="Marquée finale par l'utilisateur",
-                        )
-                    st.success("✅ Versions finales archivées.")
-                except Exception as exc:
-                    st.error(f"Erreur archivage : {exc}")
-        with fb:
-            if st.button("✅ J'ai postulé — marquer comme envoyé",
-                         type="primary", use_container_width=True,
+                        if gen_state.get("letter_text"):
+                            db.save_cover_letter_version(
+                                job_id=job_id,
+                                letter_text=gen_state.get("letter_text", ""),
+                                letter_path=gen_state.get("letter_path", ""),
+                                is_final=True,
+                                notes="Validée finale par l'utilisateur",
+                            )
+                        st.session_state[state_key] = gen_state
+                        st.success("⭐ Version finale archivée.")
+                        st.rerun()
+                    except Exception as exc:
+                        st.error(f"Erreur : {exc}")
+
+            # ───── MARQUER COMME ENVOYÉ ────────────────────────
+            if st.button("📤 J'ai postulé — clore la candidature",
+                         type="secondary", use_container_width=True,
                          key=f"sent_{job_id}"):
                 db.mark_as_sent(
                     job_id=job_id, via="manual",
@@ -757,6 +718,36 @@ def studio_dialog(job_id: str):
                 st.session_state.pop("studio_open_for", None)
                 st.success("Candidature archivée 🎉")
                 st.rerun()
+
+            # ───── HISTORIQUE DES VERSIONS ─────────────────────
+            with st.expander("🗂 Historique des versions"):
+                cv_vers = db.get_resume_versions(job_id)
+                lt_vers = db.get_cover_letter_versions(job_id)
+                hva, hvb = st.columns(2)
+                with hva:
+                    st.markdown("**CV**")
+                    if not cv_vers:
+                        st.caption("Aucune version sauvegardée.")
+                    for v in cv_vers[:8]:
+                        flag = " ⭐" if v.get("is_final") else ""
+                        st.markdown(
+                            f"<div style='font-size:0.78rem;color:#94a3b8;'>"
+                            f"v{v['version']}{flag} · {v.get('created_at','')[:16]}"
+                            f"</div>",
+                            unsafe_allow_html=True,
+                        )
+                with hvb:
+                    st.markdown("**Lettre**")
+                    if not lt_vers:
+                        st.caption("Aucune version sauvegardée.")
+                    for v in lt_vers[:8]:
+                        flag = " ⭐" if v.get("is_final") else ""
+                        st.markdown(
+                            f"<div style='font-size:0.78rem;color:#94a3b8;'>"
+                            f"v{v['version']}{flag} · {v.get('created_at','')[:16]}"
+                            f"</div>",
+                            unsafe_allow_html=True,
+                        )
 
 
 # ─── HERO ────────────────────────────────────────────────────────
