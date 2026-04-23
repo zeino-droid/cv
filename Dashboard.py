@@ -7,6 +7,7 @@ Frontend premium inspiré des standards Apple / Indeed / Nike.
 import atexit
 import asyncio
 import json
+import sqlite3
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, date, timedelta
@@ -312,14 +313,17 @@ db = get_db()
 
 
 def update_job_callback(job_id: int, status_key: str, notes_key: str) -> None:
-    new_status = st.session_state.get(status_key)
-    if new_status is None:
+    if status_key not in st.session_state:
         st.toast("❌ Statut introuvable")
+        return
+    new_status = st.session_state[status_key]
+    if new_status not in VALID_STATUSES:
+        st.toast("❌ Statut invalide")
         return
     new_notes = st.session_state.get(notes_key, "")
     try:
         db.update_status(job_id, new_status, new_notes)
-    except Exception:
+    except (sqlite3.Error, ValueError):
         st.toast("❌ Échec de la mise à jour")
         return
     st.toast("✅ Statut mis à jour")
