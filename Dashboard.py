@@ -323,11 +323,11 @@ def update_job_callback(job_id: int, status_key: str, notes_key: str) -> None:
     new_notes = st.session_state.get(notes_key, "")
     try:
         db.update_status(job_id, new_status, new_notes)
-    except sqlite3.Error:
-        st.toast("❌ Erreur de base de données")
+    except sqlite3.Error as exc:
+        st.toast(f"❌ Erreur de base de données : {exc}")
         return
-    except ValueError:
-        st.toast("❌ Données invalides")
+    except ValueError as exc:
+        st.toast(f"❌ Données invalides : {exc}")
         return
     st.toast("✅ Statut mis à jour")
 
