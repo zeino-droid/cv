@@ -100,7 +100,114 @@ class JobDatabase:
                     
             conn.execute("CREATE INDEX IF NOT EXISTS idx_status ON jobs(status)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_score  ON jobs(fit_score)")
+
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS resume_versions (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    job_id       TEXT NOT NULL,
+                    version      INTEGER DEFAULT 1,
+                    headline     TEXT,
+                    summary      TEXT,
+                    cv_path      TEXT,
+                    is_final     INTEGER DEFAULT 0,
+                    created_at   TEXT DEFAULT (datetime('now')),
+                    notes        TEXT,
+                    FOREIGN KEY (job_id) REFERENCES jobs(id)
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS cover_letter_versions (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    job_id       TEXT NOT NULL,
+                    version      INTEGER DEFAULT 1,
+                    letter_text  TEXT,
+                    letter_path  TEXT,
+                    is_final     INTEGER DEFAULT 0,
+                    created_at   TEXT DEFAULT (datetime('now')),
+                    notes        TEXT,
+                    FOREIGN KEY (job_id) REFERENCES jobs(id)
+                )
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_rv_job ON resume_versions(job_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_lv_job ON cover_letter_versions(job_id)")
             conn.commit()
+
+    def save_resume_version(
+        self,
+        job_id: str,
+        headline: str = "",
+        summary: str = "",
+        cv_path: str = "",
+        is_final: bool = False,
+        notes: str = "",
+    ) -> int:
+        """Sauvegarde une version numérotée du CV pour un job."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT COALESCE(MAX(version), 0) AS mv FROM resume_versions WHERE job_id = ?",
+                (job_id,),
+            ).fetchone()
+            next_v = int(row["mv"] or 0) + 1
+            if is_final:
+                conn.execute(
+                    "UPDATE resume_versions SET is_final = 0 WHERE job_id = ?",
+                    (job_id,),
+                )
+            cur = conn.execute(
+                """INSERT INTO resume_versions
+                   (job_id, version, headline, summary, cv_path, is_final, created_at, notes)
+                   VALUES (?,?,?,?,?,?,datetime('now'),?)""",
+                (job_id, next_v, headline, summary, cv_path,
+                 1 if is_final else 0, notes),
+            )
+            conn.commit()
+            return cur.lastrowid or 0
+
+    def save_cover_letter_version(
+        self,
+        job_id: str,
+        letter_text: str = "",
+        letter_path: str = "",
+        is_final: bool = False,
+        notes: str = "",
+    ) -> int:
+        """Sauvegarde une version numérotée de la lettre pour un job."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT COALESCE(MAX(version), 0) AS mv FROM cover_letter_versions WHERE job_id = ?",
+                (job_id,),
+            ).fetchone()
+            next_v = int(row["mv"] or 0) + 1
+            if is_final:
+                conn.execute(
+                    "UPDATE cover_letter_versions SET is_final = 0 WHERE job_id = ?",
+                    (job_id,),
+                )
+            cur = conn.execute(
+                """INSERT INTO cover_letter_versions
+                   (job_id, version, letter_text, letter_path, is_final, created_at, notes)
+                   VALUES (?,?,?,?,?,datetime('now'),?)""",
+                (job_id, next_v, letter_text, letter_path,
+                 1 if is_final else 0, notes),
+            )
+            conn.commit()
+            return cur.lastrowid or 0
+
+    def get_resume_versions(self, job_id: str) -> List[Dict]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM resume_versions WHERE job_id = ? ORDER BY version DESC",
+                (job_id,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_cover_letter_versions(self, job_id: str) -> List[Dict]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM cover_letter_versions WHERE job_id = ? ORDER BY version DESC",
+                (job_id,),
+            ).fetchall()
+        return [dict(r) for r in rows]
 
     def _row_to_dict(self, row: sqlite3.Row) -> Dict:
         d = dict(row)

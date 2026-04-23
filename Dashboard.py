@@ -292,6 +292,30 @@ def generate_documents(job: dict, gen_cv: bool, gen_letter: bool, use_llm: bool,
     if cv_path or letter_path:
         db.save_generation(job["id"], cv_path, letter_path)
 
+    if gen_cv and cv_path:
+        try:
+            db.save_resume_version(
+                job_id=job["id"],
+                headline=headline_override or "",
+                summary=summary_override or "",
+                cv_path=cv_path,
+                is_final=False,
+                notes="Auto-saved on generation",
+            )
+        except Exception:
+            pass
+    if gen_letter and letter_text:
+        try:
+            db.save_cover_letter_version(
+                job_id=job["id"],
+                letter_text=letter_text,
+                letter_path=letter_path,
+                is_final=False,
+                notes="Auto-saved on generation",
+            )
+        except Exception:
+            pass
+
     return {
         "cv_result": cv_result,
         "cv_path": cv_path,
@@ -485,6 +509,86 @@ def studio_dialog(job_id: str):
 
         st.session_state[state_key] = gen_state
 
+        # ── APERÇU LIVE PDF ──────────────────────────────────────
+        st.markdown("##### 👁 Aperçu live")
+        st.caption(
+            "Compile le brouillon courant en PDF pour voir le rendu réel "
+            "avant l'export final."
+        )
+        pa, pb = st.columns(2)
+        with pa:
+            if st.button("🔄 Compiler aperçu CV",
+                         key=f"prev_cv_{job_id}",
+                         use_container_width=True):
+                with st.spinner("Compilation Typst..."):
+                    try:
+                        result = generate_documents(
+                            job, gen_cv=True, gen_letter=False, use_llm=False,
+                            headline_override=gen_state.get("edited_headline"),
+                            summary_override=gen_state.get("edited_summary"),
+                        )
+                        gen_state["cv_path"] = result.get("cv_path", "")
+                        st.session_state[state_key] = gen_state
+                    except Exception as exc:
+                        st.error(f"Erreur compilation : {exc}")
+        with pb:
+            cv_preview = gen_state.get("cv_path") or ""
+            if cv_preview and Path(cv_preview).exists() and cv_preview.endswith(".pdf"):
+                with open(cv_preview, "rb") as f:
+                    pdf_bytes = f.read()
+                import base64 as _b64
+                b64 = _b64.b64encode(pdf_bytes).decode("utf-8")
+                st.markdown(
+                    f"<iframe src='data:application/pdf;base64,{b64}' "
+                    f"width='100%' height='420' style='border:1px solid "
+                    f"rgba(148,163,184,0.25);border-radius:6px;'></iframe>",
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.info("Clique sur **Compiler aperçu CV** pour voir le rendu PDF ici.")
+
+        # Aperçu lettre (texte brut, mise en forme conservée)
+        if gen_state.get("letter_text"):
+            with st.expander("✉️ Aperçu lettre (texte)"):
+                st.markdown(
+                    f"<div style='background:#0f172a;border:1px solid "
+                    f"rgba(148,163,184,0.25);border-radius:6px;padding:14px;"
+                    f"white-space:pre-wrap;font-family:Georgia,serif;"
+                    f"font-size:0.92rem;line-height:1.55;color:#e2e8f0;'>"
+                    f"{gen_state['letter_text']}</div>",
+                    unsafe_allow_html=True,
+                )
+
+        # ── HISTORIQUE DES VERSIONS ──────────────────────────────
+        with st.expander("🗂 Historique des versions"):
+            cv_vers = db.get_resume_versions(job_id)
+            lt_vers = db.get_cover_letter_versions(job_id)
+            cva, cvb = st.columns(2)
+            with cva:
+                st.markdown("**CV**")
+                if not cv_vers:
+                    st.caption("Aucune version sauvegardée.")
+                for v in cv_vers[:8]:
+                    flag = " ⭐" if v.get("is_final") else ""
+                    st.markdown(
+                        f"<div style='font-size:0.78rem;color:#94a3b8;'>"
+                        f"v{v['version']}{flag} · {v.get('created_at','')[:16]}"
+                        f"</div>",
+                        unsafe_allow_html=True,
+                    )
+            with cvb:
+                st.markdown("**Lettre**")
+                if not lt_vers:
+                    st.caption("Aucune version sauvegardée.")
+                for v in lt_vers[:8]:
+                    flag = " ⭐" if v.get("is_final") else ""
+                    st.markdown(
+                        f"<div style='font-size:0.78rem;color:#94a3b8;'>"
+                        f"v{v['version']}{flag} · {v.get('created_at','')[:16]}"
+                        f"</div>",
+                        unsafe_allow_html=True,
+                    )
+
     # === ONGLET 3 : COPILOTE IA =================================
     with tab_copilot:
         st.markdown("#### 🤖 Demande au Copilote")
@@ -613,19 +717,46 @@ def studio_dialog(job_id: str):
                 st.caption("Lettre vide")
 
         st.divider()
-        if st.button("✅ J'ai postulé — marquer comme envoyé",
-                     type="primary", use_container_width=True,
-                     key=f"sent_{job_id}"):
-            db.mark_as_sent(
-                job_id=job_id, via="manual",
-                edited_headline=gen_state.get("edited_headline", ""),
-                edited_summary=gen_state.get("edited_summary", ""),
-                vault_path=gen_state.get("cv_path") or gen_state.get("letter_path"),
-            )
-            st.session_state.pop(state_key, None)
-            st.session_state.pop("studio_open_for", None)
-            st.success("Candidature archivée 🎉")
-            st.rerun()
+        fa, fb = st.columns(2)
+        with fa:
+            if st.button("⭐ Marquer comme version finale",
+                         use_container_width=True,
+                         key=f"final_{job_id}"):
+                try:
+                    if gen_state.get("cv_path"):
+                        db.save_resume_version(
+                            job_id=job_id,
+                            headline=gen_state.get("edited_headline", ""),
+                            summary=gen_state.get("edited_summary", ""),
+                            cv_path=gen_state.get("cv_path", ""),
+                            is_final=True,
+                            notes="Marquée finale par l'utilisateur",
+                        )
+                    if gen_state.get("letter_text"):
+                        db.save_cover_letter_version(
+                            job_id=job_id,
+                            letter_text=gen_state.get("letter_text", ""),
+                            letter_path=gen_state.get("letter_path", ""),
+                            is_final=True,
+                            notes="Marquée finale par l'utilisateur",
+                        )
+                    st.success("✅ Versions finales archivées.")
+                except Exception as exc:
+                    st.error(f"Erreur archivage : {exc}")
+        with fb:
+            if st.button("✅ J'ai postulé — marquer comme envoyé",
+                         type="primary", use_container_width=True,
+                         key=f"sent_{job_id}"):
+                db.mark_as_sent(
+                    job_id=job_id, via="manual",
+                    edited_headline=gen_state.get("edited_headline", ""),
+                    edited_summary=gen_state.get("edited_summary", ""),
+                    vault_path=gen_state.get("cv_path") or gen_state.get("letter_path"),
+                )
+                st.session_state.pop(state_key, None)
+                st.session_state.pop("studio_open_for", None)
+                st.success("Candidature archivée 🎉")
+                st.rerun()
 
 
 # ─── HERO ────────────────────────────────────────────────────────
