@@ -196,6 +196,37 @@ def score_class(score: int) -> str:
     return "score-low"
 
 
+def smart_keywords_from_profile(profile: dict, max_kw: int = 8) -> list[str]:
+    """Construit une liste de mots-clés intelligents à partir du profil."""
+    keywords: list[str] = []
+
+    # 1. Titres de poste passés (les plus pertinents)
+    for exp in profile.get("experience_stark", [])[:3]:
+        title = (exp.get("title") or "").strip()
+        if title and len(title) < 80 and title not in keywords:
+            # On garde les titres "ingénieur ..." courts
+            short = title.split(":")[0].strip()
+            if short and short not in keywords:
+                keywords.append(short)
+
+    # 2. Combinaisons "Ingénieur + hard skill"
+    taxonomy = profile.get("skills_taxonomy", {})
+    for skill in taxonomy.get("hard_skills", [])[:5]:
+        name = (skill.get("name") or "").strip()
+        if name:
+            kw = f"Ingénieur {name}"
+            if kw not in keywords:
+                keywords.append(kw)
+
+    # 3. Domaines d'expertise
+    for domain in taxonomy.get("domain_knowledge", [])[:3]:
+        kw = f"Ingénieur {domain.split('(')[0].strip()}"
+        if kw not in keywords:
+            keywords.append(kw)
+
+    return keywords[:max_kw]
+
+
 def google_fallback_url(company: str, title: str) -> str:
     """URL de secours : recherche Google 'entreprise carrières titre'."""
     query = f"{(company or '').strip()} carrières {(title or '').strip()}".strip()
@@ -456,6 +487,168 @@ k1.metric("Offres", stats["total"])
 k2.metric("Envoyées", stats["sent"])
 k3.metric("Entretiens", stats["interviews"])
 k4.metric("Offres reçues", stats["offers"])
+
+
+# ═══════════════════════════════════════════════════════════════
+# SECTION 0 — RECHERCHE AUTOMATIQUE & AJOUT MANUEL
+# ═══════════════════════════════════════════════════════════════
+st.markdown("<div class='section-card'>", unsafe_allow_html=True)
+st.markdown("<div class='section-title'>⓪ ALIMENTATION DU PIPELINE</div>", unsafe_allow_html=True)
+st.markdown("<div class='section-h2'>Trouver de nouvelles offres</div>", unsafe_allow_html=True)
+
+tab_auto, tab_manual = st.tabs(["🤖 Recherche automatique", "✍️ Ajouter une offre manuellement"])
+
+# ─── TAB 1 : RECHERCHE AUTOMATIQUE ──────────────────────────────
+with tab_auto:
+    profile_data = load_profile()
+    profile_kw = smart_keywords_from_profile(profile_data)
+
+    try:
+        import yaml as _yaml
+        _cfg = _yaml.safe_load(open(ROOT / "profiles" / "search_config.yaml", encoding="utf-8")) or {}
+    except Exception:
+        _cfg = {}
+    cfg_locations = (_cfg.get("search", {}) or {}).get("locations") or [
+        "Paris, France", "Lyon, France", "Toulouse, France", "France",
+    ]
+    cfg_sites = (_cfg.get("search", {}) or {}).get("sites") or ["google", "glassdoor"]
+
+    mode = st.radio(
+        "Stratégie de recherche",
+        ["🧠 Selon mon profil (auto)", "📝 Mots-clés personnalisés"],
+        horizontal=True,
+        key="auto_mode",
+    )
+
+    if mode.startswith("🧠"):
+        st.caption(
+            "Mots-clés générés à partir de ton profil "
+            "(titres de poste passés + hard skills + domaines d'expertise)."
+        )
+        kw_text = st.text_area(
+            "Mots-clés (modifiables, un par ligne)",
+            value="\n".join(profile_kw),
+            height=180,
+            key="auto_kw_profile",
+        )
+    else:
+        st.caption("Saisis tes propres mots-clés (un par ligne).")
+        kw_text = st.text_area(
+            "Mots-clés (un par ligne)",
+            value="Ingénieur R&D simulation\nIngénieur CFD\nIngénieur thermique",
+            height=180,
+            key="auto_kw_custom",
+        )
+
+    sc1, sc2, sc3 = st.columns([2, 1.2, 1])
+    with sc1:
+        sel_locations = st.multiselect(
+            "📍 Zones géographiques", options=cfg_locations,
+            default=cfg_locations[:4], key="auto_locs",
+        )
+    with sc2:
+        sel_sites = st.multiselect(
+            "🔗 Sources", options=["google", "glassdoor", "linkedin", "indeed"],
+            default=cfg_sites, key="auto_sites",
+        )
+    with sc3:
+        results_per_q = st.number_input(
+            "Résultats / requête", min_value=5, max_value=50, value=15, step=5,
+            key="auto_npq",
+        )
+
+    if st.button("🚀 Lancer la recherche", type="primary",
+                 use_container_width=True, key="btn_auto_scan"):
+        keywords = [k.strip() for k in kw_text.splitlines() if k.strip()]
+        if not keywords or not sel_locations or not sel_sites:
+            st.warning("Indique au moins un mot-clé, une zone et une source.")
+        else:
+            from engine.sourcing_jobspy import (
+                deduplicate, load_config, score_job, scan_with_jobspy,
+            )
+            cfg_full = load_config()
+            progress = st.progress(0.0, text="Initialisation...")
+
+            def _cb(p: float, msg: str):
+                try:
+                    progress.progress(min(max(p, 0.0), 1.0), text=msg)
+                except Exception:
+                    pass
+
+            try:
+                raw = scan_with_jobspy(
+                    keywords=keywords,
+                    locations=sel_locations,
+                    sites=sel_sites,
+                    results_per_query=int(results_per_q),
+                    progress_callback=_cb,
+                )
+                progress.progress(0.92, text=f"🔄 Déduplication ({len(raw)} brut)...")
+                unique = deduplicate(raw)
+                progress.progress(0.96, text="⭐ Scoring en cours...")
+                scored = [score_job(j, profile_data, cfg_full) for j in unique]
+                added = db.upsert_jobs(scored)
+                progress.progress(1.0, text="✅ Terminé !")
+                st.success(
+                    f"✅ Recherche terminée : {len(scored)} offres analysées · "
+                    f"**{added} nouvelles** ajoutées au pipeline."
+                )
+                st.rerun()
+            except Exception as exc:
+                st.error(f"❌ Erreur durant la recherche : {exc}")
+
+# ─── TAB 2 : AJOUT MANUEL ───────────────────────────────────────
+with tab_manual:
+    st.caption(
+        "Tu as repéré une offre intéressante hors scraping ? "
+        "Ajoute-la ici et elle rejoindra le pipeline pour génération CV/lettre + suivi."
+    )
+    with st.form("manual_add_form", clear_on_submit=True):
+        m1, m2 = st.columns(2)
+        with m1:
+            m_title = st.text_input("Intitulé du poste *", placeholder="Ingénieur R&D Simulation")
+            m_company = st.text_input("Entreprise *", placeholder="Airbus")
+            m_location = st.text_input("Lieu", placeholder="Toulouse, France")
+        with m2:
+            m_url = st.text_input("URL de l'offre", placeholder="https://...")
+            m_source = st.text_input("Source", value="manual")
+            m_score = st.slider("Score initial estimé", 0, 100, 70, step=5)
+
+        m_desc = st.text_area(
+            "Description / annonce complète", height=180,
+            placeholder="Colle ici la description complète de l'offre — elle sera utilisée pour générer le CV et la lettre.",
+        )
+
+        submitted = st.form_submit_button(
+            "➕ Ajouter au pipeline et préparer", type="primary",
+            use_container_width=True,
+        )
+
+        if submitted:
+            if not m_title or not m_company:
+                st.warning("Le titre et l'entreprise sont obligatoires.")
+            else:
+                from datetime import date as _date
+                manual_id = f"MAN-{abs(hash(m_title + m_company + m_url))}"
+                manual_job = {
+                    "id": manual_id,
+                    "title": m_title.strip(),
+                    "company": m_company.strip(),
+                    "location": m_location.strip() or "France",
+                    "description": m_desc.strip(),
+                    "url": m_url.strip(),
+                    "source": m_source.strip() or "manual",
+                    "fit_score": int(m_score),
+                    "matched_skills": [],
+                    "required_skills": [],
+                    "sourcing_date": _date.today().isoformat(),
+                }
+                db.upsert_jobs([manual_job])
+                st.success(f"✅ Offre ajoutée : {m_title} chez {m_company}")
+                st.session_state["studio_open_for"] = manual_id
+                st.rerun()
+
+st.markdown("</div>", unsafe_allow_html=True)
 
 
 # ═══════════════════════════════════════════════════════════════
