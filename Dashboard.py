@@ -313,12 +313,13 @@ def get_db() -> JobDatabase:
 db = get_db()
 
 
-def _file_mtime_ns(path: Path) -> int:
+def get_file_mtime_ns(path: Path) -> int:
     return path.stat().st_mtime_ns if path.exists() else -1
 
 
 @st.cache_data
 def load_profile(profile_path: str, profile_mtime_ns: int) -> dict:
+    """Load master profile from disk, with mtime used as cache-busting key."""
     # On utilise uniquement le fichier local pour garantir la synchronisation
     path = Path(profile_path)
     if path.exists():
@@ -331,6 +332,7 @@ def load_profile(profile_path: str, profile_mtime_ns: int) -> dict:
 
 @st.cache_data
 def load_search_config(search_config_path: str, search_config_mtime_ns: int) -> dict:
+    """Load search config from disk, with mtime used as cache-busting key."""
     import yaml
 
     path = Path(search_config_path)
@@ -568,7 +570,7 @@ elif page == "🔍 Scanner":
         unsafe_allow_html=True,
     )
 
-    cfg = load_search_config(str(SEARCH_CONFIG_PATH), _file_mtime_ns(SEARCH_CONFIG_PATH))
+    cfg = load_search_config(str(SEARCH_CONFIG_PATH), get_file_mtime_ns(SEARCH_CONFIG_PATH))
     search_cfg = cfg.get("search", {})
     filter_cfg = cfg.get("filters", {})
 
@@ -940,7 +942,7 @@ elif page == "⚡ Générer":
             if st.button("🚀 GÉNÉRER", type="primary", use_container_width=True):
                 with st.spinner("Génération en cours..."):
                     try:
-                        profile = load_profile(str(PROFILE_PATH), _file_mtime_ns(PROFILE_PATH))
+                        profile = load_profile(str(PROFILE_PATH), get_file_mtime_ns(PROFILE_PATH))
 
                         cv_result: dict = {}
                         if gen_cv:
@@ -1241,7 +1243,7 @@ elif page == "👤 Profil":
         unsafe_allow_html=True,
     )
 
-    profile = load_profile(str(PROFILE_PATH), _file_mtime_ns(PROFILE_PATH))
+    profile = load_profile(str(PROFILE_PATH), get_file_mtime_ns(PROFILE_PATH))
     identity = profile.get("identity", {})
 
     left, right = st.columns([1.2, 0.8])
