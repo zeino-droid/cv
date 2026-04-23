@@ -313,6 +313,7 @@ db = get_db()
 
 
 def update_job_callback(job_id: int, status_key: str, notes_key: str) -> None:
+    """Validate and persist status/notes updates from session-state widget keys."""
     if status_key not in st.session_state:
         st.toast("❌ Erreur de configuration (clé statut absente)")
         return
@@ -323,11 +324,11 @@ def update_job_callback(job_id: int, status_key: str, notes_key: str) -> None:
     new_notes = st.session_state.get(notes_key, "")
     try:
         db.update_status(job_id, new_status, new_notes)
-    except sqlite3.Error as exc:
-        st.toast(f"❌ Erreur de base de données : {exc}")
+    except sqlite3.Error:
+        st.toast("❌ Erreur lors de la sauvegarde. Veuillez réessayer.")
         return
-    except ValueError as exc:
-        st.toast(f"❌ Données invalides : {exc}")
+    except ValueError:
+        st.toast("❌ Données invalides. Vérifiez le statut et la note.")
         return
     st.toast("✅ Statut mis à jour")
 
