@@ -136,18 +136,8 @@
 
 #### **Projet de Fin d'Études (PFE) : Modélisation du flambage dynamique des tôles minces d'acier lors du laminage (LEM3 - 2026)**
 
-- **Situation :** Ce stage s'inscrit dans un projet collaboratif entre ArcelorMittal et le laboratoire LEM3. L'enjeu industriel est de maîtriser les instabilités hors-plan (ondulations) apparaissant sur les tôles minces lors du laminage sous l'effet des contraintes internes résiduelles. Le phénomène ciblé est le flambage dynamique.
-- **Tâche :** Fiabiliser la simulation numérique du flambage en exploitant la complémentarité de deux codes de calcul par éléments finis : Abaqus (référence industrielle) et Metafor (développement R&D).
-  - *Validation Physique :* Reproduire un modèle de référence (Abaqus Explicit) pour valider l'instant critique de déclenchement du flambage.
-  - *Sensibilité Numérique :* Évaluer l'impact des choix de modélisation sur la précision des contraintes $\sigma_{xx}$ et $\sigma_{yy}$.
-  - *Exploration Metafor :* Tester la performance des éléments solides avec formulation EAS (Enhanced Assumed Strain) pour éviter le verrouillage numérique lors du flambage de structures minces.
-  - *Optimisation Algorithmique :* Utiliser la Méthode Asymptotique Numérique (MAN) pour réduire les temps de calcul tout en garantissant une meilleure détection des bifurcations par rapport aux méthodes classiques de Newton-Raphson.
-- **Action :**
-  - *Phase Abaqus :* Mise en place de simulations en dynamique explicite pour capturer les modes propres de flambage sur des tôles à courbure négative.
-  - *Phase Metafor :* Implémentation du modèle industriel intégrant le calcul de l'évolution de l'épaisseur et des contraintes sur de grandes longueurs laminées ($L > 1600mm$).
-  - *Benchmark :* Comparaison rigoureuse des courbes de déplacement vertical et des bilans énergétiques (énergie interne vs cinétique) entre les deux codes.
-  - *Analyse MAN :* Évaluation de la robustesse de l'algorithme ANM-Padé pour stabiliser le calcul lors des vibrations hautes fréquences post-flambage.
-- **Résultat :** Développement d'un jumeau numérique prédictif capable de simuler l'apparition des ondulations en fonction des paramètres du procédé, permettant à ArcelorMittal d'optimiser les réglages des cages de laminage pour minimiser les défauts de planéité.
+- Développement d'un jumeau numérique prédictif (Abaqus/Metafor) simulant le flambage dynamique pour optimiser les paramètres de laminage industriel.
+- Réduction des temps de calcul R&D par l'intégration de la Méthode Asymptotique Numérique (MAN) pour stabiliser les simulations post-flambage.
 - **Mots-clés (K) :** Abaqus (Standard/Explicit), Metafor, Flambage dynamique (Buckling), EAS (Enhanced Assumed Strain), Méthode Asymptotique Numérique (MAN), Laminage, LEM3.
 
 #### **Jumeau Numérique Énergétique (Année 2 - 2024-2025)**
