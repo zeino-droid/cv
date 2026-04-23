@@ -314,7 +314,7 @@ db = get_db()
 
 def update_job_callback(job_id: int, status_key: str, notes_key: str) -> None:
     if status_key not in st.session_state:
-        st.toast("❌ Statut introuvable")
+        st.toast("❌ Erreur de configuration (clé statut absente)")
         return
     new_status = st.session_state[status_key]
     if new_status not in VALID_STATUSES:
@@ -323,8 +323,11 @@ def update_job_callback(job_id: int, status_key: str, notes_key: str) -> None:
     new_notes = st.session_state.get(notes_key, "")
     try:
         db.update_status(job_id, new_status, new_notes)
-    except (sqlite3.Error, ValueError):
-        st.toast("❌ Échec de la mise à jour")
+    except sqlite3.Error:
+        st.toast("❌ Erreur de base de données")
+        return
+    except ValueError:
+        st.toast("❌ Données invalides")
         return
     st.toast("✅ Statut mis à jour")
 
