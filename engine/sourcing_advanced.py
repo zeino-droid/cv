@@ -1,13 +1,16 @@
 """
 Sourcing Avancé — Moteur de recherche d'offres nouvelle génération.
 
-Innovations vs. JobSpy seul :
-  1. EXPANSION SÉMANTIQUE des mots-clés via Gemini (génère des variantes pertinentes)
-  2. SOURCES MULTIPLES sans LinkedIn / Indeed (Google Jobs, Glassdoor, ZipRecruiter, Remotive)
-  3. DÉDUPLICATION TF-IDF (détecte les quasi-doublons entre sources)
-  4. RE-RANKING IA des top candidats par Gemini (score de fit profond + raisonnement)
-  5. EXTRACTION DE COMPÉTENCES depuis les descriptions par Gemini
-  6. BOOST DE FRAÎCHEUR (offres récentes prioritaires)
+Ce module constitue le "crawleur intelligent" du projet. Il combine du scraping multi-sources
+avec une couche d'intelligence artificielle (Gemini) pour qualifier les offres.
+
+Fonctionnalités Clés :
+  1. EXPANSION SÉMANTIQUE : Gemini génère des variantes de mots-clés pour ne rater aucune offre.
+  2. SOURCING HYBRIDE : Utilisation de JobSpy (Google, Glassdoor, ZipRecruiter) + Remotive (API).
+  3. DÉDUPLICATION INTELLIGENTE : Algorithme Jaccard sur les titres pour éliminer les doublons inter-plateformes.
+  4. RE-RANKING IA : Analyse profonde du fit candidat/offre par Gemini sur les top résultats.
+  5. EXTRACTION DE COMPÉTENCES : Identification automatique des hard-skills requis pour optimiser le CV.
+  6. MÉCANISME D'ARRÊT : Support natif de l'annulation en cours d'exécution (Threading-safe).
 """
 
 from __future__ import annotations
@@ -302,7 +305,14 @@ def _signature(job: Dict) -> Tuple[str, frozenset]:
 
 
 def deduplicate_smart(jobs: List[Dict]) -> List[Dict]:
-    """Déduplication 2 niveaux : exact (titre+entreprise) + Jaccard sur titre (≥0.75)."""
+    """
+    Supprime les doublons de manière sémantique.
+    
+    Niveau 1 : Hash strict (Titre + Entreprise).
+    Niveau 2 : Indice de Jaccard (mots en commun) sur le Titre. 
+    Si deux titres chez la même entreprise partagent plus de 75% de leurs mots significatifs,
+    ils sont considérés comme identiques.
+    """
     seen_keys: set = set()
     bucket_per_company: Dict[str, List[frozenset]] = {}
     out: List[Dict] = []
@@ -348,6 +358,17 @@ def _freshness_bonus(posted_date: str) -> int:
 
 
 def score_job(job: Dict, profile: Dict, config: Dict) -> Dict:
+    """
+    Calcule un score de pertinence (0-100) pour une offre.
+    
+    Logique du score :
+    - Base : 20 points
+    - Compétences techniques (Hard skills) : +8 pts par mot-clé trouvé.
+    - Mots-clés premium : Bonus définis dans config.
+    - Géographie : Bonus si la ville est dans tes préférences.
+    - Fraîcheur : Bonus si l'offre a moins de 7 jours.
+    - Pénalité : -50 pts si "Stage" ou "Alternance" est détecté.
+    """
     scoring = config.get("scoring", {})
     score = scoring.get("base_score", 20)
     haystack = f"{job.get('title','')} {job.get('description','')}".lower()

@@ -8,6 +8,8 @@ import asyncio
 import atexit
 import json
 import sys
+import threading
+import time as _time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
@@ -25,7 +27,14 @@ atexit.register(lambda: ASYNC_EXECUTOR.shutdown(wait=False, cancel_futures=True)
 
 
 def run_coroutine_sync(coro, context: str = "operation"):
-    """Run a coroutine safely in Streamlit, even if an event loop is already active."""
+    """
+    Exécute une coroutine de manière synchrone, en gérant les conflits de boucles d'événements.
+    Essentiel pour faire tourner du code asynchrone (moteur CV) au sein de Streamlit (synchrone).
+    
+    Args:
+        coro: La coroutine à exécuter.
+        context (str): Nom de l'opération pour les logs d'erreurs.
+    """
     try:
         asyncio.get_running_loop()
     except RuntimeError:
@@ -878,8 +887,11 @@ with tab_auto:
     import time as _time
 
     # ─── Pattern asynchrone pour permettre la pause/arrêt en cours ────
+    # Ce pattern utilise un thread séparé pour ne pas bloquer l'UI Streamlit,
+    # permettant ainsi à l'utilisateur de cliquer sur un bouton "Annuler"
+    # ou de voir la progression en temps réel.
     if "search_state" not in st.session_state:
-        st.session_state["search_state"] = "idle"  # idle | running | done
+        st.session_state["search_state"] = "idle"  # États : idle | running | done
 
     search_state = st.session_state["search_state"]
 
