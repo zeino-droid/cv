@@ -300,6 +300,56 @@ def generate_documents(job: dict, gen_cv: bool, gen_letter: bool, use_llm: bool,
     }
 
 
+# ─── COPILOTE IA : réécriture ciblée via le LLM existant ─────────
+def _copilot_rewrite(target: str, command: str, current_summary: str,
+                     current_letter: str, job: dict, profile: dict) -> str | None:
+    """Appelle le LLM (Gemini via cv_generator) pour réécrire un texte ciblé."""
+    if target == "Résumé CV":
+        current_text = current_summary or ""
+        context_hint = "résumé de CV (3-4 lignes max, orienté ATS, en français)"
+    elif target == "Introduction lettre uniquement":
+        chunks = (current_letter or "").split("\n\n")
+        current_text = chunks[2] if len(chunks) > 2 else (current_letter or "")[:500]
+        context_hint = "premier paragraphe d'une lettre de motivation (en français)"
+    else:
+        current_text = current_letter or ""
+        context_hint = "lettre de motivation complète (en français)"
+
+    prompt = f"""Tu es un expert en rédaction de candidatures pour ingénieurs en France.
+
+TEXTE ACTUEL ({context_hint}) :
+{current_text}
+
+POSTE CIBLÉ : {job.get('title','')} chez {job.get('company','')}
+LIEU : {job.get('location','')}
+COMPÉTENCES CLÉ : {', '.join((job.get('matched_skills') or [])[:6])}
+
+INSTRUCTION DE L'UTILISATEUR : {command}
+
+RÈGLES STRICTES :
+- Garde la même structure si l'utilisateur ne précise pas autrement
+- Reste professionnel et naturel, en français
+- N'ajoute AUCUN préambule type "Voici le texte réécrit :"
+- Réponds UNIQUEMENT avec le texte réécrit, rien d'autre
+"""
+
+    async def _call_llm():
+        try:
+            from engine.cv_generator import PersonalCVGenerator
+            gen = PersonalCVGenerator()
+            if getattr(gen, "llm", None) is None:
+                return None
+            return await gen.llm.generate(prompt, temperature=0.4)
+        except Exception as exc:
+            st.error(f"Erreur LLM : {exc}")
+            return None
+
+    result = run_coroutine_sync(_call_llm(), context="copilot rewrite")
+    if isinstance(result, str):
+        return result.strip()
+    return None
+
+
 # ─── MODALE STUDIO ───────────────────────────────────────────────
 @st.dialog("🎬 Studio de Candidature", width="large")
 def studio_dialog(job_id: str):
@@ -308,54 +358,83 @@ def studio_dialog(job_id: str):
         st.error("Offre introuvable.")
         return
 
-    # session-state slot pour conserver la dernière génération de cette offre
+    profile = load_profile()
     state_key = f"gen_state_{job_id}"
     gen_state: dict = st.session_state.get(state_key, {})
 
-    left, right = st.columns([1, 1], gap="large")
+    # ── HEADER COMPACT ──────────────────────────────────────────
+    score = int(job.get("fit_score", 0))
+    st.markdown(
+        f"### {job['title']} "
+        f"<span style='font-size:0.85rem;color:#94a3b8;font-weight:500;'>"
+        f"— {job.get('company','?')} · 📍 {job.get('location','?')}</span>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        f"<div style='margin:6px 0 12px 0;'>"
+        f"<span class='score-pill {score_class(score)}'>{score}% Fit</span> "
+        f"<span class='score-pill' style='background:rgba(56,189,248,0.1);"
+        f"color:var(--brand);border:1px solid rgba(56,189,248,0.25);'>"
+        f"{STATUS_EMOJI.get(job.get('status','new'),'•')} {job.get('status','new')}</span>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
 
-    # ── COLONNE GAUCHE : INFOS DE L'OFFRE ────────────────────────
-    with left:
-        st.markdown(f"### {job['title']}")
-        st.markdown(
-            f"<div class='row-meta'>🏢 <b>{job.get('company', '?')}</b> · "
-            f"📍 {job.get('location', '?')}</div>",
-            unsafe_allow_html=True,
+    # Pré-remplit la lettre par défaut (heuristique, rapide, sans LLM)
+    if "letter_text" not in gen_state or not gen_state.get("letter_text"):
+        try:
+            from Pipeline import generate_cover_letter_heuristic
+            gen_state["letter_text"] = generate_cover_letter_heuristic(profile, job)
+            st.session_state[state_key] = gen_state
+        except Exception:
+            gen_state.setdefault("letter_text", "")
+
+    # Pré-remplit le résumé par défaut depuis le profil
+    if "edited_summary" not in gen_state or not gen_state.get("edited_summary"):
+        default_summary = (
+            (profile.get("personal_info") or {}).get("summary_default")
+            or (profile.get("personal_info") or {}).get("summary")
+            or "Ingénieur R&D — modélisation, simulation et data engineering."
         )
-        score = int(job.get("fit_score", 0))
-        st.markdown(
-            f"<div style='margin:12px 0;'>"
-            f"<span class='score-pill {score_class(score)}'>{score}% Fit</span> "
-            f"<span class='score-pill' style='background:rgba(56,189,248,0.1);"
-            f"color:var(--brand);border:1px solid rgba(56,189,248,0.25);'>"
-            f"{STATUS_EMOJI.get(job.get('status','new'),'•')} {job.get('status','new')}</span>"
-            f"</div>",
-            unsafe_allow_html=True,
-        )
+        gen_state["edited_summary"] = default_summary
+        st.session_state[state_key] = gen_state
 
-        if job.get("matched_skills"):
-            st.caption("Compétences détectées")
-            st.write(" · ".join(f"`{s}`" for s in job["matched_skills"][:10]))
+    # ── 3 ONGLETS ───────────────────────────────────────────────
+    tab_analyse, tab_edit, tab_copilot = st.tabs(
+        ["🔬 Analyse", "✏️ Édition Live", "🤖 Copilote IA"]
+    )
 
-        st.caption("Description")
-        desc = job.get("description") or "_(pas de description)_"
-        st.markdown(
-            f"<div style='max-height:280px;overflow-y:auto;padding:12px;"
-            f"background:rgba(2,6,23,0.6);border:1px solid var(--border);"
-            f"border-radius:12px;font-size:0.88rem;color:var(--text-muted);"
-            f"white-space:pre-wrap;'>{desc[:2500]}</div>",
-            unsafe_allow_html=True,
-        )
+    # === ONGLET 1 : ANALYSE =====================================
+    with tab_analyse:
+        from engine.studio_analysis import build_skill_matrix, render_heatmap_html
+        matrix = build_skill_matrix(profile, job)
+        st.components.v1.html(render_heatmap_html(matrix), height=520, scrolling=True)
 
-        link_cols = st.columns(2)
-        with link_cols[0]:
+        if matrix["missing"]:
+            top = ", ".join(matrix["missing"][:3])
+            st.info(
+                f"💡 **Conseil ATS** : mentionne explicitement **{top}** "
+                f"dans ton résumé ou ta lettre pour booster le score."
+            )
+
+        with st.expander("📄 Description complète de l'offre"):
+            desc = job.get("description") or "_(pas de description)_"
+            st.markdown(
+                f"<div style='max-height:240px;overflow-y:auto;padding:10px;"
+                f"font-size:0.85rem;color:var(--text-muted);white-space:pre-wrap;'>"
+                f"{desc[:3000]}</div>",
+                unsafe_allow_html=True,
+            )
+
+        lc1, lc2 = st.columns(2)
+        with lc1:
             if job.get("url"):
                 st.link_button("🌐 Voir l'offre d'origine", job["url"],
                                use_container_width=True)
             else:
                 st.button("🌐 Voir l'offre d'origine", disabled=True,
                           use_container_width=True, key=f"no_url_{job['id']}")
-        with link_cols[1]:
+        with lc2:
             st.link_button(
                 "🔍 Chercher sur Google",
                 google_fallback_url(job.get("company", ""), job.get("title", "")),
@@ -363,106 +442,190 @@ def studio_dialog(job_id: str):
                 help="Lien de secours si l'offre d'origine a expiré",
             )
 
-    # ── COLONNE DROITE : GÉNÉRATION ──────────────────────────────
-    with right:
-        st.markdown("### ⚙️ Génération")
-        gen_cv = st.checkbox("📄 CV PDF (Typst)", value=True, key=f"opt_cv_{job_id}")
-        gen_letter = st.checkbox("✉️ Lettre de motivation", value=True, key=f"opt_lt_{job_id}")
-        use_llm = st.checkbox("🤖 Lettre IA (Gemini)", value=True, key=f"opt_llm_{job_id}")
+    # === ONGLET 2 : ÉDITION LIVE ================================
+    with tab_edit:
+        col_cv, col_letter = st.columns(2)
 
-        if st.button("🚀 Générer la candidature", type="primary",
-                     use_container_width=True, key=f"btn_gen_{job_id}"):
-            with st.spinner("Génération en cours..."):
-                try:
-                    result = generate_documents(
-                        job, gen_cv=gen_cv, gen_letter=gen_letter, use_llm=use_llm,
-                        headline_override=gen_state.get("edited_headline"),
-                        summary_override=gen_state.get("edited_summary"),
-                    )
-                    gen_state.update(result)
-                    cv_data = result.get("cv_result", {}).get("cv_data", {}) or {}
-                    gen_state.setdefault("edited_headline", cv_data.get("headline", ""))
-                    gen_state.setdefault("edited_summary", cv_data.get("summary", ""))
-                    st.session_state[state_key] = gen_state
-                    st.success("✅ Documents générés !")
-                except Exception as exc:
-                    st.error(f"❌ {exc}")
-
-        if gen_state:
-            st.divider()
-            st.markdown("### ✍️ Édition avant export")
-
-            cv_data = gen_state.get("cv_result", {}).get("cv_data", {}) or {}
-            headline_default = gen_state.get("edited_headline", cv_data.get("headline", ""))
-            summary_default = gen_state.get("edited_summary", cv_data.get("summary", ""))
-
-            edited_headline = st.text_area(
-                "Accroche (Headline)", value=headline_default, height=70,
-                key=f"hl_{job_id}",
-            )
+        with col_cv:
+            st.markdown("#### 📄 Résumé du CV")
+            st.caption("Injecté dans le header Typst.")
             edited_summary = st.text_area(
-                "Résumé (Summary)", value=summary_default, height=130,
+                "summary", value=gen_state.get("edited_summary", ""),
+                height=180, label_visibility="collapsed",
                 key=f"sm_{job_id}",
             )
-            edited_letter = st.text_area(
-                "Lettre de motivation",
-                value=gen_state.get("letter_text", ""),
-                height=240,
-                key=f"lt_{job_id}",
+            gen_state["edited_summary"] = edited_summary
+            cnt = len(edited_summary)
+            color = "#4ade80" if cnt <= 400 else "#f87171"
+            st.markdown(
+                f"<span style='font-size:0.72rem;color:{color};'>"
+                f"{cnt}/400 caractères recommandés</span>",
+                unsafe_allow_html=True,
+            )
+
+            st.markdown("##### ✨ Accroche")
+            edited_headline = st.text_area(
+                "headline",
+                value=gen_state.get("edited_headline", ""),
+                height=70, label_visibility="collapsed",
+                key=f"hl_{job_id}",
+                placeholder="Ex: Ingénieur Modélisation Thermomécanique · Python · Abaqus",
             )
             gen_state["edited_headline"] = edited_headline
-            gen_state["edited_summary"] = edited_summary
+
+        with col_letter:
+            st.markdown("#### ✉️ Lettre de motivation")
+            st.caption("Corps complet, exporté en .txt.")
+            edited_letter = st.text_area(
+                "letter", value=gen_state.get("letter_text", ""),
+                height=320, label_visibility="collapsed",
+                key=f"lt_{job_id}",
+            )
             gen_state["letter_text"] = edited_letter
-            st.session_state[state_key] = gen_state
 
-            # Persiste la lettre éditée sur disque pour que le download soit cohérent
-            if gen_state.get("letter_path") and edited_letter:
-                try:
-                    Path(gen_state["letter_path"]).write_text(edited_letter, encoding="utf-8")
-                except Exception:
-                    pass
+        st.session_state[state_key] = gen_state
 
-            st.divider()
-            st.markdown("### 📥 Téléchargements")
-            d1, d2 = st.columns(2)
-            with d1:
-                cv_path = gen_state.get("cv_path") or ""
-                if cv_path and Path(cv_path).exists():
-                    ext = Path(cv_path).suffix or ".pdf"
-                    mime = "application/pdf" if ext == ".pdf" else "text/plain"
-                    with open(cv_path, "rb") as f:
-                        st.download_button(
-                            "📄 CV", data=f.read(),
-                            file_name=f"CV_Zein_{safe_filename(job.get('company',''))}{ext}",
-                            mime=mime, use_container_width=True, type="primary",
-                            key=f"dl_cv_{job_id}",
-                        )
-                else:
-                    st.info("CV indisponible")
-            with d2:
-                if edited_letter:
-                    st.download_button(
-                        "✉️ Lettre",
-                        data=edited_letter.encode("utf-8"),
-                        file_name=f"Lettre_{safe_filename(job.get('company',''))}.txt",
-                        mime="text/plain", use_container_width=True,
-                        key=f"dl_lt_{job_id}",
+    # === ONGLET 3 : COPILOTE IA =================================
+    with tab_copilot:
+        st.markdown("#### 🤖 Demande au Copilote")
+        st.caption(
+            "Exemples : *Rends l'intro plus dynamique* · "
+            "*Ajoute une référence à Python et CFD* · "
+            "*Reformule en orienté résultats*"
+        )
+        target = st.radio(
+            "Cible",
+            ["Résumé CV", "Lettre complète", "Introduction lettre uniquement"],
+            horizontal=True, key=f"cop_target_{job_id}",
+        )
+        command = st.text_input(
+            "Instruction",
+            placeholder="Ex: Rends l'introduction plus dynamique et orientée résultats",
+            key=f"cop_cmd_{job_id}",
+        )
+        if st.button("⚡ Appliquer la commande IA", type="primary",
+                     use_container_width=True, key=f"cop_run_{job_id}"):
+            if not command.strip():
+                st.warning("Tape une instruction d'abord.")
+            else:
+                with st.spinner("Le Copilote réécrit..."):
+                    rewritten = _copilot_rewrite(
+                        target=target, command=command,
+                        current_summary=gen_state.get("edited_summary", ""),
+                        current_letter=gen_state.get("letter_text", ""),
+                        job=job, profile=profile,
                     )
+                if rewritten:
+                    if target == "Résumé CV":
+                        gen_state["edited_summary"] = rewritten
+                    else:
+                        gen_state["letter_text"] = rewritten
+                    st.session_state[state_key] = gen_state
+                    st.success("✅ Texte réécrit. Va dans **✏️ Édition Live**.")
+                    st.rerun()
+                else:
+                    st.error("Le Copilote n'a rien renvoyé (clé API manquante ?).")
 
-            st.divider()
-            if st.button("✅ J'ai postulé — marquer comme envoyé",
-                         type="primary", use_container_width=True,
-                         key=f"sent_{job_id}"):
-                db.mark_as_sent(
-                    job_id=job_id, via="manual",
-                    edited_headline=edited_headline,
-                    edited_summary=edited_summary,
-                    vault_path=gen_state.get("cv_path") or gen_state.get("letter_path"),
+    # ── BARRE D'ACTIONS BAS ─────────────────────────────────────
+    st.divider()
+    g1, g2 = st.columns([1, 1])
+    with g1:
+        gen_cv = st.checkbox("📄 CV PDF (Typst)", value=True, key=f"opt_cv_{job_id}")
+        gen_letter = st.checkbox("✉️ Lettre", value=True, key=f"opt_lt_{job_id}")
+    with g2:
+        use_llm = st.checkbox(
+            "🤖 Régénérer la lettre via Gemini",
+            value=False, key=f"opt_llm_{job_id}",
+            help="Si décoché, la lettre que tu as éditée à l'écran est utilisée telle quelle.",
+        )
+
+    if st.button("🚀 Générer les fichiers", type="primary",
+                 use_container_width=True, key=f"btn_gen_{job_id}"):
+        with st.spinner("Génération en cours..."):
+            try:
+                result = generate_documents(
+                    job, gen_cv=gen_cv, gen_letter=gen_letter and use_llm,
+                    use_llm=True,
+                    headline_override=gen_state.get("edited_headline"),
+                    summary_override=gen_state.get("edited_summary"),
                 )
-                st.session_state.pop(state_key, None)
-                st.session_state.pop("studio_open_for", None)
-                st.success("Candidature archivée 🎉")
-                st.rerun()
+                # Si on n'a pas régénéré la lettre via Gemini, on persiste la version éditée
+                if gen_letter and not use_llm:
+                    out_dir = ROOT / "vault" / safe_filename(
+                        f"{job.get('company','job')}_{job.get('title','cv')}"
+                    )
+                    out_dir.mkdir(parents=True, exist_ok=True)
+                    lp = out_dir / "lettre.txt"
+                    lp.write_text(gen_state.get("letter_text", ""), encoding="utf-8")
+                    result["letter_path"] = str(lp)
+                    result["letter_text"] = gen_state.get("letter_text", "")
+                    db.save_generation(
+                        job["id"],
+                        result.get("cv_path", ""),
+                        str(lp),
+                    )
+                gen_state.update(result)
+                # Si Gemini a régénéré, on remplace le draft local
+                if use_llm and result.get("letter_text"):
+                    gen_state["letter_text"] = result["letter_text"]
+                st.session_state[state_key] = gen_state
+                st.success("✅ Documents générés !")
+            except Exception as exc:
+                st.error(f"❌ {exc}")
+
+    # Persiste la lettre éditée sur disque si elle existe déjà
+    if gen_state.get("letter_path") and gen_state.get("letter_text"):
+        try:
+            Path(gen_state["letter_path"]).write_text(
+                gen_state["letter_text"], encoding="utf-8"
+            )
+        except Exception:
+            pass
+
+    if gen_state.get("cv_path") or gen_state.get("letter_path"):
+        st.divider()
+        st.markdown("##### 📥 Téléchargements")
+        d1, d2 = st.columns(2)
+        with d1:
+            cv_path = gen_state.get("cv_path") or ""
+            if cv_path and Path(cv_path).exists():
+                ext = Path(cv_path).suffix or ".pdf"
+                mime = "application/pdf" if ext == ".pdf" else "text/plain"
+                with open(cv_path, "rb") as f:
+                    st.download_button(
+                        "📄 CV", data=f.read(),
+                        file_name=f"CV_Zein_{safe_filename(job.get('company',''))}{ext}",
+                        mime=mime, use_container_width=True, type="primary",
+                        key=f"dl_cv_{job_id}",
+                    )
+            else:
+                st.caption("CV non encore généré")
+        with d2:
+            if gen_state.get("letter_text"):
+                st.download_button(
+                    "✉️ Lettre",
+                    data=gen_state["letter_text"].encode("utf-8"),
+                    file_name=f"Lettre_{safe_filename(job.get('company',''))}.txt",
+                    mime="text/plain", use_container_width=True,
+                    key=f"dl_lt_{job_id}",
+                )
+            else:
+                st.caption("Lettre vide")
+
+        st.divider()
+        if st.button("✅ J'ai postulé — marquer comme envoyé",
+                     type="primary", use_container_width=True,
+                     key=f"sent_{job_id}"):
+            db.mark_as_sent(
+                job_id=job_id, via="manual",
+                edited_headline=gen_state.get("edited_headline", ""),
+                edited_summary=gen_state.get("edited_summary", ""),
+                vault_path=gen_state.get("cv_path") or gen_state.get("letter_path"),
+            )
+            st.session_state.pop(state_key, None)
+            st.session_state.pop("studio_open_for", None)
+            st.success("Candidature archivée 🎉")
+            st.rerun()
 
 
 # ─── HERO ────────────────────────────────────────────────────────
