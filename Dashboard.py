@@ -522,16 +522,25 @@ def studio_dialog(job_id: str):
                 st.markdown("##### 📄 Aperçu PDF live")
                 cv_preview = gen_state.get("cv_path") or ""
                 if cv_preview and Path(cv_preview).exists() and cv_preview.endswith(".pdf"):
-                    import base64 as _b64
-                    with open(cv_preview, "rb") as f:
-                        pdf_bytes = f.read()
-                    b64 = _b64.b64encode(pdf_bytes).decode("utf-8")
-                    st.markdown(
-                        f"<iframe src='data:application/pdf;base64,{b64}#view=FitH' "
-                        f"width='100%' height='620' style='border:1px solid "
-                        f"rgba(148,163,184,0.25);border-radius:6px;background:white;'></iframe>",
-                        unsafe_allow_html=True,
-                    )
+                    try:
+                        import pypdfium2 as _pdfium
+                        pdf_doc = _pdfium.PdfDocument(cv_preview)
+                        for i, page in enumerate(pdf_doc):
+                            pil_img = page.render(scale=2.0).to_pil()
+                            st.image(pil_img, use_container_width=True,
+                                     caption=f"Page {i+1}")
+                            page.close()
+                        pdf_doc.close()
+                    except Exception as exc:
+                        st.error(f"Erreur rendu PDF : {exc}")
+                        with open(cv_preview, "rb") as f:
+                            st.download_button(
+                                "📄 Télécharger le PDF",
+                                data=f.read(),
+                                file_name=Path(cv_preview).name,
+                                mime="application/pdf",
+                                key=f"dl_fb_{job_id}",
+                            )
                 else:
                     st.warning(
                         "PDF non disponible. Le moteur Typst n'a pas pu générer le rendu. "

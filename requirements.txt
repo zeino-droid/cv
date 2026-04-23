@@ -24,3 +24,4 @@ PyYAML>=6.0.0
 streamlit
 Requirement already satisfied: typst in ./.pythonlibs/lib/python3.11/site-packages (0.14.8)
 typst>=0.11.0
+pypdfium2>=4.0.0
