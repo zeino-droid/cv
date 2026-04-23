@@ -1,24 +1,40 @@
-# macOS
-.DS_Store
+# --- SÉCURITÉ & DONNÉES ---
+storage/*.db
+storage/*.sqlite
+.env
+*.env
+profiles/master_profile.json
+profiles/*.json
+!profiles/search_config.yaml
 
-# Python
+# --- ARCHIVES & BACKUPS ---
+archive/
+backups/
+vault/resumes/
+
+# --- PYTHON ---
 __pycache__/
 *.py[cod]
-.pytest_cache/
-.mypy_cache/
+*$py.class
 .venv/
-apps/api/.venv/
+venv/
+ENV/
+build/
+dist/
+*.egg-info/
 
-# Node
-node_modules/
-apps/web/node_modules/
-apps/web/dist/
+# --- STREAMLIT & UI ---
+.streamlit/config.toml
+! .streamlit/
 
-# Environment
-.env
-apps/api/.env
-apps/web/.env
-
-# Runtime artifacts
-data/uploads/
+# --- LOGS ---
+logs/
 *.log
+engine/logs-*.txt
+
+# --- SYSTÈME ---
+.DS_Store
+Thumbs.db
+templates/*.jpg
+templates/*.png
+templates/*.jpeg

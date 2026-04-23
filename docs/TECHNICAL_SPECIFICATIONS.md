@@ -1,102 +1,102 @@
-# Spécifications Techniques — Job Copilot (Cerveau V5)
+# 📑 Spécifications Techniques — Job Copilot (Cerveau V5)
 
-Ce document détaille l'architecture technique, les algorithmes et la structure des données du projet **Job Copilot**. Ce système est conçu pour automatiser la génération de CV sur-mesure tout en garantissant un format optimal (One-Page) et une pertinence maximale vis-à-vis des offres d'emploi.
+Ce document définit l'architecture logicielle, les algorithmes de décision et le pipeline de rendu du projet **Job Copilot**. L'objectif est de transformer un profil brut en un document d'ingénierie optimisé, prêt pour les systèmes ATS (Applicant Tracking Systems).
 
 ---
 
 ## 🏗 Architecture Système
 
-Le projet suit une architecture modulaire dite "Lean", privilégiant la vitesse d'exécution et la robustesse des prompts LLM.
+Le système repose sur une architecture **Event-Driven & Asynchrone**. Le dashboard Streamlit communique avec un moteur de calcul via un `ThreadRunner` pour garantir une interface fluide sans blocage durant les appels LLM.
 
-### Diagramme de Flux de Données
+### Flux de Données Global
 
 ```mermaid
-graph TD
-    A[Offre d'Emploi] --> B[Pipeline Sourcing/Input]
-    B --> C{Matching Engine}
-    C -->|Sélection Profil| D[Extraction Master Profile]
-    D --> E[Scoring Expériences & Compétences]
-    E --> F[Prompt Builder]
-    F --> G[LLM Engine]
-    G --> H[Validation JSON & Constraints]
-    H --> I{Shrink-Loop}
-    I -->|Trop long| I
-    I -->|Format OK| J[Rendering Engine]
-    J --> K[Artifacts: PDF, MD, TEX]
+sequenceDiagram
+    participant User as 👤 Utilisateur
+    participant UI as 🖥 Dashboard (Streamlit)
+    participant Engine as ⚙️ Matching Engine
+    participant LLM as 🤖 Gemini/Ollama
+    participant Renderer as 📄 Typst Renderer
+
+    User->>UI: Coller l'offre d'emploi
+    UI->>Engine: Lancer l'analyse (Async)
+    Engine->>Engine: Extraction des mots-clés ATS
+    Engine->>Engine: Scoring STAR-K des expériences
+    Engine->>LLM: Prompt Contextuel (JSON Schema)
+    LLM-->>Engine: Contenu CV optimisé
+    loop Shrink-Loop (1-4)
+        Engine->>Renderer: Génération PDF
+        Renderer-->>Engine: Validation Layout (Overflow?)
+    end
+    Engine-->>UI: Artefacts prêts (PDF, MD, TEX)
+    UI->>User: Affichage & Téléchargement
 ```
 
 ---
 
-## 🧠 Le Cerveau (Matching Engine)
+## 🧠 Le Moteur de Décision (Matching Engine)
 
-Le cœur de l'intelligence du système (`engine/matching.py`) repose sur une approche heuristique robuste avant même l'appel au LLM.
+### 1. Méthodologie STAR-K
+Le projet utilise une extension du framework STAR (Situation, Task, Action, Result) en y ajoutant la dimension **Keywords (K)**. 
+- **S**ituation : Contexte du projet.
+- **T**ask : Problématique technique rencontrée.
+- **A**ction : Méthodes d'ingénierie déployées (Python, CFD, FEA).
+- **R**esult : Impact quantifié (ex: -15% de consommation).
+- **K**eywords : Tags pour le matching sémantique.
 
-### 1. Sélection de Profil
-Le système compare les mots-clés de l'offre d'emploi avec les `target_keywords` des profils définis dans `profiles/master_profile.json`. En cas d'absence de match significatif, un profil de repli (`simulation_rd`) est utilisé.
+### 2. Algorithme de Scoring Sémantique
+Le calcul de pertinence ($S$) d'une expérience pour une offre donnée suit la logique suivante :
+$$S = (W_{profile} \times 0.4) + (W_{keywords} \times 0.6) - P_{obsolescence}$$
 
-### 2. Stratégie de Filtrage des Compétences (3-Layer Skills)
-Pour optimiser l'espace et la pertinence, les compétences sont filtrées en trois couches :
-- **Couche 1 (Signature)** : Compétences directement liées aux mots-clés du profil cible.
-- **Couche 2 (Transversale)** : Compétences outils indispensables (Python, Git, MATLAB, etc.) via une whitelist technique.
-- **Couche 3 (Contextuelle)** : Reste des compétences triées par niveau et proximité avec les expériences sélectionnées.
-
-### 3. Scoring des Expériences
-Les expériences sont classées selon leur tag de profil (`profiles_tags`) et le chevauchement avec les mots-clés de l'offre (`K`). Le système garantit également la présence de **Projets Académiques** (Pool B) en plus des **Expériences Professionnelles** (Pool A).
-
----
-
-## 🔄 L'Algorithme Shrink-Loop
-
-C'est l'innovation majeure (`engine/cv_generator.py`) pour garantir le format **One-Page**.
-
-Le système réalise jusqu'à 4 tentatives (`SHRINK_CONFIGS`) avec des contraintes de plus en plus strictes :
-- **Tentative 1** : Contenu riche, police standard (9.5pt), espacements normaux.
-- **Tentative 2-4** : Réduction progressive du nombre de bullets, de la taille de la police (jusqu'à 8.0pt), et des marges.
-- **Garantie** : Si le rendu PDF dépasse une page, le système descend d'un cran dans la boucle de compression.
+Où :
+- $W_{profile}$ : Match avec le domaine cible (Energie, Simulation, etc.).
+- $W_{keywords}$ : Fréquence des mots-clés de l'offre dans les tags STAR-K.
+- $P_{obsolescence}$ : Pénalité linéaire pour les expériences de plus de 5 ans.
 
 ---
 
-## 🤖 Prompt Engineering & LLM
+## 🔄 L'Algorithme "Shrink-Loop" (Innovation)
 
-### Stratégie "Single Call"
-Contrairement aux architectures multi-agents complexes, ce projet utilise un **seul appel structuré** vers le LLM. Le prompt contient :
-- Des contraintes de style strictes (interdiction des termes "Étudiant", "Apprenti").
-- Un schéma de sortie JSON imposé.
-- Des limites de caractères par section (Headline, Summary, Bullets).
+Garantir un **CV d'une seule page** sans perte de contenu majeur est un défi technique résolu par une boucle de rétroaction sur le layout.
 
-### Moteurs Supportés (`engine/engines.py`)
-- **Gemini (Cloud)** : Moteur principal via API Google.
-- **MLX (Local)** : Optimisé pour Apple Silicon (Apple MLX Framework).
-- **Ollama (Local)** : Support pour Llama/Mistral via l'API Ollama locale.
+> [!TIP]
+> **Le Concept :** Au lieu de couper le texte, on ajuste la densité informationnelle et la micro-typographie.
 
----
-
-## 🎨 Rendering Pipeline (`engine/rendering.py`)
-
-Le système supporte plusieurs formats de sortie, avec une priorité sur le rendu premium.
-
-| Format | Outil | Usage |
-| :--- | :--- | :--- |
-| **PDF** | **Typst** | Rendu professionnel avec gestion dynamique des variables système. |
-| **Markdown** | Natif | Version légère pour lecture rapide ou intégration web. |
-| **Latex** | ModernCV | Format standard académique, utile pour des modifications manuelles. |
+| Niveau | Taille Police | Marges | Max Bullets | Stratégie |
+| :--- | :--- | :--- | :--- | :--- |
+| **Normal** | 10pt | 1.5cm | 5 | Contenu exhaustif, aéré. |
+| **Compact** | 9.5pt | 1.2cm | 4 | Suppression des adjectifs superflus. |
+| **Dense** | 9pt | 1.0cm | 3 | Fusion de lignes, réduction interligne. |
+| **Critical** | 8.5pt | 0.8cm | 3 | Formatage ultra-compact (Last Resort). |
 
 ---
 
-## 📁 Structure des Données (`master_profile.json`)
+## 🤖 Pipeline LLM (Intelligence Artificielle)
 
-Le fichier de données est hautement structuré pour alimenter le moteur :
-- `personal_info` : Identité et réseaux.
-- `experience_stark` : Expériences encodées en format **STAR-K** (Situation, Task, Action, Result, Keywords).
-- `skills_taxonomy` : Référentiel complet des compétences.
-- `education` : Parcours académique détaillé.
+### Stratégie de Prompting
+Le système utilise un **"Massive System Prompt"** qui force le LLM à agir comme un recruteur expert en ingénierie.
+- **Contraintes de ton** : Professionnel, factuel, orienté résultats.
+- **Interdiction de Hallucination** : Le LLM ne peut utiliser *que* les données du `master_profile.json`.
+- **Validation** : Utilisation de `Pydantic` (ou validation JSON stricte) pour s'assurer que la sortie est compatible avec le moteur de rendu.
 
 ---
 
-## 🛠 Tech Stack
+## 🎨 Rendering Engine (La Puissance de Typst)
 
-- **Backend** : Python 3.9+
-- **Interface** : Streamlit (Dashboard temps réel)
-- **Base de données** : SQLite (via `storage/jobs.db`)
-- **Rendering** : Typst (Module Python `typst`)
-- **LLMs** : Google Gemini, Ollama, Apple MLX.
+Le projet abandonne LaTeX au profit de **Typst**, un nouveau système de rendu typographique écrit en Rust.
+- **Vitesse** : Rendu < 100ms (contre plusieurs secondes pour pdflatex).
+- **Flexibilité** : Syntaxe programmable pour injecter dynamiquement des couleurs et des icônes selon le profil.
+- **Format de sortie** : PDF haute définition, Markdown pour le web, et code source Typst pour retouches fines.
+
+---
+
+## 🛠 Stack Technique & Dépendances
+
+- **Langage** : Python 3.11+
+- **Frontend** : Streamlit (Premium Custom CSS)
+- **Base de données** : SQLite (Gestion persistante du pipeline de candidatures)
+- **IA** : Gemini Flash 1.5 (API), Ollama/MLX pour le support local.
+- **Rendu** : Typst CLI & Library.
+
+---
+*Ce document fait partie de l'écosystème **Job Copilot** — Version 5.2 (Avril 2026)*
