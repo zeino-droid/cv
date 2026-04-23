@@ -181,6 +181,7 @@ def scan_jobspy(
     hours_old: int = 168,
     results_per_query: int = 20,
     progress_callback: Optional[Callable] = None,
+    should_stop: Optional[Callable[[], bool]] = None,
 ) -> List[Dict]:
     try:
         from jobspy import scrape_jobs
@@ -195,6 +196,8 @@ def scan_jobspy(
 
     for keyword in keywords:
         for location in locations:
+            if should_stop and should_stop():
+                return jobs
             try:
                 if progress_callback:
                     pct = 0.10 + 0.55 * (done / total)
@@ -488,6 +491,7 @@ def scan_advanced(
     use_llm_skills: bool = True,
     use_remotive: bool = True,
     progress_callback: Optional[Callable[[float, str], None]] = None,
+    should_stop: Optional[Callable[[], bool]] = None,
 ) -> List[Dict]:
     """Pipeline complet : expansion → scrape multi-source → dédup → score → re-rank IA → skills IA."""
 
@@ -501,25 +505,30 @@ def scan_advanced(
     config = load_config()
     profile = load_master_profile()
 
+    def _stopped() -> bool:
+        return bool(should_stop and should_stop())
+
     # 1. Expansion sémantique
-    if use_llm_expansion and _gemini_client():
+    if use_llm_expansion and _gemini_client() and not _stopped():
         report(0.03, "🧠 Expansion sémantique des mots-clés (Gemini)…")
         keywords = expand_keywords_with_llm(keywords, profile, max_extra_per_keyword=2)
+    if _stopped(): return []
 
     report(0.08, f"📡 {len(keywords)} requêtes × {len(locations)} zones · {', '.join(sites)}")
 
-    # 2. Scrape JobSpy
+    # 2. Scrape JobSpy (interruptible)
     jobs = scan_jobspy(
         keywords=keywords,
         locations=locations,
         sites=sites,
         results_per_query=results_per_query,
         progress_callback=progress_callback,
+        should_stop=should_stop,
     )
     report(0.68, f"✅ JobSpy : {len(jobs)} offres brutes")
 
     # 3. Source bonus Remotive
-    if use_remotive:
+    if use_remotive and not _stopped():
         report(0.72, "🌐 Recherche complémentaire (Remotive)…")
         rem = scan_remotive(keywords, limit_per_kw=10)
         jobs.extend(rem)
@@ -535,17 +544,20 @@ def scan_advanced(
     scored = [score_job(j, profile, config) for j in unique]
 
     # 6. Re-ranking IA sur les meilleurs
-    if use_llm_rerank and _gemini_client() and scored:
+    if use_llm_rerank and _gemini_client() and scored and not _stopped():
         report(0.90, "🧠 Re-classement IA des meilleurs candidats (Gemini)…")
         scored = llm_rerank_top(scored, profile, top_n=25)
 
     # 7. Extraction compétences
-    if use_llm_skills and _gemini_client() and scored:
+    if use_llm_skills and _gemini_client() and scored and not _stopped():
         report(0.95, "🔍 Extraction des compétences clés (Gemini)…")
         scored = llm_extract_skills(scored, top_n=15)
 
     min_score = int(config.get("filters", {}).get("min_score", 40))
     scored = [j for j in scored if j["fit_score"] >= min_score]
     scored.sort(key=lambda x: x["fit_score"], reverse=True)
-    report(1.0, f"✅ {len(scored)} offres qualifiées prêtes !")
+    if _stopped():
+        report(1.0, f"⏸️ Recherche interrompue · {len(scored)} offres collectées avant l'arrêt")
+    else:
+        report(1.0, f"✅ {len(scored)} offres qualifiées prêtes !")
     return scored

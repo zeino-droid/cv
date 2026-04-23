@@ -874,41 +874,114 @@ with tab_auto:
         "LinkedIn et Indeed sont définitivement exclus — leurs liens expirent et cassent le pipeline."
     )
 
-    if st.button("🚀 Lancer la recherche avancée", type="primary",
-                 use_container_width=True, key="btn_auto_scan"):
-        keywords = [k.strip() for k in kw_text.splitlines() if k.strip()]
-        if not keywords or not sel_locations:
-            st.warning("Indique au moins un mot-clé et une zone géographique.")
-        else:
-            from engine.sourcing_advanced import scan_advanced
-            progress = st.progress(0.0, text="Initialisation...")
+    import threading
+    import time as _time
 
-            def _cb(p: float, msg: str):
-                try:
-                    progress.progress(min(max(p, 0.0), 1.0), text=msg)
-                except Exception:
-                    pass
+    # ─── Pattern asynchrone pour permettre la pause/arrêt en cours ────
+    if "search_state" not in st.session_state:
+        st.session_state["search_state"] = "idle"  # idle | running | done
 
-            try:
-                scored = scan_advanced(
-                    keywords=keywords,
-                    locations=sel_locations,
-                    sites=["google", "glassdoor", "zip_recruiter"],
-                    results_per_query=int(results_per_q),
-                    use_llm_expansion=use_expansion,
-                    use_llm_rerank=use_rerank,
-                    use_llm_skills=use_skills,
-                    use_remotive=use_remotive,
-                    progress_callback=_cb,
-                )
-                added = db.upsert_jobs(scored)
-                st.success(
-                    f"✅ Recherche terminée : {len(scored)} offres analysées · "
-                    f"**{added} nouvelles** ajoutées au pipeline."
-                )
+    search_state = st.session_state["search_state"]
+
+    if search_state == "idle":
+        launch = st.button(
+            "🚀 Lancer la recherche avancée", type="primary",
+            use_container_width=True, key="btn_auto_scan",
+        )
+        if launch:
+            keywords = [k.strip() for k in kw_text.splitlines() if k.strip()]
+            if not keywords or not sel_locations:
+                st.warning("Indique au moins un mot-clé et une zone géographique.")
+            else:
+                from engine.sourcing_advanced import scan_advanced
+
+                stop_event = threading.Event()
+                progress_box = {"p": 0.0, "msg": "Initialisation…"}
+
+                def _cb(p: float, msg: str):
+                    progress_box["p"] = min(max(p, 0.0), 1.0)
+                    progress_box["msg"] = msg
+
+                def _runner():
+                    try:
+                        return scan_advanced(
+                            keywords=keywords,
+                            locations=sel_locations,
+                            sites=["google", "glassdoor", "zip_recruiter"],
+                            results_per_query=int(results_per_q),
+                            use_llm_expansion=use_expansion,
+                            use_llm_rerank=use_rerank,
+                            use_llm_skills=use_skills,
+                            use_remotive=use_remotive,
+                            progress_callback=_cb,
+                            should_stop=stop_event.is_set,
+                        )
+                    except Exception as exc:
+                        return ("__error__", str(exc))
+
+                executor = ThreadPoolExecutor(max_workers=1)
+                future = executor.submit(_runner)
+
+                st.session_state["search_state"] = "running"
+                st.session_state["search_future"] = future
+                st.session_state["search_executor"] = executor
+                st.session_state["search_stop_event"] = stop_event
+                st.session_state["search_progress"] = progress_box
                 st.rerun()
+
+    if st.session_state.get("search_state") == "running":
+        future = st.session_state.get("search_future")
+        stop_event = st.session_state.get("search_stop_event")
+        progress_box = st.session_state.get("search_progress", {"p": 0.0, "msg": "…"})
+
+        progress_bar = st.progress(progress_box["p"], text=progress_box["msg"])
+
+        bcol1, bcol2 = st.columns([1, 1])
+        with bcol1:
+            if st.button("⏸️ Pause / Arrêter la recherche", type="secondary",
+                         use_container_width=True, key="btn_stop_search"):
+                if stop_event:
+                    stop_event.set()
+                st.toast("⏸️ Arrêt demandé… les offres collectées seront conservées.")
+        with bcol2:
+            st.caption("La recherche tourne en arrière-plan. Tu peux l'arrêter à tout moment.")
+
+        # Polling : si pas terminée, on attend un peu et on rerun
+        if future is not None and future.done():
+            try:
+                result = future.result()
             except Exception as exc:
-                st.error(f"❌ Erreur durant la recherche : {exc}")
+                result = ("__error__", str(exc))
+
+            executor = st.session_state.get("search_executor")
+            if executor:
+                try: executor.shutdown(wait=False)
+                except Exception: pass
+
+            for k in ("search_future", "search_executor", "search_stop_event", "search_progress"):
+                st.session_state.pop(k, None)
+
+            if isinstance(result, tuple) and len(result) > 0 and result[0] == "__error__":
+                st.error(f"❌ Erreur durant la recherche : {result[1]}")
+                st.session_state["search_state"] = "idle"
+            else:
+                added = db.upsert_jobs(result)
+                stopped = stop_event and stop_event.is_set()
+                if stopped:
+                    st.warning(
+                        f"⏸️ Recherche interrompue : {len(result)} offres collectées avant l'arrêt · "
+                        f"**{added} nouvelles** ajoutées au pipeline."
+                    )
+                else:
+                    st.success(
+                        f"✅ Recherche terminée : {len(result)} offres analysées · "
+                        f"**{added} nouvelles** ajoutées au pipeline."
+                    )
+                st.session_state["search_state"] = "idle"
+            st.rerun()
+        else:
+            _time.sleep(0.8)
+            st.rerun()
 
 # ─── TAB 2 : AJOUT MANUEL ───────────────────────────────────────
 with tab_manual:
