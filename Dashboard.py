@@ -547,9 +547,14 @@ with tab_auto:
             default=cfg_locations[:4], key="auto_locs",
         )
     with sc2:
+        # LinkedIn / Indeed retirés : leurs liens expirent et provoquent souvent des erreurs.
+        # On garde Google Jobs + Glassdoor (fiables) et on ajoute ZipRecruiter (gratuit, supporté par JobSpy).
+        site_options = ["google", "glassdoor", "zip_recruiter"]
+        safe_default = [s for s in cfg_sites if s in site_options] or ["google", "glassdoor"]
         sel_sites = st.multiselect(
-            "🔗 Sources", options=["google", "glassdoor", "linkedin", "indeed"],
-            default=cfg_sites, key="auto_sites",
+            "🔗 Sources", options=site_options,
+            default=safe_default, key="auto_sites",
+            help="Sources fiables et gratuites pour la France. LinkedIn/Indeed sont exclus (liens qui expirent).",
         )
     with sc3:
         results_per_q = st.number_input(
@@ -874,11 +879,23 @@ else:
                         st.button("✉️ Lettre", disabled=True, use_container_width=True,
                                   key=f"arch_lt_na_{j['id']}")
                 with a3:
-                    if st.button("🗑️", key=f"arch_del_{j['id']}",
-                                 use_container_width=True, help="Supprimer définitivement"):
-                        db.delete_job(j["id"])
-                        st.toast(f"Candidature supprimée : {j.get('title','')[:40]}")
-                        st.rerun()
+                    with st.popover("🗑️", use_container_width=True,
+                                    help="Supprimer ou remettre en préparation"):
+                        st.markdown(f"**{j.get('title','')[:60]}**")
+                        st.caption("Que veux-tu faire de cette candidature ?")
+                        if st.button("↩️ Remettre dans « Préparer »",
+                                     key=f"arch_reset_{j['id']}",
+                                     use_container_width=True):
+                            db.update_status(j["id"], "new", j.get("notes") or "")
+                            st.toast("Offre remise en préparation 🎯")
+                            st.rerun()
+                        if st.button("❌ Supprimer définitivement",
+                                     key=f"arch_kill_{j['id']}",
+                                     type="primary",
+                                     use_container_width=True):
+                            db.delete_job(j["id"])
+                            st.toast(f"Candidature supprimée : {j.get('title','')[:40]}")
+                            st.rerun()
 
 st.markdown("</div>", unsafe_allow_html=True)
 

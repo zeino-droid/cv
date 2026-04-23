@@ -25,12 +25,15 @@ search:
   hours_old: 168
   results_per_query: 20
   job_type: "fulltime"
-  # Sources actives (les liens LinkedIn/Indeed expirent → désactivés par défaut)
-  # Sources fiables : "google" (Google Jobs), "glassdoor"
-  # Pour réactiver : ajoute "linkedin" ou "indeed"
+  # Sources actives — toutes gratuites, liens stables
+  # "google"        → Google Jobs (redirige vers le site officiel)
+  # "glassdoor"     → Glassdoor (offres validées)
+  # "zip_recruiter" → ZipRecruiter (gratuit, supporté par JobSpy)
+  # ⚠️ LinkedIn / Indeed retirés : leurs liens expirent rapidement.
   sites:
     - "google"
     - "glassdoor"
+    - "zip_recruiter"
 
 filters:
   min_score: 40
