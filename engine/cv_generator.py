@@ -628,21 +628,37 @@ class PersonalCVGenerator:
                     "fill_report": fill_report,
                 }
                 if pages == 1:
-                    for f in ["md", "tex"]:
-                        p = self.renderers[f].render(cv_data, output_base)
-                        if p:
-                            res[f"{f}_path"] = str(p)
+                    self._render_additional_formats(cv_data, output_base, res)
                     return res
                 best_result = res
             else:
                 fallback_result = {"cv_data": cv_data, "fill_report": fill_report}
-                for f in ["md", "tex"]:
-                    p = self.renderers[f].render(cv_data, output_base)
-                    if p:
-                        fallback_result[f"{f}_path"] = str(p)
+                self._render_additional_formats(cv_data, output_base, fallback_result)
                 best_result = fallback_result
 
         return best_result or {"error": "Échec"}
+
+    def _render_additional_formats(
+        self, cv_data: Dict, output_base: Path, result: Dict
+    ) -> None:
+        """
+        Rend les formats alternatifs Markdown/LaTeX pour un même contenu CV.
+
+        Args:
+            cv_data: Données CV à rendre.
+            output_base: Chemin de base utilisé par les renderers.
+            result: Dictionnaire résultat muté en place avec `md_path`/`tex_path` si rendus.
+
+        Notes:
+            Si un renderer est absent ou échoue (retourne None), le format concerné est ignoré.
+        """
+        for fmt in ["md", "tex"]:
+            renderer = self.renderers.get(fmt)
+            if renderer is None:
+                continue
+            rendered_path = renderer.render(cv_data, output_base)
+            if rendered_path:
+                result[f"{fmt}_path"] = str(rendered_path)
 
     def _apply_text_overrides(
         self,

@@ -226,11 +226,15 @@ def test_apply_text_overrides_replaces_headline_and_summary(generator):
 
 
 @pytest.mark.asyncio
-async def test_generate_cv_for_job_returns_markdown_when_typst_missing(generator):
+async def test_generate_cv_for_job_returns_markdown_fallback(generator):
     result = await generator.generate_cv_for_job(
         {"title": "Ingénieur R&D", "company": "ACME", "description": "Python Abaqus"}
     )
     assert "pdf_path" not in result
+    assert result.get("cv_data")
     md_path = result.get("md_path")
     assert md_path
     assert Path(md_path).exists()
+    md_content = Path(md_path).read_text(encoding="utf-8")
+    assert "# Zein" in md_content
+    assert "## Résumé Professionnel" in md_content
