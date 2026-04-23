@@ -430,10 +430,10 @@ if page == "🏠 Dashboard":
         st.subheader("⭐ Offres à traiter")
         
         # BARRE DE FILTRE DASHBOARD CORRIGÉE
-        dash_filter = st.radio(
+        dash_filter = st.pills(
             "Filtrer par statut",
             ["Top (Score > 70%)", "Tous"] + VALID_STATUSES,
-            horizontal=True,
+            default="Tous",
             label_visibility="collapsed",
             format_func=lambda x: f"{STATUS_EMOJI.get(x, '•')} {x.capitalize()}" if x not in ["Tous", "Top (Score > 70%)"] else x
         )
@@ -1141,11 +1141,11 @@ elif page == "📊 Tracker":
     st.markdown("<br>", unsafe_allow_html=True)
     st.subheader("🔍 Gestion des candidatures")
 
-    # Filtre style "Pills" avec st.radio horizontal
-    filter_tab = st.radio(
+    # Filtre style "Pills"
+    filter_tab = st.pills(
         "Filtre rapide",
         ["Tous", "sent", "applied", "interview", "offer", "rejected", "generated", "new"],
-        horizontal=True,
+        default="Tous",
         label_visibility="collapsed",
         format_func=lambda x: f"{STATUS_EMOJI.get(x, '•')} {x.capitalize()}" if x != "Tous" else "📋 Tout voir"
     )
