@@ -1,0 +1,87 @@
+{
+  "identity": {
+    "name": "Zein ELAJAMY",
+    "email": "zeinfrance4@gmail.com",
+    "phone": "+33 7 54 45 47 42",
+    "location": "France (Mobilité Nationale)",
+    "linkedin": "linkedin.com/in/zein-elajamy"
+  },
+  "headline": "Ingénieur Énergie — Systèmes Énergétiques, CFD & Data-Audit",
+  "summary": "Élève-ingénieur à l'ENSEM spécialisé en thermique industrielle et optimisation énergétique. Expert en développement de jumeaux numériques pour la décarbonation chez ArcelorMittal R&D. Maîtrise avancée de la CFD (Ansys Fluent) et de l'analyse de données (Python, Plotly). Disponible à partir de Septembre 2026.",
+  "experiences": [
+    {
+      "company": "ArcelorMittal R&D",
+      "position": "Ingénieur Énergie (Apprentissage) — Optimisation & Décarbonation",
+      "start_date": "09/2023",
+      "end_date": "Présent",
+      "achievements": [
+        "Développement d'un jumeau numérique énergétique en Python pour quantifier la consommation réelle.",
+        "Réalisation d'audits énergétiques : identification d'un levier de décarbonation par refroidissement gaz.",
+        "Conception d'un modèle thermique hors-ligne (corrélation 95%) validé sur données industrielles.",
+        "Création de dashboards interactifs (Plotly) pour le suivi automatisé des performances énergétiques.",
+        "Analyse CFD sous Ansys Fluent pour la caractérisation d'écoulements à bas Reynolds."
+      ]
+    },
+    {
+      "company": "Institut Jean Lamour (IJL)",
+      "position": "Stagiaire Recherche — Thermodynamique Appliquée",
+      "start_date": "04/2023",
+      "end_date": "05/2023",
+      "achievements": [
+        "Modélisation thermodynamique des alliages via ThermoCalc.",
+        "Exploitation de diagrammes de phases pour l'optimisation des procédés de solidification."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "school": "ENSEM (École Nationale Supérieure d'Électricité et de Mécanique)",
+      "degree": "Diplôme d'Ingénieur",
+      "field": "Énergie & Systèmes",
+      "year": "2023-2026",
+      "details": "Spécialisation Systèmes Énergétiques. Thermodynamique des machines, Mécanique des fluides, Transferts thermiques."
+    },
+    {
+      "school": "Université de Lorraine",
+      "degree": "Licence",
+      "field": "Physique — Mécanique des fluides et énergie",
+      "year": "2022-2023",
+      "details": "Focus : Thermique industrielle, Physique des matériaux et Énergétique."
+    }
+  ],
+  "projects": [
+    {
+      "name": "Audit Énergétique & Jumeau Numérique",
+      "technologies": ["Python", "Plotly", "Thermodynamique"],
+      "description": "Quantification des charges fixes et optimisation de la trajectoire de décarbonation."
+    },
+    {
+      "name": "Dimensionnement PV & Éolien",
+      "technologies": ["Matlab", "Simulink"],
+      "description": "Simulation et optimisation de chaines de conversion renouvelables."
+    }
+  ],
+  "grouped_skills": {
+    "Expertise Technique": [
+      {"name": "Ansys Fluent / CFD", "level": 5},
+      {"name": "Python (Data Analysis)", "level": 5},
+      {"name": "Thermodynamique", "level": 4},
+      {"name": "Transferts Thermiques", "level": 4},
+      {"name": "Optimisation Énergétique", "level": 5}
+    ],
+    "Outils & Digital": [
+      {"name": "Plotly Dashboards", "level": 4},
+      {"name": "Matlab / Simulink", "level": 4},
+      {"name": "Git / GitLab", "level": 3},
+      {"name": "Abaqus / Metafor", "level": 3}
+    ]
+  },
+  "languages": [
+    {"name": "Français", "level": "Maternel"},
+    {"name": "Anglais", "level": "C1 (Professionnel)"},
+    {"name": "Arabe", "level": "Maternel"}
+  ],
+  "certifications": [
+    {"name": "TOEIC : 860/990", "date": "2024"}
+  ]
+}

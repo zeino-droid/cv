@@ -1,0 +1,87 @@
+{
+  "identity": {
+    "name": "Zein ELAJAMY",
+    "email": "zeinfrance4@gmail.com",
+    "phone": "+33 7 54 45 47 42",
+    "location": "France (Mobilité Nationale)",
+    "linkedin": "linkedin.com/in/zein-elajamy"
+  },
+  "headline": "Ingénieur R&D — Simulation Numérique & Modélisation Thermomécanique",
+  "summary": "Élève-ingénieur à l'ENSEM spécialisé en modélisation physique et simulation numérique. 2 ans d'expérience chez ArcelorMittal R&D sur le développement de jumeaux numériques. Expertise avancée en calcul de structures (Abaqus, Metafor) et flambage dynamique. Disponible à partir de Septembre 2026.",
+  "experiences": [
+    {
+      "company": "ArcelorMittal R&D",
+      "position": "Ingénieur de Recherche (Apprentissage) — Simulation & Modélisation",
+      "start_date": "09/2023",
+      "end_date": "Présent",
+      "achievements": [
+        "PFE (LEM3) : Modélisation du flambage dynamique des tôles minces d'acier lors du laminage.",
+        "Développement de jumeaux numériques sous Abaqus Explicit et Metafor pour le calcul de structures.",
+        "Benchmark de performance entre codes industriels et académiques (EAS formulation, ANM-Padé).",
+        "Optimisation algorithmique pour la détection des bifurcations et instabilités numériques.",
+        "Analyse de sensibilité sur les contraintes résiduelles pour l'optimisation des réglages de laminage."
+      ]
+    },
+    {
+      "company": "Institut Jean Lamour (IJL)",
+      "position": "Stagiaire Recherche — Thermodynamique des Alliages",
+      "start_date": "04/2023",
+      "end_date": "05/2023",
+      "achievements": [
+        "Modélisation des équilibres de phases et propriétés thermodynamiques via ThermoCalc.",
+        "Contribution à la compréhension des processus de solidification pour les procédés industriels."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "school": "ENSEM (École Nationale Supérieure d'Électricité et de Mécanique)",
+      "degree": "Diplôme d'Ingénieur",
+      "field": "Énergie & Systèmes",
+      "year": "2023-2026",
+      "details": "Spécialisation Systèmes Énergétiques. Mécanique des solides déformables, Calcul par Éléments Finis (EF), Thermodynamique."
+    },
+    {
+      "school": "Université de Lorraine",
+      "degree": "Licence",
+      "field": "Physique — Mécanique des fluides et énergie",
+      "year": "2022-2023",
+      "details": "Fondamentaux : Thermique, Physique des matériaux et Mathématiques pour l'ingénieur."
+    }
+  ],
+  "projects": [
+    {
+      "name": "Benchmark FEA : Abaqus vs Metafor",
+      "technologies": ["Abaqus", "Metafor", "Python"],
+      "description": "Analyse comparative des solveurs pour la mise en forme et le calcul des contraintes."
+    },
+    {
+      "name": "Analyse Aérodynamique NACA 23012",
+      "technologies": ["Ansys Fluent", "CFD"],
+      "description": "Étude bidimensionnelle à bas Reynolds pour déterminer l'incidence critique de décollement."
+    }
+  ],
+  "grouped_skills": {
+    "Expertise Technique": [
+      {"name": "Abaqus 3D", "level": 5},
+      {"name": "Metafor", "level": 5},
+      {"name": "Python (FEA/Scripting)", "level": 4},
+      {"name": "Analyse Numérique", "level": 4},
+      {"name": "Éléments Finis", "level": 5}
+    ],
+    "Outils & Digital": [
+      {"name": "Ansys Fluent", "level": 4},
+      {"name": "Git / GitLab", "level": 3},
+      {"name": "Matlab / Simulink", "level": 4},
+      {"name": "ThermoCalc", "level": 3}
+    ]
+  },
+  "languages": [
+    {"name": "Français", "level": "Maternel"},
+    {"name": "Anglais", "level": "C1 (Professionnel)"},
+    {"name": "Arabe", "level": "Maternel"}
+  ],
+  "certifications": [
+    {"name": "TOEIC : 860/990", "date": "2024"}
+  ]
+}
