@@ -90,25 +90,38 @@ st.markdown(
         .hero-container { padding: 32px 0 24px 0; }
         .hero-h1 {
             font-size: 56px !important;
-            background: linear-gradient(to bottom, #ffffff 0%, #94a3b8 100%);
+            background: linear-gradient(135deg, #ffffff 0%, #38bdf8 50%, #818cf8 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             margin-bottom: 12px; line-height: 1.1;
             font-family: 'Outfit', sans-serif !important; font-weight: 800;
+            animation: fadeInUp 0.8s ease-out;
         }
         .hero-h2 {
             font-size: 18px !important; color: var(--text-muted);
             font-weight: 300 !important; max-width: 720px;
             font-family: 'Outfit', sans-serif !important;
+            animation: fadeInUp 0.8s ease-out 0.15s both;
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(16px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 0 0 var(--brand-glow); }
+            50%      { box-shadow: 0 0 18px 4px var(--brand-glow); }
         }
 
         .section-card {
             background: var(--card-bg);
-            backdrop-filter: blur(12px);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
             border: 1px solid var(--border);
             border-radius: var(--radius);
             padding: 28px;
             margin-bottom: 24px;
+            animation: fadeInUp 0.5s ease-out both;
         }
 
         .section-title {
@@ -122,6 +135,27 @@ st.markdown(
             font-family: 'Outfit', sans-serif !important;
         }
 
+        /* KPI metric cards */
+        [data-testid="stMetric"] {
+            background: linear-gradient(135deg, rgba(30,41,59,0.6) 0%, rgba(15,23,42,0.8) 100%);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 16px 20px;
+            transition: var(--transition);
+        }
+        [data-testid="stMetric"]:hover {
+            border-color: var(--brand);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+        }
+        [data-testid="stMetricValue"] {
+            font-size: 2.2rem !important;
+            font-weight: 800 !important;
+            background: linear-gradient(135deg, var(--brand), #818cf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
         .row-card {
             background: rgba(15, 23, 42, 0.5);
             border: 1px solid var(--border);
@@ -133,6 +167,8 @@ st.markdown(
         .row-card:hover {
             border-color: var(--brand);
             background: rgba(15, 23, 42, 0.75);
+            transform: translateX(4px);
+            box-shadow: -4px 0 0 0 var(--brand);
         }
         .row-title { font-weight: 700; color: white; font-size: 1rem; }
         .row-meta { color: var(--text-muted); font-size: 0.85rem; margin-top: 2px; }
@@ -143,10 +179,11 @@ st.markdown(
             border-radius: 999px;
             font-weight: 700;
             font-size: 0.8rem;
+            transition: var(--transition);
         }
-        .score-high { background: rgba(34,197,94,0.12); color: #4ade80; border: 1px solid rgba(34,197,94,0.25); }
-        .score-mid  { background: rgba(245,158,11,0.12); color: #fcd34d; border: 1px solid rgba(245,158,11,0.25); }
-        .score-low  { background: rgba(239,68,68,0.12); color: #fca5a5; border: 1px solid rgba(239,68,68,0.25); }
+        .score-high { background: linear-gradient(135deg, rgba(34,197,94,0.15), rgba(34,197,94,0.05)); color: #4ade80; border: 1px solid rgba(34,197,94,0.3); }
+        .score-mid  { background: linear-gradient(135deg, rgba(245,158,11,0.15), rgba(245,158,11,0.05)); color: #fcd34d; border: 1px solid rgba(245,158,11,0.3); }
+        .score-low  { background: linear-gradient(135deg, rgba(239,68,68,0.15), rgba(239,68,68,0.05)); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3); }
 
         div.stButton > button {
             background: var(--text-main) !important;
@@ -164,8 +201,18 @@ st.markdown(
             transform: scale(1.02);
             box-shadow: 0 0 20px var(--brand-glow);
         }
+        div.stButton > button[kind="primary"] {
+            animation: pulseGlow 3s ease-in-out infinite;
+        }
 
         .stTextInput input, .stTextArea textarea { border-radius: 12px !important; }
+
+        /* Tabs styling */
+        .stTabs [data-baseweb="tab"] {
+            font-family: 'Outfit', sans-serif !important;
+            font-weight: 600 !important;
+            letter-spacing: 0.02em;
+        }
 
         #MainMenu { visibility: hidden; }
         footer { visibility: hidden; }
@@ -816,9 +863,49 @@ with tab_auto:
     ]
     cfg_sites = (_cfg.get("search", {}) or {}).get("sites") or ["google", "glassdoor"]
 
+    # ── Dictionnaire ENSEM Alumni : postes typiques des diplômés ──
+    ENSEM_ALUMNI_KEYWORDS = [
+        # Filière Énergie
+        "Ingénieur thermique",
+        "Ingénieur énergétique",
+        "Ingénieur efficacité énergétique",
+        "Ingénieur CFD",
+        "Ingénieur mécanique des fluides",
+        "Ingénieur procédés industriels",
+        "Ingénieur R&D énergie",
+        "Ingénieur décarbonation",
+        "Ingénieur hydrogène",
+        "Ingénieur nucléaire",
+        "Ingénieur énergies renouvelables",
+        "Ingénieur génie électrique",
+        "Ingénieur réseaux électriques",
+        "Ingénieur électrotechnique",
+        # Filière Mécanique / Simulation
+        "Ingénieur simulation numérique",
+        "Ingénieur calcul mécanique",
+        "Ingénieur éléments finis",
+        "Ingénieur modélisation numérique",
+        "Ingénieur R&D simulation",
+        "Ingénieur thermomécanique",
+        "Ingénieur calcul de structure",
+        "Ingénieur bureau d'études mécanique",
+        # Filière Systèmes Numériques
+        "Ingénieur automatisme",
+        "Ingénieur systèmes embarqués",
+        "Ingénieur IoT",
+        "Ingénieur data engineer",
+        "Ingénieur IA industrielle",
+        "Ingénieur R&D Python",
+        # Postes transversaux courants chez les alumni
+        "Ingénieur d'études",
+        "Ingénieur projet industriel",
+        "Consultant ingénieur",
+        "Ingénieur R&D",
+    ]
+
     mode = st.radio(
         "Stratégie de recherche",
-        ["🧠 Selon mon profil (auto)", "📝 Mots-clés personnalisés"],
+        ["🧠 Selon mon profil (auto)", "🎓 Postes Alumni ENSEM", "📝 Mots-clés personnalisés"],
         horizontal=True,
         key="auto_mode",
     )
@@ -833,6 +920,18 @@ with tab_auto:
             value="\n".join(profile_kw),
             height=180,
             key="auto_kw_profile",
+        )
+    elif mode.startswith("🎓"):
+        st.caption(
+            "Intitulés de postes typiques des diplômés ENSEM (Énergie, Mécanique, Systèmes Numériques). "
+            "Basé sur les débouchés officiels et les profils LinkedIn des alumni. "
+            "Tu peux modifier la liste ci-dessous."
+        )
+        kw_text = st.text_area(
+            "Postes Alumni ENSEM (modifiables, un par ligne)",
+            value="\n".join(ENSEM_ALUMNI_KEYWORDS),
+            height=220,
+            key="auto_kw_ensem",
         )
     else:
         st.caption("Saisis tes propres mots-clés (un par ligne).")
