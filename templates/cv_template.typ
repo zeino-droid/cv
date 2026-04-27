@@ -103,12 +103,38 @@
      inset: (left: 1.0cm, right: 10pt, top: 0.4cm, bottom: 0.5cm),
      [
        #set align(center)
-       #box(
-         clip: true,
-         radius: 50%,
-         stroke: 1.2pt + white,
-         image("photo.jpg", width: 2.9cm)
-       )
+       // Photo optionnelle : on l'affiche seulement si templates/photo.jpg existe.
+       // Sans cette garde, le compileur Typst plante et le PDF n'est pas généré.
+       #context {
+         let photo_path = "photo.jpg"
+         if sys.inputs.at("has-photo", default: "false") == "true" {
+           box(
+             clip: true,
+             radius: 50%,
+             stroke: 1.2pt + white,
+             image(photo_path, width: 2.9cm)
+           )
+         } else {
+           // Placeholder discret (cercle avec initiales) si pas de photo
+           let initials = (
+             cv_data.identity.at("name", default: "Z E")
+               .split(" ").map(s => s.at(0, default: "")).join("")
+           )
+           box(
+             width: 2.9cm,
+             height: 2.9cm,
+             radius: 50%,
+             fill: primary.lighten(70%),
+             stroke: 1.2pt + white,
+             align(center + horizon, text(
+               size: 22pt,
+               weight: "bold",
+               fill: primary,
+               initials,
+             )),
+           )
+         }
+       }
 
        #set align(left)
        #v(0.6em)

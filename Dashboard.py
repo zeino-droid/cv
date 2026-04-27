@@ -1256,25 +1256,26 @@ else:
         )
         c_info, c_btn, c_del = st.columns([5, 1.2, 0.8])
         with c_info:
-            st.markdown(
-                f"""
-                <div class='row-card'>
-                    <div style='display:flex;justify-content:space-between;align-items:center;gap:12px;'>
-                        <div style='flex:1;'>
-                            <div class='row-title'>{j.get('title','')}</div>
-                            <div class='row-meta'>
-                                {j.get('company','?')} — {j.get('location','?')}
-                                &nbsp;·&nbsp; 📅 <b>{sourcing}</b>
-                                {ai_badge}
-                            </div>
-                            {ai_line}
-                        </div>
-                        <span class='score-pill {score_class(score)}'>{score}%</span>
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
+            # IMPORTANT : on rend le HTML sur une seule ligne sans indentation,
+            # sinon le parseur markdown de Streamlit interprète tout bloc HTML
+            # indenté de 4+ espaces comme un code block et l'affiche en brut.
+            row_html = (
+                "<div class='row-card'>"
+                "<div style='display:flex;justify-content:space-between;align-items:center;gap:12px;'>"
+                "<div style='flex:1;'>"
+                f"<div class='row-title'>{j.get('title','')}</div>"
+                "<div class='row-meta'>"
+                f"{j.get('company','?')} — {j.get('location','?')}"
+                f" &nbsp;·&nbsp; 📅 <b>{sourcing}</b>"
+                f"{ai_badge}"
+                "</div>"
+                f"{ai_line}"
+                "</div>"
+                f"<span class='score-pill {score_class(score)}'>{score}%</span>"
+                "</div>"
+                "</div>"
             )
+            st.markdown(row_html, unsafe_allow_html=True)
         with c_btn:
             if st.button("Préparer la candidature", key=f"prep_{j['id']}",
                          use_container_width=True):
@@ -1316,20 +1317,18 @@ else:
             with top:
                 sourcing = (j.get("sourcing_date") or "")[:10] or "—"
                 sent_at = j.get("sent_at") or j.get("applied_date") or "—"
-                st.markdown(
-                    f"""
-                    <div class='row-card'>
-                        <div class='row-title'>{j.get('title','')}</div>
-                        <div class='row-meta'>
-                            🏢 {j.get('company','?')} — 📍 {j.get('location','?')}<br/>
-                            📅 Découverte le <b>{sourcing}</b>
-                            &nbsp;·&nbsp; 📤 Envoyé le <b>{sent_at}</b>
-                            &nbsp;·&nbsp; via <b>{j.get('sent_via') or 'manual'}</b>
-                        </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
+                arch_html = (
+                    "<div class='row-card'>"
+                    f"<div class='row-title'>{j.get('title','')}</div>"
+                    "<div class='row-meta'>"
+                    f"🏢 {j.get('company','?')} — 📍 {j.get('location','?')}<br/>"
+                    f"📅 Découverte le <b>{sourcing}</b>"
+                    f" &nbsp;·&nbsp; 📤 Envoyé le <b>{sent_at}</b>"
+                    f" &nbsp;·&nbsp; via <b>{j.get('sent_via') or 'manual'}</b>"
+                    "</div>"
+                    "</div>"
                 )
+                st.markdown(arch_html, unsafe_allow_html=True)
             with actions:
                 a1, a2, a3 = st.columns([1, 1, 0.7])
                 cv_path = j.get("cv_path") or j.get("vault_path") or ""

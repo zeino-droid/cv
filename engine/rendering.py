@@ -74,6 +74,9 @@ class TypstRenderer(Renderer):
             pdf_abs = str(pdf_path.resolve())
             root_abs = str(template_dir.resolve())
 
+            # Détection optionnelle de la photo (templates/photo.jpg)
+            has_photo = (template_dir / "photo.jpg").exists()
+
             typst.compile(
                 template_abs,
                 output=pdf_abs,
@@ -84,6 +87,7 @@ class TypstRenderer(Renderer):
                     "leading": f"{leading:.2f}",
                     "section-gap": f"{section_gap:.1f}",
                     "margin-sides": f"{margin_sides:.1f}",
+                    "has-photo": "true" if has_photo else "false",
                 },
             )
             return pdf_path
