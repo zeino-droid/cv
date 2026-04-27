@@ -904,6 +904,24 @@ with tab_auto:
 
     st.divider()
 
+    # ── Profil cible (oriente les mots-clés et le scoring) ───────
+    from engine.sourcing.orchestrator import list_target_profiles
+    available_profiles = list_target_profiles()
+    if available_profiles:
+        profile_keys = [p["key"] for p in available_profiles]
+        profile_labels = {p["key"]: p["headline"] for p in available_profiles}
+        sel_profile = st.selectbox(
+            "👤 Profil cible (oriente mots-clés et scoring)",
+            options=["(aucun — config par défaut)"] + profile_keys,
+            format_func=lambda k: k if k.startswith("(") else profile_labels.get(k, k),
+            key="auto_profile",
+            help="Choisis l'angle du profil que tu veux mettre en avant. "
+                 "Les mots-clés du profil sont utilisés en priorité dans la recherche.",
+        )
+        sel_profile_key = None if sel_profile.startswith("(") else sel_profile
+    else:
+        sel_profile_key = None
+
     # ── Sélection : départements + catégories ────────────────────
     sel1, sel2 = st.columns(2)
     with sel1:
@@ -985,6 +1003,7 @@ with tab_auto:
                         selected_categories=sel_cat_ids or None,
                         departments=sel_dept_codes or None,
                         extra_keywords=extra_kw or None,
+                        target_profile=sel_profile_key,
                         use_llm_expansion=use_expansion,
                         use_llm_rerank=use_rerank,
                         use_llm_skills=use_skills,
@@ -1138,9 +1157,8 @@ locations = sorted({(j.get("location") or "").strip() for j in all_jobs_for_filt
 all_sources = sorted({(j.get("source") or "").strip().lower() for j in all_jobs_for_filters if j.get("source")})
 sourcing_dates = [j.get("sourcing_date") for j in all_jobs_for_filters if j.get("sourcing_date")]
 
-# Sources réputées fiables (liens qui n'expirent pas) → cochées par défaut
-RELIABLE_SOURCES = {"google", "glassdoor", "zip_recruiter", "remotive", "manual"}
-default_sources = [s for s in all_sources if s in RELIABLE_SOURCES] or all_sources
+# Par défaut : aucune source pré-sélectionnée → toutes les offres sont visibles
+default_sources: list[str] = []
 
 def _parse_date(value: str):
     try:
@@ -1181,7 +1199,7 @@ with cb2:
         "🔗 Sources",
         options=all_sources,
         default=default_sources,
-        help="Filtre par source d'origine. Toutes les sources affichées ici ont des liens stables.",
+        help="Laisse vide pour voir toutes les sources. Sélectionne une ou plusieurs sources pour filtrer.",
     )
 
 raw_jobs = db.get_jobs(

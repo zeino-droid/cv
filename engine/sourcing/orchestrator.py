@@ -78,10 +78,32 @@ class _ProgressBus:
                 pass
 
 
+def list_target_profiles() -> List[Dict]:
+    """
+    Renvoie la liste des profils cibles définis dans `master_profile.json`,
+    sous forme de dicts `{key, headline, target_keywords}` prêts à exposer dans l'UI.
+    Si le fichier ou la section `profiles` est absent → liste vide.
+    """
+    master = load_master_profile()
+    profiles = master.get("profiles") or {}
+    out: List[Dict] = []
+    if isinstance(profiles, dict):
+        for key, p in profiles.items():
+            if not isinstance(p, dict):
+                continue
+            out.append({
+                "key": key,
+                "headline": p.get("headline") or key,
+                "target_keywords": list(p.get("target_keywords") or []),
+            })
+    return out
+
+
 def scan_jobs(
     selected_categories: Optional[List[str]] = None,
     departments: Optional[List[str]] = None,
     extra_keywords: Optional[List[str]] = None,
+    target_profile: Optional[str] = None,
     use_llm_expansion: bool = True,
     use_llm_rerank: bool = True,
     use_llm_skills: bool = True,
@@ -123,7 +145,19 @@ def scan_jobs(
     publiee_depuis: int = int(search_cfg.get("publiee_depuis", 31))
     max_per_query: int = int(search_cfg.get("max_per_query", 100))
 
-    keywords = list(dict.fromkeys((extra_keywords or []) + base_keywords))
+    # Mots-clés du profil cible sélectionné (master_profile.json → profiles.<key>)
+    profile_keywords: List[str] = []
+    if target_profile:
+        prof_def = (profile.get("profiles") or {}).get(target_profile) or {}
+        profile_keywords = list(prof_def.get("target_keywords") or [])
+        if profile_keywords:
+            # On expose au scoring quel profil est actif (utilisé par ranking.score_job)
+            profile = {**profile, "_active_profile_key": target_profile}
+
+    # Ordre de priorité dans la dédup : profil > extra utilisateur > base config
+    keywords = list(dict.fromkeys(
+        profile_keywords + (extra_keywords or []) + base_keywords
+    ))
 
     # 1. Expansion sémantique des mots-clés (utilisée par Adzuna et Companies Watcher)
     if use_llm_expansion and has_gemini() and not stopped() and keywords:
