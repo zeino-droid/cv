@@ -1,54 +1,60 @@
 search:
   keywords:
-    - "Ingénieur R&D simulation"
-    - "Ingénieur simulation numérique"
-    - "Ingénieur modélisation numérique"
-    - "Ingénieur thermique énergie"
+    # ── CORE (priorité 1 — passent en premier dans la matrice) ──
     - "Ingénieur CFD"
+    - "Ingénieur simulation numérique"
+    - "Ingénieur éléments finis"
+    - "Ingénieur modélisation thermique"
     - "Ingénieur calcul mécanique"
+    # ── SECONDAIRES (priorité 2) ──
+    - "Ingénieur R&D simulation"
+    - "Ingénieur thermique énergie"
     - "Ingénieur R&D énergie"
     - "Ingénieur procédés industriels"
-    - "Ingénieur éléments finis"
     - "Ingénieur R&D Python"
   locations:
+    # ── Villes CORE (priorité 1 — plus de postes simulation/R&D) ──
     - "Paris, France"
     - "Lyon, France"
-    - "Marseille, France"
+    - "Grenoble, France"
     - "Toulouse, France"
+    - "Sophia Antipolis, France"
+    # ── Villes SECONDAIRES (priorité 2) ──
     - "Bordeaux, France"
     - "Nice, France"
     - "Montpellier, France"
     - "Aix-en-Provence, France"
-    - "Grenoble, France"
-    - "Sophia Antipolis, France"
+    - "Marseille, France"
+    # ── Fallback national (priorité 3 — toujours en dernier) ──
     - "France"
   hours_old: 168
   results_per_query: 20
   job_type: "fulltime"
-  # Sources actives — toutes gratuites, liens stables
-  # "google"        → Google Jobs (redirige vers le site officiel)
-  # "glassdoor"     → Glassdoor (offres validées)
-  # "zip_recruiter" → ZipRecruiter (gratuit, supporté par JobSpy)
-  # ⚠️ LinkedIn / Indeed retirés : leurs liens expirent rapidement.
   sites:
     - "google"
     - "glassdoor"
     - "zip_recruiter"
 
 filters:
-  min_score: 40
+  # [FIX NOTE] min_score abaissé à 20 pour recalibration.
+  # Observer la distribution des scores sur 2-3 runs, puis remonter à 35.
+  min_score: 20
   exclude_keywords:
+    # IMPORTANT : seuls ces termes filtrent les offres (sur le TITRE uniquement).
+    # PhD / doctorat / thèse ont été RETIRÉS de cette liste —
+    # car les offres R&D industrielles (votre cible) mentionnent souvent
+    # "Bac+5 ou PhD apprécié" dans la description sans être des postes de doctorant.
     - "stage"
     - "stagiaire"
     - "alternance"
     - "apprenti"
-    - "doctorat"
-    - "thèse"
-    - "PhD"
 
 scoring:
   base_score: 20
   per_skill_match: 8
+  # [FIX-7] Le matching de compétences utilise maintenant des alias définis dans
+  # sourcing_advanced.py (SKILL_ALIASES). Ex: "Abaqus" matchera aussi "Abaqus/CAE",
+  # "éléments finis" matchera "FEM", "FEA", "EF", "finite element".
   premium_keywords:
     simulation: 5
     modélisation: 5
@@ -65,16 +71,23 @@ scoring:
     procédés: 3
     Matlab: 3
     Metafor: 6
+    # Ajouts pour couvrir les termes anglais fréquents dans les offres FR
+    "finite element": 5
+    "numerical simulation": 4
+    "heat transfer": 4
+    "digital twin": 5
+    "FEM": 5
+    "FEA": 5
   preferred_locations:
     - paris
     - lyon
-    - marseille
+    - grenoble
     - toulouse
+    - sophia
     - bordeaux
     - nice
     - montpellier
     - aix
-    - sophia
-    - grenoble
+    - marseille
   location_bonus: 5
   stage_penalty: -50
