@@ -820,15 +820,13 @@ def studio_dialog(job_id: str):
 stats = db.get_stats()
 
 st.markdown(
-    """
-    <div class="hero-container">
-        <div class="hero-h1">Studio de Candidature</div>
-        <div class="hero-h2">
-            Sélectionne une offre, prépare ta candidature en un clic,
-            édite le contenu, télécharge et envoie. Tout sur une seule page.
-        </div>
-    </div>
-    """,
+    "<div class=\"hero-container\">"
+    "<div class=\"hero-h1\">Studio de Candidature</div>"
+    "<div class=\"hero-h2\">"
+    "Sélectionne une offre, prépare ta candidature en un clic, "
+    "édite le contenu, télécharge et envoie. Tout sur une seule page."
+    "</div>"
+    "</div>",
     unsafe_allow_html=True,
 )
 
