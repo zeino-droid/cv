@@ -7,6 +7,7 @@ Refonte SPA : Smart Match → Studio (Modale) → Archives.
 import asyncio
 import atexit
 import json
+import os
 import sys
 import threading
 import time as _time
@@ -848,221 +849,185 @@ st.markdown("<div class='section-h2'>Trouver de nouvelles offres</div>", unsafe_
 
 tab_auto, tab_manual = st.tabs(["🤖 Recherche automatique", "✍️ Ajouter une offre manuellement"])
 
-# ─── TAB 1 : RECHERCHE AUTOMATIQUE ──────────────────────────────
+# ─── TAB 1 : MOTEUR FRANCE-FIRST (3 sources officielles) ─────────
 with tab_auto:
-    profile_data = load_profile()
-    profile_kw = smart_keywords_from_profile(profile_data)
+    import threading
+    import time as _time
 
     try:
         import yaml as _yaml
         _cfg = _yaml.safe_load(open(ROOT / "profiles" / "search_config.yaml", encoding="utf-8")) or {}
     except Exception:
         _cfg = {}
-    cfg_locations = (_cfg.get("search", {}) or {}).get("locations") or [
-        "Paris, France", "Lyon, France", "Toulouse, France", "France",
-    ]
-    cfg_sites = (_cfg.get("search", {}) or {}).get("sites") or ["google", "glassdoor"]
+    try:
+        _targets = _yaml.safe_load(open(ROOT / "profiles" / "target_companies.yaml", encoding="utf-8")) or {}
+    except Exception:
+        _targets = {}
 
-    # ── Dictionnaire ENSEM Alumni : postes typiques des diplômés ──
-    ENSEM_ALUMNI_KEYWORDS = [
-        # Filière Énergie
-        "Ingénieur thermique",
-        "Ingénieur énergétique",
-        "Ingénieur efficacité énergétique",
-        "Ingénieur CFD",
-        "Ingénieur mécanique des fluides",
-        "Ingénieur procédés industriels",
-        "Ingénieur R&D énergie",
-        "Ingénieur décarbonation",
-        "Ingénieur hydrogène",
-        "Ingénieur nucléaire",
-        "Ingénieur énergies renouvelables",
-        "Ingénieur génie électrique",
-        "Ingénieur réseaux électriques",
-        "Ingénieur électrotechnique",
-        # Filière Mécanique / Simulation
-        "Ingénieur simulation numérique",
-        "Ingénieur calcul mécanique",
-        "Ingénieur éléments finis",
-        "Ingénieur modélisation numérique",
-        "Ingénieur R&D simulation",
-        "Ingénieur thermomécanique",
-        "Ingénieur calcul de structure",
-        "Ingénieur bureau d'études mécanique",
-        # Filière Systèmes Numériques
-        "Ingénieur automatisme",
-        "Ingénieur systèmes embarqués",
-        "Ingénieur IoT",
-        "Ingénieur data engineer",
-        "Ingénieur IA industrielle",
-        "Ingénieur R&D Python",
-        # Postes transversaux courants chez les alumni
-        "Ingénieur d'études",
-        "Ingénieur projet industriel",
-        "Consultant ingénieur",
-        "Ingénieur R&D",
-    ]
+    dept_options = (_cfg.get("search", {}) or {}).get("departments_options") or []
+    employer_categories = _targets.get("categories") or []
+    base_keywords = (_cfg.get("search", {}) or {}).get("keywords") or []
 
-    mode = st.radio(
-        "Stratégie de recherche",
-        ["🧠 Selon mon profil (auto)", "🎓 Postes Alumni ENSEM", "📝 Mots-clés personnalisés"],
-        horizontal=True,
-        key="auto_mode",
+    # État des credentials (juste pour l'info utilisateur)
+    from engine.sourcing import france_travail as _ft
+    from engine.sourcing import adzuna as _adz
+    ft_ok = _ft.has_credentials()
+    adz_ok = _adz.has_credentials()
+    has_gem = bool(os.getenv("GEMINI_API_KEY"))
+
+    # ── En-tête : statut des sources ────────────────────────────
+    st.markdown(
+        "Moteur **France-First** : 3 sources stables et officielles, "
+        "spécialement adaptées au profil Simulation / R&D / Énergie en France."
+    )
+    s1, s2, s3 = st.columns(3)
+    with s1:
+        if ft_ok:
+            st.success("🇫🇷 **France Travail** · prêt")
+        else:
+            st.warning(
+                "🇫🇷 **France Travail** · clés manquantes\n\n"
+                "Inscription gratuite (5 min) sur https://francetravail.io/, puis ajoute "
+                "`FT_CLIENT_ID` et `FT_CLIENT_SECRET` dans Secrets."
+            )
+    with s2:
+        if adz_ok:
+            st.success("🌍 **Adzuna** · prêt")
+        else:
+            st.warning(
+                "🌍 **Adzuna** · clés manquantes\n\n"
+                "Inscription gratuite (1000 req/mois) sur https://developer.adzuna.com/, puis "
+                "ajoute `ADZUNA_APP_ID` et `ADZUNA_APP_KEY`."
+            )
+    with s3:
+        st.success(
+            f"🎯 **Companies Watcher** · {len(_targets.get('companies', []))} employeurs surveillés"
+        )
+
+    st.divider()
+
+    # ── Sélection : départements + catégories ────────────────────
+    sel1, sel2 = st.columns(2)
+    with sel1:
+        dept_labels = [d["label"] for d in dept_options]
+        sel_dept_labels = st.multiselect(
+            "📍 Départements ciblés (France Travail)",
+            options=dept_labels,
+            default=[],
+            help="Laisse vide pour une recherche nationale.",
+            key="auto_depts",
+        )
+        sel_dept_codes = [d["code"] for d in dept_options if d["label"] in sel_dept_labels]
+    with sel2:
+        cat_labels = {c["id"]: f"{c.get('emoji','')} {c['label']}" for c in employer_categories}
+        sel_cat_ids = st.multiselect(
+            "🎯 Catégories d'employeurs cibles (Companies Watcher)",
+            options=list(cat_labels.keys()),
+            format_func=lambda x: cat_labels.get(x, x),
+            default=list(cat_labels.keys()),
+            help="Surveillance active des pages carrières via leurs APIs ATS publiques.",
+            key="auto_cats",
+        )
+
+    extra_kw_text = st.text_area(
+        "Mots-clés additionnels (un par ligne, optionnel)",
+        value="",
+        placeholder="Ajoute des mots-clés ciblés pour Adzuna et Companies Watcher.\n"
+                    "Exemple :\nIngénieur jumeau numérique\nIngénieur thermique procédés",
+        height=80,
+        key="auto_extra_kw",
     )
 
-    if mode.startswith("🧠"):
-        st.caption(
-            "Mots-clés générés à partir de ton profil "
-            "(titres de poste passés + hard skills + domaines d'expertise)."
-        )
-        kw_text = st.text_area(
-            "Mots-clés (modifiables, un par ligne)",
-            value="\n".join(profile_kw),
-            height=180,
-            key="auto_kw_profile",
-        )
-    elif mode.startswith("🎓"):
-        st.caption(
-            "Intitulés de postes typiques des diplômés ENSEM (Énergie, Mécanique, Systèmes Numériques). "
-            "Basé sur les débouchés officiels et les profils LinkedIn des alumni. "
-            "Tu peux modifier la liste ci-dessous."
-        )
-        kw_text = st.text_area(
-            "Postes Alumni ENSEM (modifiables, un par ligne)",
-            value="\n".join(ENSEM_ALUMNI_KEYWORDS),
-            height=220,
-            key="auto_kw_ensem",
-        )
-    else:
-        st.caption("Saisis tes propres mots-clés (un par ligne).")
-        kw_text = st.text_area(
-            "Mots-clés (un par ligne)",
-            value="Ingénieur R&D simulation\nIngénieur CFD\nIngénieur thermique",
-            height=180,
-            key="auto_kw_custom",
-        )
-
-    sc1, sc2 = st.columns([3, 1])
-    with sc1:
-        sel_locations = st.multiselect(
-            "📍 Zones géographiques", options=cfg_locations,
-            default=cfg_locations[:4], key="auto_locs",
-        )
-    with sc2:
-        results_per_q = st.number_input(
-            "Résultats / requête", min_value=5, max_value=50, value=15, step=5,
-            key="auto_npq",
-        )
-
-    st.markdown("##### 🧠 Moteur avancé")
-    ai1, ai2, ai3, ai4 = st.columns(4)
+    # ── Toggles IA ───────────────────────────────────────────────
+    st.markdown("##### 🧠 Enrichissement IA (Gemini)")
+    ai1, ai2, ai3 = st.columns(3)
     with ai1:
         use_expansion = st.toggle(
-            "💡 Expansion sémantique", value=True, key="ai_exp",
-            help="Gemini génère des variantes pertinentes de tes mots-clés (synonymes, intitulés équivalents).",
+            "💡 Expansion sémantique", value=has_gem, key="ai_exp", disabled=not has_gem,
+            help="Gemini génère des variantes des mots-clés (synonymes, intitulés équivalents).",
         )
     with ai2:
         use_rerank = st.toggle(
-            "🧠 Re-classement IA", value=True, key="ai_rerank",
+            "🧠 Re-classement IA", value=has_gem, key="ai_rerank", disabled=not has_gem,
             help="Gemini évalue le fit profond de chaque top candidat (score + raisonnement).",
         )
     with ai3:
         use_skills = st.toggle(
-            "🔍 Extraction compétences", value=True, key="ai_skills",
-            help="Gemini extrait les vraies compétences requises depuis chaque description.",
+            "🔍 Extraction compétences", value=has_gem, key="ai_skills", disabled=not has_gem,
+            help="Gemini extrait les compétences clés depuis chaque description.",
         )
-    with ai4:
-        use_remotive = st.toggle(
-            "🌐 Source bonus Remotive", value=True, key="ai_remotive",
-            help="Ajoute Remotive (offres tech ouvertes au remote France) en complément.",
-        )
+    if not has_gem:
+        st.caption("ℹ️ Ajoute `GEMINI_API_KEY` dans Secrets pour activer l'enrichissement IA.")
 
-    st.caption(
-        "Sources actives : **Google Jobs · Glassdoor · ZipRecruiter** (+ Remotive si activé). "
-        "LinkedIn et Indeed sont définitivement exclus — leurs liens expirent et cassent le pipeline."
-    )
-
-    import threading
-    import time as _time
-
-    # ─── Pattern asynchrone pour permettre la pause/arrêt en cours ────
-    # Ce pattern utilise un thread séparé pour ne pas bloquer l'UI Streamlit,
-    # permettant ainsi à l'utilisateur de cliquer sur un bouton "Annuler"
-    # ou de voir la progression en temps réel.
+    # ── Pattern asynchrone (ThreadPoolExecutor + stop_event) ─────
     if "search_state" not in st.session_state:
-        st.session_state["search_state"] = "idle"  # États : idle | running | done
-
+        st.session_state["search_state"] = "idle"
     search_state = st.session_state["search_state"]
 
     if search_state == "idle":
         launch = st.button(
-            "🚀 Lancer la recherche avancée", type="primary",
+            "🚀 Trouver mes offres", type="primary",
             use_container_width=True, key="btn_auto_scan",
         )
         if launch:
-            keywords = [k.strip() for k in kw_text.splitlines() if k.strip()]
-            if not keywords or not sel_locations:
-                st.warning("Indique au moins un mot-clé et une zone géographique.")
-            else:
-                from engine.sourcing_advanced import scan_advanced
+            extra_kw = [k.strip() for k in extra_kw_text.splitlines() if k.strip()]
 
-                stop_event = threading.Event()
-                progress_box = {"p": 0.0, "msg": "Initialisation…"}
+            from engine.sourcing.orchestrator import scan_jobs
 
-                def _cb(p: float, msg: str):
-                    progress_box["p"] = min(max(p, 0.0), 1.0)
-                    progress_box["msg"] = msg
+            stop_event = threading.Event()
+            progress_box = {"p": 0.0, "msg": "Initialisation…"}
 
-                def _runner():
-                    try:
-                        return scan_advanced(
-                            keywords=keywords,
-                            locations=sel_locations,
-                            sites=["google", "indeed", "glassdoor"],
-                            results_per_query=int(results_per_q),
-                            use_llm_expansion=use_expansion,
-                            use_llm_rerank=use_rerank,
-                            use_llm_skills=use_skills,
-                            use_remotive=use_remotive,
-                            progress_callback=_cb,
-                            should_stop=stop_event.is_set,
-                        )
-                    except Exception as exc:
-                        return ("__error__", str(exc))
+            def _cb(p: float, msg: str):
+                progress_box["p"] = min(max(p, 0.0), 1.0)
+                progress_box["msg"] = msg
 
-                executor = ThreadPoolExecutor(max_workers=1)
-                future = executor.submit(_runner)
+            def _runner():
+                try:
+                    return scan_jobs(
+                        selected_categories=sel_cat_ids or None,
+                        departments=sel_dept_codes or None,
+                        extra_keywords=extra_kw or None,
+                        use_llm_expansion=use_expansion,
+                        use_llm_rerank=use_rerank,
+                        use_llm_skills=use_skills,
+                        progress_callback=_cb,
+                        should_stop=stop_event.is_set,
+                    )
+                except Exception as exc:
+                    return {"__error__": True, "msg": str(exc)}
 
-                st.session_state["search_state"] = "running"
-                st.session_state["search_future"] = future
-                st.session_state["search_executor"] = executor
-                st.session_state["search_stop_event"] = stop_event
-                st.session_state["search_progress"] = progress_box
-                st.rerun()
+            executor = ThreadPoolExecutor(max_workers=1)
+            future = executor.submit(_runner)
+
+            st.session_state["search_state"] = "running"
+            st.session_state["search_future"] = future
+            st.session_state["search_executor"] = executor
+            st.session_state["search_stop_event"] = stop_event
+            st.session_state["search_progress"] = progress_box
+            st.rerun()
 
     if st.session_state.get("search_state") == "running":
         future = st.session_state.get("search_future")
         stop_event = st.session_state.get("search_stop_event")
         progress_box = st.session_state.get("search_progress", {"p": 0.0, "msg": "…"})
 
-        progress_bar = st.progress(progress_box["p"], text=progress_box["msg"])
+        st.progress(progress_box["p"], text=progress_box["msg"])
 
         bcol1, bcol2 = st.columns([1, 1])
         with bcol1:
-            if st.button("⏸️ Pause / Arrêter la recherche", type="secondary",
+            if st.button("⏸️ Annuler la recherche", type="secondary",
                          use_container_width=True, key="btn_stop_search"):
                 if stop_event:
                     stop_event.set()
                 st.toast("⏸️ Arrêt demandé… les offres collectées seront conservées.")
         with bcol2:
-            st.caption("La recherche tourne en arrière-plan. Tu peux l'arrêter à tout moment.")
+            st.caption("Recherche en arrière-plan · 30-60 s typiquement.")
 
-        # Polling : si pas terminée, on attend un peu et on rerun
         if future is not None and future.done():
             try:
                 result = future.result()
             except Exception as exc:
-                result = ("__error__", str(exc))
+                result = {"__error__": True, "msg": str(exc)}
 
             executor = st.session_state.get("search_executor")
             if executor:
@@ -1072,23 +1037,38 @@ with tab_auto:
             for k in ("search_future", "search_executor", "search_stop_event", "search_progress"):
                 st.session_state.pop(k, None)
 
-            if isinstance(result, tuple) and len(result) > 0 and result[0] == "__error__":
-                st.error(f"❌ Erreur durant la recherche : {result[1]}")
-                st.session_state["search_state"] = "idle"
+            if isinstance(result, dict) and result.get("__error__"):
+                st.error(f"❌ Erreur durant la recherche : {result.get('msg','inconnue')}")
             else:
-                added = db.upsert_jobs(result)
-                stopped = stop_event and stop_event.is_set()
+                jobs = result.get("jobs", []) if isinstance(result, dict) else []
+                by_source = result.get("by_source", {}) if isinstance(result, dict) else {}
+                warnings = result.get("warnings", []) if isinstance(result, dict) else []
+                summary = result.get("summary", "") if isinstance(result, dict) else ""
+
+                added = db.upsert_jobs(jobs) if jobs else 0
+                stopped = bool(stop_event and stop_event.is_set())
+
                 if stopped:
                     st.warning(
-                        f"⏸️ Recherche interrompue : {len(result)} offres collectées avant l'arrêt · "
-                        f"**{added} nouvelles** ajoutées au pipeline."
+                        f"⏸️ Recherche interrompue · {len(jobs)} offres collectées · "
+                        f"**{added} nouvelles** ajoutées."
                     )
                 else:
                     st.success(
-                        f"✅ Recherche terminée : {len(result)} offres analysées · "
-                        f"**{added} nouvelles** ajoutées au pipeline."
+                        f"✅ {summary} · **{added} nouvelles** ajoutées au pipeline."
                     )
-                st.session_state["search_state"] = "idle"
+                # Détail par source
+                if by_source:
+                    parts = []
+                    icons = {"france_travail": "🇫🇷", "adzuna": "🌍", "companies_watcher": "🎯"}
+                    for src, n in by_source.items():
+                        parts.append(f"{icons.get(src,'•')} {src.replace('_',' ')} : **{n}**")
+                    st.caption(" · ".join(parts))
+                # Warnings (clés manquantes etc.)
+                for w in warnings:
+                    st.info(w)
+
+            st.session_state["search_state"] = "idle"
             st.rerun()
         else:
             _time.sleep(0.8)

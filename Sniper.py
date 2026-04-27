@@ -5,17 +5,20 @@ from pathlib import Path
 from datetime import datetime
 from engine.database import JobDatabase
 from engine.cv_generator import PersonalCVGenerator
-from engine.sourcing_jobspy import scan_all_france
+from engine.sourcing import scan_jobs
 
 async def fast_apply_flow(top_n=10, min_score=60, scan=False):
     db = JobDatabase("storage/jobs.db")
     generator = PersonalCVGenerator()
     
     if scan:
-        print("\n📡 Scanning for new jobs...")
-        new_jobs = scan_all_france()
+        print("\n📡 Scanning for new jobs (France-First multi-source)...")
+        result = scan_jobs(progress_callback=lambda p, m: print(f"   [{int(p*100):3d}%] {m}"))
+        new_jobs = result.get("jobs", []) if isinstance(result, dict) else []
         db.upsert_jobs(new_jobs)
         print(f"✅ Found and scored {len(new_jobs)} jobs.")
+        for w in (result.get("warnings", []) if isinstance(result, dict) else []):
+            print(f"   ⚠️  {w}")
 
     # Fetch top jobs to apply
     jobs = db.get_jobs(status="new", min_score=min_score, limit=top_n)

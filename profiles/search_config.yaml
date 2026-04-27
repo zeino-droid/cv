@@ -1,66 +1,63 @@
+# ════════════════════════════════════════════════════════════════════════════
+# Configuration du sourcing France-First
+#
+# Ce fichier pilote 3 sources :
+#   • France Travail (codeROME + département)
+#   • Adzuna         (keywords libres)
+#   • Companies Watcher (catégorie d'employeurs définie dans target_companies.yaml)
+#
+# Le scoring (heuristique + Gemini) reste partagé entre toutes les sources.
+# ════════════════════════════════════════════════════════════════════════════
+
 search:
+  # ── Codes ROME (France Travail) — référentiel métier officiel français ──
+  # H1206 — Management et ingénierie études, recherche et développement industriel  ★ CORE profil
+  # H1402 — Management et ingénierie méthodes de production
+  # H1502 — Management et ingénierie qualité industrielle
+  # H2502 — Management et ingénierie de production
+  # H1208 — Intervention technique en études et conception en automatisme
+  # H1404 — Intervention technique en méthodes et industrialisation
+  # M1805 — Études et développement informatique (pour les postes Python R&D)
+  rome_codes:
+    - "H1206"
+    - "H1402"
+    - "H1502"
+    - "H2502"
+    - "H1208"
+    - "H1404"
+
+  # ── Mots-clés (Adzuna + Companies Watcher) ──
   keywords:
-    # ── CORE (priorité 1 — passent en premier dans la matrice de paires) ──
+    - "Ingénieur simulation"
     - "Ingénieur CFD"
-    - "Ingénieur simulation numérique"
-    - "Ingénieur éléments finis"
-    - "Ingénieur modélisation thermique"
     - "Ingénieur calcul mécanique"
-    # ── SECONDAIRES (priorité 2) ──
-    - "Ingénieur R&D simulation"
-    - "Ingénieur thermique énergie"
-    - "Ingénieur R&D énergie"
-    - "Ingénieur procédés industriels"
-    - "Ingénieur R&D Python"
+    - "Ingénieur éléments finis"
+    - "Ingénieur R&D"
+    - "Simulation engineer"
+    - "CFD engineer"
 
-  locations:
-    # ── Villes CORE (priorité 1) ──
-    - "Paris, France"
-    - "Lyon, France"
-    - "Grenoble, France"
-    - "Toulouse, France"
-    - "Sophia Antipolis, France"
-    # ── Villes SECONDAIRES (priorité 2) ──
-    - "Bordeaux, France"
-    - "Nice, France"
-    - "Montpellier, France"
-    - "Aix-en-Provence, France"
-    - "Marseille, France"
-    # ── Fallback national (priorité 3 — toujours en dernier) ──
-    - "France"
+  # ── Régions / départements (France Travail) ──
+  # Codes département INSEE : 75=Paris, 69=Rhône, 31=Hte-Garonne, 33=Gironde,
+  # 38=Isère, 06=Alpes-Maritimes, 13=B-du-R, 92=Hauts-de-Seine, 78=Yvelines.
+  # Liste vide = recherche nationale.
+  departments_options:
+    - { code: "75", label: "Paris (75)" }
+    - { code: "92", label: "Hauts-de-Seine (92)" }
+    - { code: "78", label: "Yvelines (78)" }
+    - { code: "69", label: "Rhône / Lyon (69)" }
+    - { code: "31", label: "Haute-Garonne / Toulouse (31)" }
+    - { code: "33", label: "Gironde / Bordeaux (33)" }
+    - { code: "38", label: "Isère / Grenoble (38)" }
+    - { code: "06", label: "Alpes-Maritimes / Sophia (06)" }
+    - { code: "13", label: "Bouches-du-Rhône / Marseille (13)" }
+    - { code: "44", label: "Loire-Atlantique / Nantes (44)" }
 
-  # [FIX-12] 720h = 30 jours. À 168h (7 j) la majorité des offres niche
-  # (CFD/EF/R&D thermique) renvoient 0 — ces postes restent ouverts plusieurs
-  # semaines. À remonter à 168 quand le pipeline trouve assez d'offres fraîches.
-  hours_old: 720
-
-  results_per_query: 20
-
-  # [FIX-12] job_type retiré : beaucoup d'offres CDI n'ont pas de métadonnée
-  # job_type côté scraper et étaient éliminées silencieusement par le filtre
-  # "fulltime". Le filtrage stage/alternance se fait maintenant via le scoring
-  # (HARD_TITLE_EXCLUDES) appliqué au TITRE uniquement [FIX-2].
-
-  sites:
-    # [FIX-10] zip_recruiter SUPPRIMÉ : couverture US/CA uniquement → renvoyait
-    # silencieusement 0 offres pour toutes les requêtes France.
-    # indeed AJOUTÉ : indeed.fr est la 1ʳᵉ source d'offres CDI en France.
-    - "google"
-    - "indeed"
-    - "glassdoor"
+  publiee_depuis: 31      # France Travail : 1, 3, 7, 14, 31 jours acceptés
+  max_per_query: 100      # cap pagination par département
 
 filters:
-  # [FIX NOTE] min_score abaissé à 20 pour recalibration.
-  # [FIX-14] Si 0 offre n'atteint ce seuil, le pipeline retombe automatiquement
-  # sur les 25 meilleures (fallback) plutôt que de renvoyer une liste vide.
-  # Observer la distribution des scores sur 2-3 runs, puis remonter à 35.
   min_score: 20
-
   exclude_keywords:
-    # [FIX-2] IMPORTANT : ces termes filtrent uniquement sur le TITRE.
-    # PhD / doctorat / thèse ont été RETIRÉS — les offres R&D industrielles
-    # (votre cible) mentionnent souvent "Bac+5 ou PhD apprécié" dans la
-    # description sans être des postes de doctorant.
     - "stage"
     - "stagiaire"
     - "alternance"
@@ -70,10 +67,6 @@ scoring:
   base_score: 20
   per_skill_match: 8
 
-  # [FIX-7] Le matching de compétences utilise des alias définis dans
-  # sourcing_advanced.py (SKILL_ALIASES). Ex: "Abaqus" matchera aussi
-  # "Abaqus/CAE", "éléments finis" matchera "FEM", "FEA", "EF",
-  # "finite element".
   premium_keywords:
     simulation: 5
     modélisation: 5
@@ -90,7 +83,6 @@ scoring:
     procédés: 3
     Matlab: 3
     Metafor: 6
-    # Termes anglais fréquents dans les offres FR
     "finite element": 5
     "numerical simulation": 4
     "heat transfer": 4
@@ -109,6 +101,8 @@ scoring:
     - montpellier
     - aix
     - marseille
+    - nantes
+    - rennes
 
   location_bonus: 5
   stage_penalty: -50

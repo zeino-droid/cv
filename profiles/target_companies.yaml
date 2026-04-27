@@ -1,0 +1,129 @@
+# ════════════════════════════════════════════════════════════════════════════
+# Liste curatée d'employeurs Simu / R&D / CFD / Énergie en France
+# Utilisée par engine/sourcing/companies_watcher.py
+#
+# `ats` peut valoir : "greenhouse" | "lever" | "workable" | "smartrecruiters"
+# Si l'entreprise n'expose pas d'API ATS publique, on l'omet plutôt que de
+# scraper son site (anti-pattern).
+#
+# `slug` = identifiant utilisé dans l'URL d'API. Exemples :
+#   greenhouse    → https://boards-api.greenhouse.io/v1/boards/{slug}/jobs
+#   lever         → https://api.lever.co/v0/postings/{slug}?mode=json
+#   workable      → https://apply.workable.com/api/v1/widget/accounts/{slug}
+#   smartrecruiters → https://api.smartrecruiters.com/v1/companies/{slug}/postings
+#
+# Pour ajouter une entreprise :
+#   1. Trouver son ATS : aller sur sa page carrières et regarder l'URL/réseau.
+#   2. Identifier le slug (souvent le nom dans l'URL).
+#   3. Tester : curl https://boards-api.greenhouse.io/v1/boards/{slug}/jobs
+#   4. Si l'API renvoie du JSON → ajouter ici.
+# ════════════════════════════════════════════════════════════════════════════
+
+companies:
+
+  # ─── Éditeurs de logiciels de simulation ──────────────────────────────
+  - name: "Dassault Systèmes"
+    category: "editeurs_simu"
+    ats: "smartrecruiters"
+    slug: "DassaultSystmes"
+
+  - name: "Hexagon (incl. MSC Software)"
+    category: "editeurs_simu"
+    ats: "smartrecruiters"
+    slug: "HexagonAB"
+
+  # ─── Industriels métallurgie & matériaux ───────────────────────────────
+  - name: "ArcelorMittal"
+    category: "metallurgie"
+    ats: "smartrecruiters"
+    slug: "ArcelorMittal"
+
+  # ─── Aéronautique & Défense ────────────────────────────────────────────
+  - name: "Safran"
+    category: "aero_defense"
+    ats: "smartrecruiters"
+    slug: "Safran"
+
+  - name: "Thales"
+    category: "aero_defense"
+    ats: "smartrecruiters"
+    slug: "Thales"
+
+  - name: "Airbus"
+    category: "aero_defense"
+    ats: "workday"
+    slug: "airbus"  # Workday non supporté nativement → le watcher l'ignorera et loggera
+
+  # ─── Énergie ──────────────────────────────────────────────────────────
+  - name: "TotalEnergies"
+    category: "energie"
+    ats: "smartrecruiters"
+    slug: "TotalEnergies"
+
+  - name: "Schneider Electric"
+    category: "energie"
+    ats: "smartrecruiters"
+    slug: "SchneiderElectric"
+
+  # ─── Automobile ───────────────────────────────────────────────────────
+  - name: "Forvia"
+    category: "auto"
+    ats: "smartrecruiters"
+    slug: "Faurecia1"
+
+  - name: "Valeo"
+    category: "auto"
+    ats: "smartrecruiters"
+    slug: "Valeo3"
+
+  # ─── Tech / R&D Paris (Greenhouse / Lever — ATS très répandus) ─────────
+  - name: "Doctolib"
+    category: "tech_rd"
+    ats: "lever"
+    slug: "doctolib"
+
+  - name: "BlaBlaCar"
+    category: "tech_rd"
+    ats: "lever"
+    slug: "blablacar"
+
+  - name: "Mirakl"
+    category: "tech_rd"
+    ats: "greenhouse"
+    slug: "mirakl"
+
+  - name: "Algolia"
+    category: "tech_rd"
+    ats: "greenhouse"
+    slug: "algolia"
+
+  - name: "Datadog"
+    category: "tech_rd"
+    ats: "greenhouse"
+    slug: "datadog"
+
+  - name: "Stripe"
+    category: "tech_rd"
+    ats: "greenhouse"
+    slug: "stripe"
+
+# Catégories disponibles pour la sélection UI
+categories:
+  - id: "editeurs_simu"
+    label: "Éditeurs de simulation"
+    emoji: "🧮"
+  - id: "metallurgie"
+    label: "Métallurgie & Matériaux"
+    emoji: "⚙️"
+  - id: "aero_defense"
+    label: "Aéronautique & Défense"
+    emoji: "✈️"
+  - id: "energie"
+    label: "Énergie"
+    emoji: "⚡"
+  - id: "auto"
+    label: "Automobile"
+    emoji: "🚗"
+  - id: "tech_rd"
+    label: "Tech & R&D"
+    emoji: "💻"
