@@ -38,3 +38,6 @@ Thumbs.db
 templates/*.jpg
 templates/*.png
 templates/*.jpeg
+
+# --- SOURCING CACHE (regenerated at runtime) ---
+storage/sourcing_cache/

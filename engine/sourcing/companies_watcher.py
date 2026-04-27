@@ -46,13 +46,42 @@ TIMEOUT = 15
 # Les ATS supportés par le watcher
 SUPPORTED_ATS = {"greenhouse", "lever", "workable", "smartrecruiters"}
 
-# Mots-clés "France" pour filtrer les offres internationales des grands groupes
+# Mots-clés "France" pour filtrer les offres internationales des grands groupes.
+# IMPORTANT : on n'accepte PAS les remote génériques (`remote`, `télétravail`,
+# `hybride` seuls), sinon des offres "Remote - United States" ou
+# "Remote - Germany" passent ; on n'accepte que les marqueurs explicitement FR.
 FR_LOCATION_HINTS = (
     "france", "paris", "lyon", "toulouse", "bordeaux", "marseille", "nantes",
     "lille", "rennes", "strasbourg", "grenoble", "nice", "montpellier",
-    "sophia antipolis", "aix", "metz", "nancy", "mulhouse", "clermont",
-    "le havre", "rouen", "dijon", "remote", "télétravail", "teletravail",
-    "hybride", "full remote", "fr-",
+    "sophia antipolis", "aix-en-provence", "metz", "nancy", "mulhouse",
+    "clermont-ferrand", "le havre", "rouen", "dijon", "fr-", ", fr",
+    "(fr)", " fr ", "île-de-france", "ile-de-france", "hauts-de-france",
+    "nouvelle-aquitaine", "occitanie", "provence", "bretagne", "normandie",
+    "alsace", "auvergne", "rhône-alpes", "rhone-alpes",
+)
+
+# Marqueurs qui DISQUALIFIENT explicitement (priorité sur tout le reste)
+NON_FR_LOCATION_BLOCKERS = (
+    "united states", "usa", " us ", "(us)", "remote - us",
+    "united kingdom", " uk ", "(uk)", "england", "scotland",
+    "germany", "deutschland", "berlin", "münchen", "munich",
+    "spain", "españa", "madrid", "barcelona",
+    "italy", "italia", "milan", "milano", "roma",
+    "netherlands", "amsterdam", "rotterdam",
+    "belgium", "brussels", "bruxelles ", "antwerp",
+    "switzerland", "zurich", "geneva", "genève",
+    "ireland", "dublin", "poland", "warsaw", "warszawa",
+    "portugal", "lisbon", "lisboa", "porto",
+    "canada", "toronto", "montreal", "montréal",
+    "india", "bangalore", "bengaluru", "mumbai",
+    "singapore", "japan", "tokyo", "australia", "sydney",
+    "emea", "amer", "apac", "latam",
+)
+# Tokens "remote/hybride" génériques : autorisés UNIQUEMENT si combinés à un
+# marqueur FR (ex: "Remote, France", "Hybride - Paris").
+GENERIC_REMOTE_TOKENS = (
+    "remote", "télétravail", "teletravail", "telework",
+    "hybride", "hybrid", "full remote", "anywhere",
 )
 
 
@@ -275,11 +304,36 @@ def _normalize_smartrecruiters(item: Dict, company: str, slug: str) -> Optional[
 # ──────────────────────────────────────────────────────────────────
 
 def _is_in_france(job: Dict) -> bool:
+    """
+    Filtre strict France-First.
+
+    Règles (ordre de priorité) :
+      1. Location vide → on garde (les ATS FR ne précisent pas toujours).
+      2. Si la location contient un marqueur d'un autre pays/région → REJET.
+      3. Si la location contient un marqueur FR explicite → OK.
+      4. Si la location ne contient QUE des tokens "remote/hybride" génériques
+         sans aucun marqueur FR → REJET (sinon on hérite des "Remote - US").
+      5. Par défaut (aucun signal) → REJET (mieux vaut rater une offre qu'en
+         polluer le pipeline avec du non-FR).
+    """
     loc = (job.get("location") or "").lower()
     if not loc:
-        # Pas de location → on garde par défaut (les ATS FR ne précisent pas toujours)
         return True
-    return any(hint in loc for hint in FR_LOCATION_HINTS)
+
+    # 2. Blockers explicites
+    if any(blocker in loc for blocker in NON_FR_LOCATION_BLOCKERS):
+        return False
+
+    # 3. Marqueur FR explicite
+    if any(hint in loc for hint in FR_LOCATION_HINTS):
+        return True
+
+    # 4. Remote générique sans contexte FR → on rejette
+    if any(token in loc for token in GENERIC_REMOTE_TOKENS):
+        return False
+
+    # 5. Par défaut, en cas de doute, on rejette pour rester strict
+    return False
 
 
 def _matches_keywords(job: Dict, keywords: List[str]) -> bool:
