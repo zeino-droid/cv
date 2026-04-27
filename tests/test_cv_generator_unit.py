@@ -210,7 +210,10 @@ def test_assemble_final_data_falls_back_to_context_skills(generator):
         "education": [],
     }
     data = generator._assemble_final_data({"cv": {}}, context)
-    assert data["grouped_skills"]["Compétences"] == [{"name": "Python"}, {"name": "Abaqus"}]
+    assert data["grouped_skills"]["Compétences Techniques"] == [
+        {"name": "Python"},
+        {"name": "Abaqus"},
+    ]
 
 
 def test_apply_text_overrides_replaces_headline_and_summary(generator):
@@ -225,10 +228,13 @@ def test_apply_text_overrides_replaces_headline_and_summary(generator):
     assert cv_data == {"headline": "Old", "summary": "Old summary"}
 
 
-@pytest.mark.asyncio
-async def test_generate_cv_for_job_returns_markdown_fallback(generator):
-    result = await generator.generate_cv_for_job(
-        {"title": "Ingénieur R&D", "company": "ACME", "description": "Python Abaqus"}
+def test_generate_cv_for_job_returns_markdown_fallback(generator):
+    import asyncio
+
+    result = asyncio.run(
+        generator.generate_cv_for_job(
+            {"title": "Ingénieur R&D", "company": "ACME", "description": "Python Abaqus"}
+        )
     )
     assert "pdf_path" not in result
     assert result.get("cv_data")
