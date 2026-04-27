@@ -1,14 +1,31 @@
 """
 Sourcing Avancé — Moteur de recherche d'offres nouvelle génération.
+
 VERSION CORRIGÉE — Fixes appliqués :
-  [FIX-1] Priorisation des combinaisons keyword×location (matrice de priorité)
-  [FIX-2] Filtre PhD/doctorat limité au TITRE uniquement (plus la description)
-  [FIX-3] Mapping de localisation par source (format adapté à chaque scraper)
-  [FIX-4] Cache LLM pour les expansions Gemini (TTL 7 jours)
-  [FIX-5] Logger structuré par combinaison (OK / WARN / ERROR)
-  [FIX-6] Circuit breaker par source (désactivation auto si trop d'échecs)
-  [FIX-7] Alias de compétences (FEM = EF = Éléments Finis = FEA)
-  [FIX-8] Déduplication multi-critères (titre+entreprise+ville)
+  [FIX-1]  Priorisation des combinaisons keyword × location (matrice de priorité)
+  [FIX-2]  Filtre PhD/doctorat limité au TITRE uniquement (plus la description)
+  [FIX-3]  Mapping de localisation par source (format adapté à chaque scraper)
+  [FIX-4]  Cache LLM pour les expansions Gemini (TTL 7 jours)
+  [FIX-5]  Logger structuré par combinaison (OK / WARN / ERROR)
+  [FIX-6]  Circuit breaker par source (désactivation auto si trop d'échecs)
+  [FIX-7]  Alias de compétences (FEM = EF = Éléments Finis = FEA)
+  [FIX-8]  Déduplication multi-critères (titre + entreprise + ville)
+
+NOUVEAUX FIXES (vraies causes du « 0 résultats ») :
+  [FIX-9]  Utilisation de `google_search_term` natif JobSpy (sans ça Google Jobs
+           renvoie ~0 sur des requêtes FR techniques).
+  [FIX-10] Suppression de ZipRecruiter (US/CA only — renvoyait toujours 0 pour la France)
+           et ajout d'Indeed (indeed.fr est la 1ère source d'offres CDI en France).
+  [FIX-11] Itération SITE PAR SITE dans scrape_jobs : un appel multi-source masquait
+           les échecs partiels et empêchait le circuit breaker de fonctionner.
+  [FIX-12] Défauts moins restrictifs : `hours_old` 720h (30 j) au lieu de 168 (7 j),
+           `job_type=None` (beaucoup d'offres CDI n'ont pas de métadonnée job_type ;
+           le filtre les éliminait silencieusement).
+  [FIX-13] `country_indeed="france"` (minuscules — canonical pour Indeed et Glassdoor).
+  [FIX-14] Fallback : si AUCUNE offre ne passe `min_score`, on garde les 25 meilleures
+           plutôt que de renvoyer une liste vide.
+  [FIX-15] Diagnostic final : si 0 offres brutes après tous les sites, on émet un
+           message clair pour l'utilisateur (clé Gemini absente, sources HS, etc.).
 """
 
 from __future__ import annotations
@@ -18,7 +35,7 @@ import json
 import os
 import re
 import time
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
 
@@ -28,13 +45,13 @@ ROOT = Path(__file__).parent.parent
 SEARCH_CONFIG_PATH = ROOT / "profiles" / "search_config.yaml"
 MASTER_PROFILE_PATH = ROOT / "profiles" / "master_profile.json"
 
-# [FIX-4] Chemin du cache LLM
 LLM_CACHE_PATH = ROOT / "storage" / "llm_expansion_cache.json"
 LLM_CACHE_TTL_DAYS = 7
 
-ALLOWED_SITES = {"google", "glassdoor", "zip_recruiter"}
+# [FIX-10] ZipRecruiter retiré (US/CA only). Indeed ajouté (1ʳᵉ source FR).
+ALLOWED_SITES = {"google", "glassdoor", "indeed", "linkedin"}
 
-# [FIX-7] Table d'alias de compétences — toutes les variantes pointent vers le même concept
+# [FIX-7] Alias de compétences — toutes les variantes pointent vers le même concept
 SKILL_ALIASES: Dict[str, List[str]] = {
     "éléments finis": ["ef", "fem", "fea", "elements finis", "éléments-finis", "finite element"],
     "cfd": ["computational fluid dynamics", "fluide numérique", "simulation fluide"],
@@ -50,17 +67,17 @@ SKILL_ALIASES: Dict[str, List[str]] = {
 
 # [FIX-3] Mapping de localisation par source scraping
 LOCATION_MAP: Dict[str, Dict[str, str]] = {
-    "Paris, France":           {"google": "Paris", "glassdoor": "Paris, Île-de-France", "zip_recruiter": "Paris, France"},
-    "Lyon, France":            {"google": "Lyon", "glassdoor": "Lyon, Auvergne-Rhône-Alpes", "zip_recruiter": "Lyon, France"},
-    "Marseille, France":       {"google": "Marseille", "glassdoor": "Marseille, Provence-Alpes-Côte d'Azur", "zip_recruiter": "Marseille, France"},
-    "Toulouse, France":        {"google": "Toulouse", "glassdoor": "Toulouse, Occitanie", "zip_recruiter": "Toulouse, France"},
-    "Bordeaux, France":        {"google": "Bordeaux", "glassdoor": "Bordeaux, Nouvelle-Aquitaine", "zip_recruiter": "Bordeaux, France"},
-    "Nice, France":            {"google": "Nice", "glassdoor": "Nice, Provence-Alpes-Côte d'Azur", "zip_recruiter": "Nice, France"},
-    "Montpellier, France":     {"google": "Montpellier", "glassdoor": "Montpellier, Occitanie", "zip_recruiter": "Montpellier, France"},
-    "Aix-en-Provence, France": {"google": "Aix-en-Provence", "glassdoor": "Aix-en-Provence, Provence-Alpes-Côte d'Azur", "zip_recruiter": "Aix-en-Provence, France"},
-    "Grenoble, France":        {"google": "Grenoble", "glassdoor": "Grenoble, Auvergne-Rhône-Alpes", "zip_recruiter": "Grenoble, France"},
-    "Sophia Antipolis, France":{"google": "Sophia Antipolis", "glassdoor": "Sophia Antipolis, Provence-Alpes-Côte d'Azur", "zip_recruiter": "Sophia Antipolis, France"},
-    "France":                  {"google": "France", "glassdoor": "France", "zip_recruiter": "France"},
+    "Paris, France":           {"google": "Paris, France",        "glassdoor": "Paris, Île-de-France",                      "indeed": "Paris (75)",            "linkedin": "Paris, France"},
+    "Lyon, France":            {"google": "Lyon, France",         "glassdoor": "Lyon, Auvergne-Rhône-Alpes",                "indeed": "Lyon (69)",             "linkedin": "Lyon, France"},
+    "Marseille, France":       {"google": "Marseille, France",    "glassdoor": "Marseille, Provence-Alpes-Côte d'Azur",     "indeed": "Marseille (13)",        "linkedin": "Marseille, France"},
+    "Toulouse, France":        {"google": "Toulouse, France",     "glassdoor": "Toulouse, Occitanie",                       "indeed": "Toulouse (31)",         "linkedin": "Toulouse, France"},
+    "Bordeaux, France":        {"google": "Bordeaux, France",     "glassdoor": "Bordeaux, Nouvelle-Aquitaine",              "indeed": "Bordeaux (33)",         "linkedin": "Bordeaux, France"},
+    "Nice, France":            {"google": "Nice, France",         "glassdoor": "Nice, Provence-Alpes-Côte d'Azur",          "indeed": "Nice (06)",             "linkedin": "Nice, France"},
+    "Montpellier, France":     {"google": "Montpellier, France",  "glassdoor": "Montpellier, Occitanie",                    "indeed": "Montpellier (34)",      "linkedin": "Montpellier, France"},
+    "Aix-en-Provence, France": {"google": "Aix-en-Provence, France", "glassdoor": "Aix-en-Provence, Provence-Alpes-Côte d'Azur", "indeed": "Aix-en-Provence (13)", "linkedin": "Aix-en-Provence, France"},
+    "Grenoble, France":        {"google": "Grenoble, France",     "glassdoor": "Grenoble, Auvergne-Rhône-Alpes",            "indeed": "Grenoble (38)",         "linkedin": "Grenoble, France"},
+    "Sophia Antipolis, France":{"google": "Sophia Antipolis, France", "glassdoor": "Sophia Antipolis, Provence-Alpes-Côte d'Azur", "indeed": "Sophia Antipolis (06)", "linkedin": "Sophia Antipolis, France"},
+    "France":                  {"google": "France",               "glassdoor": "France",                                    "indeed": "France",                "linkedin": "France"},
 }
 
 
@@ -76,7 +93,7 @@ def load_config() -> Dict:
         "search": {
             "keywords": ["Ingénieur R&D simulation"],
             "locations": ["France"],
-            "hours_old": 168,
+            "hours_old": 720,
             "results_per_query": 20,
         },
         "filters": {"min_score": 20, "exclude_keywords": ["stage", "alternance", "stagiaire"]},
@@ -145,7 +162,6 @@ def _gemini_call(prompt: str, max_tokens: int = 800, model: str = "gemini-flash-
 # ──────────────────────────────────────────────────────────────────
 
 def _load_llm_cache() -> Dict:
-    """Charge le cache d'expansion LLM depuis le disque."""
     try:
         if LLM_CACHE_PATH.exists():
             with open(LLM_CACHE_PATH, "r", encoding="utf-8") as f:
@@ -176,15 +192,10 @@ def _cache_key(keywords: List[str]) -> str:
 def expand_keywords_with_llm(
     keywords: List[str], profile: Dict, max_extra_per_keyword: int = 2
 ) -> List[str]:
-    """
-    Génère des variantes sémantiques via Gemini.
-    [FIX-4] Résultat mis en cache 7 jours pour éviter des appels API répétés.
-    [FIX-5] Les variantes générées en anglais sont filtrées si tous les sites cibles sont FR.
-    """
+    """[FIX-4] Résultat mis en cache 7 jours pour éviter des appels API répétés."""
     if not keywords:
         return []
 
-    # Vérification du cache
     cache = _load_llm_cache()
     key = _cache_key(keywords)
     entry = cache.get(key)
@@ -229,7 +240,6 @@ Pas de texte autour, pas de markdown.
                 seen.add(key_v)
                 expanded.append(v)
 
-    # Sauvegarde dans le cache
     cache[key] = {"date": date.today().isoformat(), "expanded": expanded}
     _save_llm_cache(cache)
     print(f"   💾 Cache LLM mis à jour ({len(expanded)} mots-clés)")
@@ -246,15 +256,7 @@ def _prioritize_pairs(
     config: Dict,
     max_pairs: int = 60,
 ) -> List[Tuple[str, str]]:
-    """
-    [FIX-1] Construit les paires keyword×location en ordre de priorité décroissante.
-    
-    Logique :
-    - Les keywords contenant des termes "core" (CFD, simulation, éléments finis...) passent en premier.
-    - Les locations principales (Paris, Lyon...) passent avant "France" générique.
-    - On remplit ensuite avec les combinaisons secondaires jusqu'au budget MAX_REQUESTS.
-    """
-    # Keywords "core" — les plus spécifiques au profil
+    """[FIX-1] Construit les paires keyword × location en ordre de priorité décroissante."""
     core_kw_terms = {"cfd", "éléments finis", "simulation numérique", "modélisation", "thermique", "calcul"}
     core_locations = {"paris", "lyon", "grenoble", "toulouse", "sophia"}
 
@@ -281,10 +283,7 @@ def _prioritize_pairs(
 # ──────────────────────────────────────────────────────────────────
 
 class CircuitBreaker:
-    """
-    Désactive une source si elle échoue trop souvent.
-    Seuil : 3 erreurs consécutives → source marquée DOWN.
-    """
+    """Désactive une source après N échecs consécutifs."""
     def __init__(self, threshold: int = 3):
         self.threshold = threshold
         self._failures: Dict[str, int] = {}
@@ -295,10 +294,9 @@ class CircuitBreaker:
 
     def record_failure(self, source: str):
         self._failures[source] = self._failures.get(source, 0) + 1
-        if self._failures[source] >= self.threshold:
-            if source not in self._disabled:
-                print(f"   🔴 Circuit breaker: source '{source}' désactivée ({self.threshold} erreurs consécutives)")
-                self._disabled.add(source)
+        if self._failures[source] >= self.threshold and source not in self._disabled:
+            print(f"   🔴 Circuit breaker: source '{source}' désactivée ({self.threshold} erreurs consécutives)")
+            self._disabled.add(source)
 
     def is_available(self, source: str) -> bool:
         return source not in self._disabled
@@ -310,7 +308,7 @@ class CircuitBreaker:
 
 
 # ──────────────────────────────────────────────────────────────────
-#  2. SOURCING — JobSpy (google / glassdoor / zip_recruiter)
+#  2. SOURCING — JobSpy (google / glassdoor / indeed / linkedin)
 # ──────────────────────────────────────────────────────────────────
 
 def _clean(val) -> str:
@@ -352,17 +350,28 @@ def _get_location_for_site(location: str, site: str) -> str:
     mapping = LOCATION_MAP.get(location)
     if mapping:
         return mapping.get(site, location)
-    # Fallback : extraire juste la ville si format "Ville, France"
+    if ", France" in location and site in ("google", "linkedin"):
+        return location
     if ", France" in location:
         return location.replace(", France", "")
     return location
+
+
+def _build_google_search_term(keyword: str, location_human: str, hours_old: int) -> str:
+    """
+    [FIX-9] Construit le `google_search_term` natif de Google Jobs.
+    Sans ce paramètre, le scraper Google de JobSpy renvoie ~0 résultats sur des
+    requêtes FR techniques. Format recommandé par la doc JobSpy.
+    """
+    days = max(1, int(round(hours_old / 24)))
+    return f'"{keyword}" jobs near {location_human} since {days} days ago'
 
 
 def scan_jobspy(
     keywords: List[str],
     locations: List[str],
     sites: List[str],
-    hours_old: int = 168,
+    hours_old: int = 720,
     results_per_query: int = 20,
     progress_callback: Optional[Callable] = None,
     should_stop: Optional[Callable[[], bool]] = None,
@@ -374,70 +383,79 @@ def scan_jobspy(
         print("   ❌ JobSpy non installé : pip install python-jobspy")
         return []
 
-    safe_sites = [s for s in sites if s in ALLOWED_SITES] or ["google", "glassdoor"]
+    safe_sites = [s for s in sites if s in ALLOWED_SITES] or ["google", "indeed"]
     jobs: List[Dict] = []
     cfg = config or {}
 
-    # [FIX-1] Pairs priorisées
     pairs = _prioritize_pairs(keywords, locations, cfg, max_pairs=60)
-
-    total = max(len(pairs), 1)
+    total = max(len(pairs) * len(safe_sites), 1)
     done = 0
 
-    # [FIX-6] Circuit breaker global (on traite toutes les sources ensemble ici)
     cb = CircuitBreaker(threshold=3)
-    # Stats par combinaison pour le logger structuré [FIX-5]
     stats = {"ok": 0, "warn": 0, "error": 0}
 
     for keyword, location in pairs:
         if should_stop and should_stop():
             return jobs
 
-        try:
-            if progress_callback:
-                pct = 0.10 + 0.55 * (done / total)
-                progress_callback(pct, f"🔍 '{keyword}' → {location}")
+        # [FIX-11] Itère SITE PAR SITE — un seul appel multi-source masquait
+        # les échecs partiels et faussait le circuit breaker.
+        for site in safe_sites:
+            if should_stop and should_stop():
+                return jobs
 
-            # [FIX-3] Adapter le format de localisation pour chaque site
-            # On utilise le premier site de la liste pour le format principal
-            primary_site = safe_sites[0] if safe_sites else "google"
-            loc_adapted = _get_location_for_site(location, primary_site)
+            # [FIX-13] Skip si la source a été désactivée par le circuit breaker
+            if not cb.is_available(site):
+                done += 1
+                continue
 
-            df = scrape_jobs(
-                site_name=safe_sites,
-                search_term=keyword,
-                location=loc_adapted,
-                results_wanted=results_per_query,
-                country_indeed="France",
-                job_type="fulltime",
-                hours_old=hours_old,
-                verbose=0,
-            )
+            try:
+                if progress_callback:
+                    pct = 0.10 + 0.55 * (done / total)
+                    progress_callback(pct, f"🔍 [{site}] '{keyword}' → {location}")
 
-            if df is not None and len(df) > 0:
-                count = 0
-                for _, row in df.iterrows():
-                    j = _row_to_job(row.to_dict())
-                    if j and j.get("url"):
-                        jobs.append(j)
-                        count += 1
-                # [FIX-5] Logger structuré
-                print(f"   ✅ [OK]   '{keyword}' → {location} ({loc_adapted}) : {count} offres")
-                stats["ok"] += 1
-                cb.record_success(primary_site)
-            else:
-                # [FIX-5] Logger WARN pour 0 résultats — suspect
-                print(f"   ⚠️  [WARN] '{keyword}' → {location} ({loc_adapted}) : 0 résultats — vérifier format location ou disponibilité source")
-                stats["warn"] += 1
+                loc_adapted = _get_location_for_site(location, site)
 
-        except Exception as exc:
-            # [FIX-5] Logger ERROR
-            print(f"   ❌ [ERROR] '{keyword}' → {location}: {exc}")
-            stats["error"] += 1
-            cb.record_failure(primary_site if safe_sites else "unknown")
+                # [FIX-9] google_search_term natif pour Google Jobs
+                kwargs = dict(
+                    site_name=[site],
+                    search_term=keyword,
+                    location=loc_adapted,
+                    results_wanted=results_per_query,
+                    country_indeed="france",  # [FIX-13] minuscules canonical
+                    hours_old=hours_old,
+                    verbose=0,
+                )
+                if site == "google":
+                    kwargs["google_search_term"] = _build_google_search_term(
+                        keyword, loc_adapted, hours_old
+                    )
+                # [FIX-12] On NE force plus job_type="fulltime" : beaucoup d'offres
+                # CDI n'ont pas de métadonnée job_type et étaient éliminées.
 
-        done += 1
-        time.sleep(1.2)
+                df = scrape_jobs(**kwargs)
+
+                if df is not None and len(df) > 0:
+                    count = 0
+                    for _, row in df.iterrows():
+                        j = _row_to_job(row.to_dict())
+                        if j and j.get("url"):
+                            jobs.append(j)
+                            count += 1
+                    print(f"   ✅ [OK]   [{site}] '{keyword}' → {loc_adapted} : {count} offres")
+                    stats["ok"] += 1
+                    cb.record_success(site)
+                else:
+                    print(f"   ⚠️  [WARN] [{site}] '{keyword}' → {loc_adapted} : 0 résultats")
+                    stats["warn"] += 1
+
+            except Exception as exc:
+                print(f"   ❌ [ERROR] [{site}] '{keyword}' → {location}: {exc}")
+                stats["error"] += 1
+                cb.record_failure(site)
+
+            done += 1
+            time.sleep(1.2)
 
     print(f"\n   📊 Stats JobSpy — OK:{stats['ok']} WARN:{stats['warn']} ERROR:{stats['error']} | {cb.status_summary()}")
     return jobs
@@ -516,7 +534,6 @@ def _tokenize(text: str) -> List[str]:
 def _signature(job: Dict) -> Tuple[str, frozenset]:
     title = re.sub(r"\s+", " ", (job.get("title") or "").lower()).strip()
     company = re.sub(r"\s+", " ", (job.get("company") or "").lower()).strip()
-    # [FIX-8] Inclure la ville dans la clé de dédup
     city = (job.get("location") or "").lower().split(",")[0].strip()
     base = f"{title}@{company}@{city}"
     tokens = frozenset(_tokenize(title))
@@ -525,10 +542,10 @@ def _signature(job: Dict) -> Tuple[str, frozenset]:
 
 def deduplicate_smart(jobs: List[Dict]) -> List[Dict]:
     """
-    Supprime les doublons de manière sémantique.
-    [FIX-8] Niveau 0 : URL exacte (inter-plateformes).
-    Niveau 1 : Hash strict (Titre + Entreprise + Ville).
-    Niveau 2 : Jaccard ≥ 0.75 sur le titre pour la même entreprise.
+    [FIX-8] Dédup multi-niveaux :
+      Niveau 0 : URL exacte (inter-plateformes).
+      Niveau 1 : Hash strict (Titre + Entreprise + Ville).
+      Niveau 2 : Jaccard ≥ 0.75 sur le titre pour la même entreprise.
     """
     seen_urls: set = set()
     seen_keys: set = set()
@@ -536,7 +553,6 @@ def deduplicate_smart(jobs: List[Dict]) -> List[Dict]:
     out: List[Dict] = []
 
     for job in jobs:
-        # Niveau 0 : dédup par URL
         url = (job.get("url") or "").strip()
         if url and url in seen_urls:
             continue
@@ -572,7 +588,6 @@ def _build_skill_variants(skill_name: str) -> List[str]:
     """[FIX-7] Retourne toutes les variantes connues d'une compétence."""
     name_lower = skill_name.lower().strip()
     variants = {name_lower}
-    # Cherche dans les alias directs
     for canonical, aliases in SKILL_ALIASES.items():
         if name_lower == canonical or name_lower in aliases:
             variants.add(canonical)
@@ -596,10 +611,10 @@ def _freshness_bonus(posted_date: str) -> int:
 
 def score_job(job: Dict, profile: Dict, config: Dict) -> Dict:
     """
-    Score de pertinence (0-100).
     [FIX-7] Matching via alias de compétences (FEM = EF = Éléments Finis).
-    [FIX-2] Le filtre exclude_keywords (PhD/doctorat/thèse) ne s'applique 
-             qu'au TITRE, plus à la description entière.
+    [FIX-2] Le filtre exclude_keywords ne s'applique qu'au TITRE et uniquement
+            sur les termes de TYPE de poste (stage, alternance...). PhD/doctorat
+            retirés (offres R&D industrielles légitimes).
     """
     scoring = config.get("scoring", {})
     score = scoring.get("base_score", 20)
@@ -618,7 +633,6 @@ def score_job(job: Dict, profile: Dict, config: Dict) -> Dict:
     for skill in profile_skills:
         if not skill:
             continue
-        # [FIX-7] Tester toutes les variantes de la compétence
         variants = _build_skill_variants(skill)
         skill_found = False
         for variant in variants:
@@ -628,7 +642,6 @@ def score_job(job: Dict, profile: Dict, config: Dict) -> Dict:
         if skill_found:
             matched.append(skill)
             score += scoring.get("per_skill_match", 8)
-            # Bonus titre
             for variant in variants:
                 if variant in title_lower:
                     score += TITLE_BONUS
@@ -644,17 +657,12 @@ def score_job(job: Dict, profile: Dict, config: Dict) -> Dict:
             score += scoring.get("location_bonus", 5)
             break
 
-    # [FIX-2] CORRECTION CRITIQUE : exclude_keywords uniquement sur le TITRE
-    # Avant : if kw.lower() in title_lower  (mais la liste contenait PhD/doctorat qui filtraient des offres R&D légitimes)
-    # On distingue maintenant :
-    #   - Termes de TYPE de poste (stage, stagiaire, alternance, apprenti) → filtrés sur titre
-    #   - Termes académiques (doctorat, thèse, PhD) → NE PLUS filtrer du tout (offres R&D industrielles valides)
+    # [FIX-2] Filtre uniquement sur le TITRE et uniquement sur des types de poste
     HARD_TITLE_EXCLUDES = {"stage", "stagiaire", "alternance", "apprenti"}
     for kw in config.get("filters", {}).get("exclude_keywords", []):
-        if kw.lower() in HARD_TITLE_EXCLUDES:
-            if kw.lower() in title_lower:
-                score += scoring.get("stage_penalty", -50)
-                break
+        if kw.lower() in HARD_TITLE_EXCLUDES and kw.lower() in title_lower:
+            score += scoring.get("stage_penalty", -50)
+            break
 
     score += _freshness_bonus(job.get("posted_date", ""))
     job["fit_score"] = max(0, min(100, score))
@@ -753,7 +761,7 @@ def scan_advanced(
     keywords: List[str],
     locations: List[str],
     sites: List[str],
-    results_per_query: int = 15,
+    results_per_query: int = 20,
     use_llm_expansion: bool = True,
     use_llm_rerank: bool = True,
     use_llm_skills: bool = True,
@@ -773,10 +781,12 @@ def scan_advanced(
     config = load_config()
     profile = load_master_profile()
 
+    # [FIX-12] hours_old plus permissif (30 j par défaut au lieu de 7 j)
+    hours_old = int(config.get("search", {}).get("hours_old", 720))
+
     def _stopped() -> bool:
         return bool(should_stop and should_stop())
 
-    # 1. Expansion sémantique (avec cache [FIX-4])
     if use_llm_expansion and _gemini_client() and not _stopped():
         report(0.03, "🧠 Expansion sémantique des mots-clés (Gemini)…")
         keywords = expand_keywords_with_llm(keywords, profile, max_extra_per_keyword=2)
@@ -784,11 +794,11 @@ def scan_advanced(
 
     report(0.08, f"📡 {len(keywords)} mots-clés × {len(locations)} zones · {', '.join(sites)}")
 
-    # 2. Scrape JobSpy (avec priorités [FIX-1], localisation adaptée [FIX-3], circuit breaker [FIX-6])
     jobs = scan_jobspy(
         keywords=keywords,
         locations=locations,
         sites=sites,
+        hours_old=hours_old,
         results_per_query=results_per_query,
         progress_callback=progress_callback,
         should_stop=should_stop,
@@ -796,40 +806,45 @@ def scan_advanced(
     )
     report(0.68, f"✅ JobSpy : {len(jobs)} offres brutes")
 
-    # 3. Source bonus Remotive
     if use_remotive and not _stopped():
         report(0.72, "🌐 Recherche complémentaire (Remotive)…")
         rem = scan_remotive(keywords, limit_per_kw=10)
         jobs.extend(rem)
         report(0.78, f"✅ Remotive : +{len(rem)} offres")
 
-    # 4. Dédup multi-critères [FIX-8]
+    # [FIX-15] Diagnostic final si 0 offres brutes
+    if not jobs:
+        report(0.82, "❌ 0 offre brute collectée — vérifiez : sites disponibles, "
+                     "format des localisations, ou présence de la clé GEMINI_API_KEY.")
+        return []
+
     report(0.82, f"🔄 Déduplication ({len(jobs)} brut)…")
     unique = deduplicate_smart(jobs)
     report(0.84, f"✅ {len(unique)} offres uniques")
 
-    # 5. Scoring heuristique (avec alias [FIX-7] et fix PhD [FIX-2])
     report(0.86, "⭐ Scoring heuristique…")
     scored = [score_job(j, profile, config) for j in unique]
 
-    # 6. Re-ranking IA sur les meilleurs
     if use_llm_rerank and _gemini_client() and scored and not _stopped():
         report(0.90, "🧠 Re-classement IA (Gemini)…")
         scored = llm_rerank_top(scored, profile, top_n=25)
 
-    # 7. Extraction compétences
     if use_llm_skills and _gemini_client() and scored and not _stopped():
         report(0.95, "🔍 Extraction des compétences clés (Gemini)…")
         scored = llm_extract_skills(scored, top_n=15)
 
-    # [NOTE] min_score abaissé à 20 dans search_config.yaml pour la recalibration initiale.
-    # Une fois la distribution des scores observée, le remonter à 35-40.
     min_score = int(config.get("filters", {}).get("min_score", 20))
-    scored = [j for j in scored if j["fit_score"] >= min_score]
-    scored.sort(key=lambda x: x["fit_score"], reverse=True)
+    qualified = [j for j in scored if j["fit_score"] >= min_score]
+
+    # [FIX-14] Fallback : si AUCUNE offre ne passe le seuil, on garde les 25 meilleures
+    if not qualified and scored:
+        print(f"   ⚠️  Aucune offre n'atteint min_score={min_score} — fallback sur les 25 meilleures.")
+        qualified = sorted(scored, key=lambda x: x["fit_score"], reverse=True)[:25]
+
+    qualified.sort(key=lambda x: x["fit_score"], reverse=True)
 
     if _stopped():
-        report(1.0, f"⏸️ Recherche interrompue · {len(scored)} offres collectées")
+        report(1.0, f"⏸️ Recherche interrompue · {len(qualified)} offres collectées")
     else:
-        report(1.0, f"✅ {len(scored)} offres qualifiées prêtes !")
-    return scored
+        report(1.0, f"✅ {len(qualified)} offres qualifiées prêtes !")
+    return qualified

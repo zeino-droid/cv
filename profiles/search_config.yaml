@@ -1,6 +1,6 @@
 search:
   keywords:
-    # ── CORE (priorité 1 — passent en premier dans la matrice) ──
+    # ── CORE (priorité 1 — passent en premier dans la matrice de paires) ──
     - "Ingénieur CFD"
     - "Ingénieur simulation numérique"
     - "Ingénieur éléments finis"
@@ -12,8 +12,9 @@ search:
     - "Ingénieur R&D énergie"
     - "Ingénieur procédés industriels"
     - "Ingénieur R&D Python"
+
   locations:
-    # ── Villes CORE (priorité 1 — plus de postes simulation/R&D) ──
+    # ── Villes CORE (priorité 1) ──
     - "Paris, France"
     - "Lyon, France"
     - "Grenoble, France"
@@ -27,23 +28,39 @@ search:
     - "Marseille, France"
     # ── Fallback national (priorité 3 — toujours en dernier) ──
     - "France"
-  hours_old: 168
+
+  # [FIX-12] 720h = 30 jours. À 168h (7 j) la majorité des offres niche
+  # (CFD/EF/R&D thermique) renvoient 0 — ces postes restent ouverts plusieurs
+  # semaines. À remonter à 168 quand le pipeline trouve assez d'offres fraîches.
+  hours_old: 720
+
   results_per_query: 20
-  job_type: "fulltime"
+
+  # [FIX-12] job_type retiré : beaucoup d'offres CDI n'ont pas de métadonnée
+  # job_type côté scraper et étaient éliminées silencieusement par le filtre
+  # "fulltime". Le filtrage stage/alternance se fait maintenant via le scoring
+  # (HARD_TITLE_EXCLUDES) appliqué au TITRE uniquement [FIX-2].
+
   sites:
+    # [FIX-10] zip_recruiter SUPPRIMÉ : couverture US/CA uniquement → renvoyait
+    # silencieusement 0 offres pour toutes les requêtes France.
+    # indeed AJOUTÉ : indeed.fr est la 1ʳᵉ source d'offres CDI en France.
     - "google"
+    - "indeed"
     - "glassdoor"
-    - "zip_recruiter"
 
 filters:
   # [FIX NOTE] min_score abaissé à 20 pour recalibration.
+  # [FIX-14] Si 0 offre n'atteint ce seuil, le pipeline retombe automatiquement
+  # sur les 25 meilleures (fallback) plutôt que de renvoyer une liste vide.
   # Observer la distribution des scores sur 2-3 runs, puis remonter à 35.
   min_score: 20
+
   exclude_keywords:
-    # IMPORTANT : seuls ces termes filtrent les offres (sur le TITRE uniquement).
-    # PhD / doctorat / thèse ont été RETIRÉS de cette liste —
-    # car les offres R&D industrielles (votre cible) mentionnent souvent
-    # "Bac+5 ou PhD apprécié" dans la description sans être des postes de doctorant.
+    # [FIX-2] IMPORTANT : ces termes filtrent uniquement sur le TITRE.
+    # PhD / doctorat / thèse ont été RETIRÉS — les offres R&D industrielles
+    # (votre cible) mentionnent souvent "Bac+5 ou PhD apprécié" dans la
+    # description sans être des postes de doctorant.
     - "stage"
     - "stagiaire"
     - "alternance"
@@ -52,9 +69,11 @@ filters:
 scoring:
   base_score: 20
   per_skill_match: 8
-  # [FIX-7] Le matching de compétences utilise maintenant des alias définis dans
-  # sourcing_advanced.py (SKILL_ALIASES). Ex: "Abaqus" matchera aussi "Abaqus/CAE",
-  # "éléments finis" matchera "FEM", "FEA", "EF", "finite element".
+
+  # [FIX-7] Le matching de compétences utilise des alias définis dans
+  # sourcing_advanced.py (SKILL_ALIASES). Ex: "Abaqus" matchera aussi
+  # "Abaqus/CAE", "éléments finis" matchera "FEM", "FEA", "EF",
+  # "finite element".
   premium_keywords:
     simulation: 5
     modélisation: 5
@@ -71,13 +90,14 @@ scoring:
     procédés: 3
     Matlab: 3
     Metafor: 6
-    # Ajouts pour couvrir les termes anglais fréquents dans les offres FR
+    # Termes anglais fréquents dans les offres FR
     "finite element": 5
     "numerical simulation": 4
     "heat transfer": 4
     "digital twin": 5
     "FEM": 5
     "FEA": 5
+
   preferred_locations:
     - paris
     - lyon
@@ -89,5 +109,6 @@ scoring:
     - montpellier
     - aix
     - marseille
+
   location_bonus: 5
   stage_penalty: -50

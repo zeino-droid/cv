@@ -1018,7 +1018,7 @@ with tab_auto:
                         return scan_advanced(
                             keywords=keywords,
                             locations=sel_locations,
-                            sites=["google", "glassdoor", "zip_recruiter"],
+                            sites=["google", "indeed", "glassdoor"],
                             results_per_query=int(results_per_q),
                             use_llm_expansion=use_expansion,
                             use_llm_rerank=use_rerank,

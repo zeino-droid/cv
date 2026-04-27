@@ -1,0 +1,42 @@
+```
+Tu es un expert Python senior. J'ai un pipeline de sourcing d'offres d'emploi (GitHub : https://github.com/zeino-droid/cv) qui retourne 0 résultats malgré plusieurs tentatives de correction.
+
+## MISSION
+Lire le code source complet, identifier TOUTES les causes du problème, corriger et livrer les fichiers finaux qui fonctionnent.
+
+## FICHIERS À LIRE EN PRIORITÉ
+- engine/sourcing_advanced.py
+- profiles/search_config.yaml  
+- profiles/master_profile.json
+- requirements.txt
+
+## CONTEXTE
+Ingénieur simulation numérique (CFD, Éléments Finis, Abaqus, Ansys Fluent, Python) cherche CDI en France. Le pipeline utilise JobSpy pour scraper Google Jobs / Glassdoor, avec scoring heuristique et re-ranking Gemini.
+
+## PROBLÈMES CONNUS (déjà identifiés mais pas encore résolus)
+
+1. COMBINATOIRE : 10 keywords × 11 locations = 110 paires coupées à 60 sans priorisation → les combos core (CFD × Paris) peuvent ne jamais s'exécuter. Fix : trier par priorité avant de couper.
+
+2. FILTRE PhD TROP AGRESSIF : "PhD", "doctorat", "thèse" dans exclude_keywords filtrent des offres R&D industrielles légitimes qui mentionnent "Bac+5 ou PhD apprécié" dans la description. Fix : ne filtrer que sur le TITRE, et retirer ces 3 termes.
+
+3. FORMAT LOCATION INCOMPATIBLE : "Paris, France" n'est pas compris par Google Jobs / Glassdoor qui attendent "Paris" ou "Paris, Île-de-France". Fix : mapping par source.
+
+4. SCORING TROP SÉVÈRE : min_score=40 avec base=20 et +8/skill. Si la description est courte ou utilise des synonymes (FEM au lieu de "Éléments Finis"), le score n'atteint jamais 40. Fix : abaisser à 20 pour recalibration + table d'alias (FEM=EF=FEA="éléments finis").
+
+5. 0 RÉSULTATS SILENCIEUX : aucun log quand une combinaison retourne []. Fix : logger structuré [OK]/[WARN]/[ERROR] par combinaison.
+
+6. PAS DE CACHE LLM : Gemini appelé à chaque run pour la même expansion. Fix : cache JSON local TTL 7 jours.
+
+7. DÉDUPLICATION INCOMPLÈTE : même offre sur 2 sources avec URLs différentes = doublon non détecté. Fix : dédup sur (titre_normalisé + entreprise + ville) en plus de l'URL.
+
+8. PAS DE CIRCUIT BREAKER : si une source rate-limite, toutes ses requêtes échouent silencieusement. Fix : désactiver une source après 3 erreurs consécutives.
+
+## CE QUE JE VEUX
+
+1. Lire le code et VÉRIFIER si ces fixes ont déjà été appliqués ou non
+2. Identifier d'autres bugs que tu détectes en lisant (version JobSpy, imports manquants, logique cassée...)
+3. Tester mentalement le flux complet : expansion → scrape → dédup → score → filtre
+4. Produire sourcing_advanced.py et search_config.yaml entièrement corrigés et fonctionnels
+5. Commenter chaque fix avec [FIX-N] pour traçabilité
+6. Me dire explicitement ce qui causait le 0 résultats AVANT tes corrections
+```
