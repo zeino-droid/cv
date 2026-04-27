@@ -70,3 +70,25 @@ def test_filter_skills_by_profile_applies_minimum_floor():
     }
     skills = matching.filter_skills_by_profile("simulation_rd", profile_index)
     assert len(skills["hard_skills"]) >= 6
+
+
+def test_filter_skills_by_profile_keeps_transversal_skills_even_when_budget_is_tight():
+    profile_index = {
+        "profiles": {
+            "simulation_rd": {
+                "target_keywords": [f"stack{i}" for i in range(1, 13)],
+            }
+        },
+        "skills_taxonomy": {
+            "hard_skills": (
+                [{"name": f"Stack{i}", "level": "avancé"} for i in range(1, 13)]
+                + [{"name": "Git", "level": "intermédiaire"}]
+            ),
+            "domain_knowledge": [],
+            "soft_skills": [],
+        },
+    }
+    skills = matching.filter_skills_by_profile("simulation_rd", profile_index)
+    selected_names = [s["name"] for s in skills["hard_skills"]]
+    assert len(selected_names) == 12
+    assert "Git" in selected_names

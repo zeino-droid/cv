@@ -1,5 +1,4 @@
 import json
-import re
 from typing import Dict, List, Any, Optional
 from .matching import get_safe_personal_info
 
@@ -11,7 +10,7 @@ PROJECT_CONSTRAINTS = """
 SECTION "PROJETS TECHNIQUES" (distincte de "EXPÉRIENCES") :
 Pour CHAQUE projet retenu :
 - TITRE : MAX 70 caractères — doit contenir le(s) outil(s) clé(s). Format : "[Sujet] — [Outil] | [Contexte]"
-- DESCRIPTION : 1 seule ligne — MAX 150 caractères. Format : "[Verbe passé] + [méthode] + [résultat]"
+- DESCRIPTION : 1 seule ligne — MAX 150 caractères. Décrire clairement le sujet, l'approche et l'impact.
 - KEYWORDS : liste de 3 à 4 mots-clés techniques séparés par " · "
 INTERDIT : Bullets multiples, mention "TP/cours" (utiliser "Projet").
 """
@@ -29,7 +28,7 @@ EXPERIENCES (Pool A) :
 - MAXIMUM 2 expériences.
 - MAXIMUM 2 bullet points par expérience.
 - MAXIMUM 120 caractères par bullet (espaces inclus).
-- Format obligatoire : [Verbe d'action] + [Technologie/Méthode] + [Résultat chiffré].
+- Format recommandé : phrase claire, orientée contribution et impact.
 - Style obligatoire : vocabulaire technique dense, précis, sans remplissage.
 
 PROJETS (Pool B) :
@@ -68,7 +67,7 @@ EXPERIENCES:
 - MIN {config["min_pro_exp"]}, MAX {config["max_pro_exp"]} expériences
 - EXACTEMENT {config["max_bullets"]} bullets par expérience
 - MIN {config["min_bullet_chars"]}, MAX {config["max_bullet_chars"]} chars par bullet
-- Obligatoire : [Verbe] + [Outil] + [Résultat chiffré]
+- Rédiger des puces naturelles, concrètes et orientées impact
 
 PROJETS:
 - MIN {config["min_projects"]}, MAX {config["max_projects"]} projets
@@ -243,24 +242,5 @@ def _truncate_at_word(text: str, max_chars: int) -> str:
     return truncated + "…"
 
 def post_process_llm_output(raw_output: Dict, content_config: Optional[Dict] = None) -> Dict:
-    """Nettoie les mots interdits et valide les contraintes."""
-    forbidden_words = ["apprenti", "étudiant", "élève", "apprentissage", "etudiant", "eleve"]
-    
-    def clean_text(text: Any) -> Any:
-        if isinstance(text, str):
-            cleaned = text
-            for word in forbidden_words:
-                pattern = re.compile(re.escape(word), re.IGNORECASE)
-                if word.lower() in ["apprenti", "étudiant", "élève"]:
-                    cleaned = pattern.sub("Ingénieur", cleaned)
-                else:
-                    cleaned = pattern.sub("", cleaned)
-            return cleaned
-        elif isinstance(text, dict):
-            return {k: clean_text(v) for k, v in text.items()}
-        elif isinstance(text, list):
-            return [clean_text(item) for item in text]
-        return text
-
-    cleaned_output = clean_text(raw_output)
-    return validate_llm_output_constraints(cleaned_output, content_config=content_config)
+    """Valide les contraintes sans remplacement automatique de mots."""
+    return validate_llm_output_constraints(raw_output, content_config=content_config)

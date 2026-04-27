@@ -35,6 +35,47 @@ def _dedupe_skills(skills: list[dict]) -> list[dict]:
     return out
 
 
+def _force_include_transversal_skills(
+    selected: list[dict], layer_1_names: set[str], transversal_skills: list[dict], budget: int
+) -> list[dict]:
+    """Garantit la présence des compétences transversales clés dans la sélection finale."""
+    selected = list(selected)
+    selected_names = {str(s.get("name", "")).strip().lower() for s in selected}
+    transversal_names = {str(s.get("name", "")).strip().lower() for s in transversal_skills}
+
+    for skill in transversal_skills:
+        name = str(skill.get("name", "")).strip().lower()
+        if not name or name in selected_names:
+            continue
+
+        if len(selected) < budget:
+            selected.append(skill)
+            selected_names.add(name)
+            continue
+
+        replace_idx = None
+        for idx in range(len(selected) - 1, -1, -1):
+            candidate_name = str(selected[idx].get("name", "")).strip().lower()
+            if candidate_name not in transversal_names and candidate_name not in layer_1_names:
+                replace_idx = idx
+                break
+
+        if replace_idx is None:
+            for idx in range(len(selected) - 1, -1, -1):
+                candidate_name = str(selected[idx].get("name", "")).strip().lower()
+                if candidate_name not in transversal_names:
+                    replace_idx = idx
+                    break
+
+        if replace_idx is not None:
+            removed_name = str(selected[replace_idx].get("name", "")).strip().lower()
+            selected[replace_idx] = skill
+            selected_names.discard(removed_name)
+            selected_names.add(name)
+
+    return _dedupe_skills(selected)[:budget]
+
+
 def load_profile_index(json_path: str) -> dict:
     """Charge le JSON et le retourne sous forme de dictionnaire."""
     with open(json_path, 'r', encoding='utf-8') as f:
@@ -200,8 +241,13 @@ def filter_skills_by_profile(profile_id: str, profile_index: dict, selected_expe
         reverse=True,
     )
 
-    all_layers = _dedupe_skills(layer_1 + layer_2 + layer_3_pool)
-    selected = all_layers[: FILL_BUDGET["skills"]]
+    base_selection = _dedupe_skills(layer_1 + layer_3_pool)[: FILL_BUDGET["skills"]]
+    selected = _force_include_transversal_skills(
+        base_selection,
+        layer_1_names=l1_names,
+        transversal_skills=layer_2,
+        budget=FILL_BUDGET["skills"],
+    )
 
     filtered_skills = {
         "hard_skills": selected,

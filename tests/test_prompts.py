@@ -60,7 +60,7 @@ def test_validate_llm_output_constraints_handles_missing_cv():
     assert "Missing 'cv' key" in result["violations"]
 
 
-def test_post_process_llm_output_rewrites_forbidden_words():
+def test_post_process_llm_output_keeps_original_words_without_auto_replacement():
     raw = {
         "cv": {
             "headline": {"value": "Apprenti simulation"},
@@ -71,9 +71,9 @@ def test_post_process_llm_output_rewrites_forbidden_words():
     }
     result = prompts.post_process_llm_output(raw)
     cleaned = result["cv_data"]["cv"]
-    assert "Apprenti" not in cleaned["headline"]["value"]
-    assert "Étudiant" not in cleaned["summary"]["value"]
-    assert "apprentissage" not in cleaned["summary"]["value"].lower()
+    assert "Apprenti" in cleaned["headline"]["value"]
+    assert "Étudiant" in cleaned["summary"]["value"]
+    assert "apprentissage" in cleaned["summary"]["value"].lower()
 
 
 def test_validate_llm_output_constraints_flags_under_minimum_fields():
