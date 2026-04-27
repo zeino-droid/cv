@@ -15,6 +15,7 @@ Fonctionnalités Clés :
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -53,8 +54,16 @@ def load_config() -> Dict:
 
 
 def load_master_profile() -> Dict:
-    with open(MASTER_PROFILE_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
+    """Charge le profil maître. Retourne un profil minimal si le fichier est absent ou corrompu."""
+    if not MASTER_PROFILE_PATH.exists():
+        print("   ⚠️  master_profile.json introuvable — profil minimal utilisé.")
+        return {"personal_info": {}, "skills_taxonomy": {"hard_skills": [], "domain_knowledge": []}, "experience_stark": []}
+    try:
+        with open(MASTER_PROFILE_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError) as exc:
+        print(f"   ⚠️  Erreur lecture master_profile.json: {exc}")
+        return {"personal_info": {}, "skills_taxonomy": {"hard_skills": [], "domain_knowledge": []}, "experience_stark": []}
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -73,24 +82,34 @@ def _gemini_client():
         return None
 
 
-def _gemini_call(prompt: str, max_tokens: int = 800, model: str = "gemini-flash-latest") -> Optional[str]:
+def _gemini_call(prompt: str, max_tokens: int = 800, model: str = "gemini-flash-latest", retries: int = 2) -> Optional[str]:
+    """Appelle Gemini avec retry exponentiel en cas de rate-limit ou timeout."""
     client = _gemini_client()
     if client is None:
         return None
-    try:
-        from google.genai import types
-        resp = client.models.generate_content(
-            model=model,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                temperature=0.4,
-                max_output_tokens=max_tokens,
-            ),
-        )
-        return (resp.text or "").strip()
-    except Exception as exc:
-        print(f"   ⚠️  Gemini error: {exc}")
-        return None
+    for attempt in range(retries + 1):
+        try:
+            from google.genai import types
+            resp = client.models.generate_content(
+                model=model,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    temperature=0.4,
+                    max_output_tokens=max_tokens,
+                ),
+            )
+            return (resp.text or "").strip()
+        except Exception as exc:
+            err_str = str(exc).lower()
+            is_retryable = any(k in err_str for k in ("429", "rate", "quota", "timeout", "503", "overloaded"))
+            if is_retryable and attempt < retries:
+                wait = 2 ** (attempt + 1)  # 2s, 4s
+                print(f"   ⏳ Gemini rate-limited, retry dans {wait}s (tentative {attempt+1}/{retries})…")
+                time.sleep(wait)
+                continue
+            print(f"   ⚠️  Gemini error: {exc}")
+            return None
+    return None
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -154,12 +173,19 @@ def _clean(val) -> str:
     return "" if s in ("nan", "None", "NaT", "") else s
 
 
+def _stable_id(prefix: str, *parts: str) -> str:
+    """Génère un ID déterministe et stable entre les sessions Python."""
+    raw = "|".join(p.strip().lower() for p in parts)
+    digest = hashlib.md5(raw.encode("utf-8")).hexdigest()[:12]
+    return f"{prefix}-{digest}"
+
+
 def _row_to_job(row: Dict) -> Optional[Dict]:
     title = _clean(row.get("title", ""))
     company = _clean(row.get("company", ""))
     if not title or not company:
         return None
-    job_id = f"JSP-{abs(hash(title + company))}"
+    job_id = _stable_id("JSP", title, company)
     return {
         "id": job_id,
         "title": title,
@@ -194,37 +220,44 @@ def scan_jobspy(
 
     safe_sites = [s for s in sites if s in ALLOWED_SITES] or ["google", "glassdoor"]
     jobs: List[Dict] = []
-    total = max(len(keywords) * len(locations), 1)
+
+    # Budget de requêtes : évite l'explosion combinatoire (ex: 30 kw × 11 locs = 330 requêtes)
+    MAX_REQUESTS = 60
+    pairs = [(kw, loc) for kw in keywords for loc in locations]
+    if len(pairs) > MAX_REQUESTS:
+        print(f"   ⚠️  {len(pairs)} combinaisons → limité à {MAX_REQUESTS} (budget anti-explosion)")
+        pairs = pairs[:MAX_REQUESTS]
+
+    total = max(len(pairs), 1)
     done = 0
 
-    for keyword in keywords:
-        for location in locations:
-            if should_stop and should_stop():
-                return jobs
-            try:
-                if progress_callback:
-                    pct = 0.10 + 0.55 * (done / total)
-                    progress_callback(pct, f"🔍 '{keyword}' → {location}")
+    for keyword, location in pairs:
+        if should_stop and should_stop():
+            return jobs
+        try:
+            if progress_callback:
+                pct = 0.10 + 0.55 * (done / total)
+                progress_callback(pct, f"🔍 '{keyword}' → {location}")
 
-                df = scrape_jobs(
-                    site_name=safe_sites,
-                    search_term=keyword,
-                    location=location,
-                    results_wanted=results_per_query,
-                    country_indeed="France",
-                    job_type="fulltime",
-                    hours_old=hours_old,
-                    verbose=0,
-                )
-                if df is not None and len(df) > 0:
-                    for _, row in df.iterrows():
-                        j = _row_to_job(row.to_dict())
-                        if j and j.get("url"):
-                            jobs.append(j)
-            except Exception as exc:
-                print(f"   ⚠️  JobSpy '{keyword}' → {location}: {exc}")
-            done += 1
-            time.sleep(1.2)
+            df = scrape_jobs(
+                site_name=safe_sites,
+                search_term=keyword,
+                location=location,
+                results_wanted=results_per_query,
+                country_indeed="France",
+                job_type="fulltime",
+                hours_old=hours_old,
+                verbose=0,
+            )
+            if df is not None and len(df) > 0:
+                for _, row in df.iterrows():
+                    j = _row_to_job(row.to_dict())
+                    if j and j.get("url"):
+                        jobs.append(j)
+        except Exception as exc:
+            print(f"   ⚠️  JobSpy '{keyword}' → {location}: {exc}")
+        done += 1
+        time.sleep(1.2)
     return jobs
 
 
@@ -264,7 +297,7 @@ def scan_remotive(keywords: List[str], limit_per_kw: int = 15) -> List[Dict]:
                 desc = re.sub(r"<[^>]+>", " ", desc_html)
                 desc = re.sub(r"\s+", " ", desc).strip()
                 jobs.append({
-                    "id": f"RMT-{abs(hash(title + company))}",
+                    "id": _stable_id("RMT", title, company),
                     "title": title,
                     "company": company,
                     "location": offer.get("candidate_required_location") or "Remote",
@@ -288,7 +321,8 @@ def scan_remotive(keywords: List[str], limit_per_kw: int = 15) -> List[Dict]:
 #  4. DÉDUPLICATION TF-IDF (sémantique légère)
 # ──────────────────────────────────────────────────────────────────
 
-_WORD_RE = re.compile(r"[a-zàâäéèêëîïôöùûüç0-9]{3,}", re.IGNORECASE)
+# Seuil à 2 caractères pour capturer les acronymes techniques (CFD, IA, R&D)
+_WORD_RE = re.compile(r"[a-zàâäéèêëîïôöùûüç0-9]{2,}", re.IGNORECASE)
 
 
 def _tokenize(text: str) -> List[str]:
@@ -371,7 +405,9 @@ def score_job(job: Dict, profile: Dict, config: Dict) -> Dict:
     """
     scoring = config.get("scoring", {})
     score = scoring.get("base_score", 20)
-    haystack = f"{job.get('title','')} {job.get('description','')}".lower()
+    title_lower = (job.get("title") or "").lower()
+    desc_lower = (job.get("description") or "").lower()
+    haystack = f"{title_lower} {desc_lower}"
 
     taxonomy = profile.get("skills_taxonomy", {})
     profile_skills: List[str] = []
@@ -380,12 +416,17 @@ def score_job(job: Dict, profile: Dict, config: Dict) -> Dict:
     profile_skills.extend(taxonomy.get("domain_knowledge", []))
 
     matched: List[str] = []
+    TITLE_BONUS = 6  # Bonus si le mot-clé apparaît dans le titre (plus significatif)
     for skill in profile_skills:
         if not skill:
             continue
-        if skill.lower() in haystack:
+        skill_low = skill.lower()
+        if skill_low in haystack:
             matched.append(skill)
             score += scoring.get("per_skill_match", 8)
+            # Bonus titre : un skill dans le titre est bien plus significatif
+            if skill_low in title_lower:
+                score += TITLE_BONUS
 
     for kw, bonus in scoring.get("premium_keywords", {}).items():
         if str(kw).lower() in haystack:
@@ -397,7 +438,6 @@ def score_job(job: Dict, profile: Dict, config: Dict) -> Dict:
             score += scoring.get("location_bonus", 5)
             break
 
-    title_lower = (job.get("title") or "").lower()
     for kw in config.get("filters", {}).get("exclude_keywords", []):
         if kw.lower() in title_lower:
             score += scoring.get("stage_penalty", -50)
