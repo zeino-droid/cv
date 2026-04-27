@@ -383,8 +383,15 @@ def generate_documents(job: dict, gen_cv: bool, gen_letter: bool, use_llm: bool,
 
 # ─── COPILOTE IA : réécriture ciblée via le LLM existant ─────────
 def _copilot_rewrite(target: str, command: str, current_summary: str,
-                     current_letter: str, job: dict, profile: dict) -> str | None:
-    """Appelle le LLM (Gemini via cv_generator) pour réécrire un texte ciblé."""
+                     current_letter: str, job: dict, profile: dict,
+                     custom_text: str = "") -> tuple[str | None, str | None]:
+    """Appelle le LLM (Gemini via cv_generator) pour réécrire un texte ciblé.
+
+    Renvoie un tuple `(texte_reformule, message_erreur)`.
+      - succès : `("...", None)`
+      - échec  : `(None, "message clair pour l'UI")`
+    """
+    target = (target or "").strip()
     if target == "Résumé CV":
         current_text = current_summary or ""
         context_hint = "résumé de CV (3-4 lignes max, orienté ATS, en français)"
@@ -392,6 +399,15 @@ def _copilot_rewrite(target: str, command: str, current_summary: str,
         chunks = (current_letter or "").split("\n\n")
         current_text = chunks[2] if len(chunks) > 2 else (current_letter or "")[:500]
         context_hint = "premier paragraphe d'une lettre de motivation (en français)"
+    elif target == "Lettre complète":
+        current_text = current_letter or ""
+        context_hint = "lettre de motivation complète (en français)"
+    elif target == "Texte libre (accroche, expérience, brique CV…)":
+        current_text = (custom_text or "").strip()
+        context_hint = ("brique de candidature libre (accroche, titre de profil, "
+                        "puce d'expérience, pitch de compétence, etc.) — en français")
+        if not current_text:
+            return None, "Colle d'abord le texte à reformuler dans le champ 'Texte à reformuler'."
     else:
         current_text = current_letter or ""
         context_hint = "lettre de motivation complète (en français)"
@@ -414,21 +430,39 @@ RÈGLES STRICTES :
 - Réponds UNIQUEMENT avec le texte réécrit, rien d'autre
 """
 
+    err_holder: dict = {"msg": None}
+
     async def _call_llm():
         try:
             from engine.cv_generator import PersonalCVGenerator
             gen = PersonalCVGenerator()
-            if getattr(gen, "llm", None) is None:
+            llm = getattr(gen, "llm", None)
+            if llm is None:
+                err_holder["msg"] = (
+                    "Aucun moteur LLM disponible. Vérifie que GEMINI_API_KEY est bien "
+                    "configurée dans les secrets Replit."
+                )
                 return None
-            return await gen.llm.generate(prompt, temperature=0.4)
+            text = await llm.generate(prompt, temperature=0.4)
+            if text is None:
+                # Récupère un message clair si le moteur en a posté un
+                err_holder["msg"] = (
+                    getattr(llm, "last_error_message", None)
+                    or "Le moteur LLM n'a renvoyé aucun texte."
+                )
+            return text
         except Exception as exc:
-            st.error(f"Erreur LLM : {exc}")
+            err_holder["msg"] = f"Erreur LLM : {exc}"
             return None
 
-    result = run_coroutine_sync(_call_llm(), context="copilot rewrite")
-    if isinstance(result, str):
-        return result.strip()
-    return None
+    try:
+        result = run_coroutine_sync(_call_llm(), context="copilot rewrite")
+    except Exception as exc:
+        return None, f"Erreur d'exécution asynchrone : {exc}"
+
+    if isinstance(result, str) and result.strip():
+        return result.strip(), None
+    return None, err_holder["msg"] or "Le copilote n'a renvoyé aucun texte."
 
 
 # ─── MODALE STUDIO ───────────────────────────────────────────────
@@ -662,9 +696,26 @@ def studio_dialog(job_id: str):
                 )
                 cop_target = st.radio(
                     "Cible",
-                    ["Résumé CV", "Lettre complète", "Introduction lettre uniquement"],
-                    horizontal=True, key=f"cop_target_{job_id}",
+                    [
+                        "Résumé CV",
+                        "Lettre complète",
+                        "Introduction lettre uniquement",
+                        "Texte libre (accroche, expérience, brique CV…)",
+                    ],
+                    horizontal=False, key=f"cop_target_{job_id}",
                 )
+                # Champ "texte libre" visible uniquement si la cible le requiert
+                cop_custom_text = ""
+                if cop_target == "Texte libre (accroche, expérience, brique CV…)":
+                    cop_custom_text = st.text_area(
+                        "Texte à reformuler",
+                        placeholder=(
+                            "Colle ici le texte exact à reformuler : une accroche, "
+                            "une puce d'expérience, un pitch de compétence, etc."
+                        ),
+                        height=120,
+                        key=f"cop_custom_{job_id}",
+                    )
                 cop_cmd = st.text_input(
                     "Instruction",
                     placeholder="Ex: Reformule en orienté impact business",
@@ -677,22 +728,41 @@ def studio_dialog(job_id: str):
                         st.warning("Tape une instruction d'abord.")
                     else:
                         with st.spinner("Le copilote réécrit..."):
-                            rewritten = _copilot_rewrite(
+                            rewritten, err = _copilot_rewrite(
                                 target=cop_target, command=cop_cmd,
                                 current_summary=gen_state.get("edited_summary", ""),
                                 current_letter=gen_state.get("letter_text", ""),
                                 job=job, profile=profile,
+                                custom_text=cop_custom_text,
                             )
                         if rewritten:
                             if cop_target == "Résumé CV":
                                 gen_state["edited_summary"] = rewritten
+                                st.success("✅ Résumé mis à jour. Pense à recompiler le PDF.")
+                            elif cop_target == "Texte libre (accroche, expérience, brique CV…)":
+                                # On ne touche à rien automatiquement : on affiche le résultat
+                                # pour que l'utilisateur copie/colle où il veut.
+                                gen_state[f"copilot_freeform_result_{job_id}"] = rewritten
+                                st.success("✅ Texte reformulé — copie-le où tu veux ci-dessous.")
                             else:
                                 gen_state["letter_text"] = rewritten
+                                st.success("✅ Lettre mise à jour. Pense à recompiler le PDF.")
                             st.session_state[state_key] = gen_state
-                            st.success("✅ Texte mis à jour. Pense à recompiler le PDF.")
-                            st.rerun()
+                            if cop_target != "Texte libre (accroche, expérience, brique CV…)":
+                                st.rerun()
                         else:
-                            st.error("Le copilote n'a rien renvoyé (clé API manquante ?).")
+                            st.error("❌ " + (err or "Le copilote n'a rien renvoyé."))
+
+                # Affichage persistant du dernier résultat "texte libre"
+                freeform_result = gen_state.get(f"copilot_freeform_result_{job_id}")
+                if cop_target == "Texte libre (accroche, expérience, brique CV…)" and freeform_result:
+                    st.markdown("**📝 Texte reformulé (copie-le où tu veux) :**")
+                    st.text_area(
+                        "Résultat",
+                        value=freeform_result,
+                        height=140,
+                        key=f"cop_freeform_result_{job_id}",
+                    )
 
             # ───── BLOC VALIDATION & EXPORT ────────────────────
             st.markdown("---")
