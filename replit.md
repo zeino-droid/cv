@@ -78,7 +78,7 @@ UI minimale, un seul bouton **"🚀 Trouver mes offres"** :
 
 ## Tests
 
-`tests/` : `test_database.py`, `test_cv_generator_unit.py`, `test_matching.py`, `test_prompts.py`, `integrity_check.py`. Le test JobSpy a été retiré avec l'ancien module.
+`tests/` : `test_database.py`, `test_cv_generator_unit.py`, `test_matching.py`, `test_prompts.py`, `test_sourcing_orchestrator.py` (smoke tests dégradé / dédup / isolation des erreurs / profils), `integrity_check.py`.
 
 ## Important — Préférences utilisateur
 
