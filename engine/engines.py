@@ -186,13 +186,16 @@ class GeminiEngine(LLMEngine):
     quotas free-tier.
     """
 
-    # Chaîne de fallback : chaque modèle a son propre quota free tier
+    # Chaîne de fallback : chaque modèle a son propre quota free tier.
+    # Vérifiée via client.models.list() — on ne liste que des modèles qui
+    # existent et supportent generateContent. Les anciens 1.5/exp sont retirés
+    # car ils renvoient 404 sur l'API v1beta actuelle.
     FALLBACK_MODELS = [
         "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
         "gemini-2.0-flash",
-        "gemini-2.0-flash-exp",
-        "gemini-1.5-flash",
-        "gemini-1.5-flash-8b",
+        "gemini-2.0-flash-lite",
+        "gemini-flash-lite-latest",
     ]
 
     def __init__(self, api_key: str = None, model_name: str = "gemini-flash-latest"):
