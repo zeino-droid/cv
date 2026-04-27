@@ -7,79 +7,88 @@
 # scraper son site (anti-pattern).
 #
 # `slug` = identifiant utilisé dans l'URL d'API. Exemples :
-#   greenhouse    → https://boards-api.greenhouse.io/v1/boards/{slug}/jobs
-#   lever         → https://api.lever.co/v0/postings/{slug}?mode=json
-#   workable      → https://apply.workable.com/api/v1/widget/accounts/{slug}
+#   greenhouse      → https://boards-api.greenhouse.io/v1/boards/{slug}/jobs
+#   lever           → https://api.lever.co/v0/postings/{slug}?mode=json
+#   workable        → https://apply.workable.com/api/v1/widget/accounts/{slug}
 #   smartrecruiters → https://api.smartrecruiters.com/v1/companies/{slug}/postings
 #
 # Pour ajouter une entreprise :
 #   1. Trouver son ATS : aller sur sa page carrières et regarder l'URL/réseau.
 #   2. Identifier le slug (souvent le nom dans l'URL).
-#   3. Tester : curl https://boards-api.greenhouse.io/v1/boards/{slug}/jobs
-#   4. Si l'API renvoie du JSON → ajouter ici.
+#   3. Tester avec le script d'audit :
+#        python scripts/audit_target_companies.py
+#      ou pour un seul slug :
+#        python scripts/audit_target_companies.py smartrecruiters MonSlug
+#   4. Si l'API renvoie du JSON avec des offres → ajouter ici.
+#
+# ─── Audit du 2026-04-27 ────────────────────────────────────────────────
+# Les slugs SmartRecruiters initiaux pour les majors industriels n'étaient
+# plus valides : Dassault Systèmes, Hexagon, ArcelorMittal, Safran,
+# TotalEnergies, Forvia/Faurecia, Valeo retournaient 0 offres (ces
+# entreprises ont migré vers Workday / SAP SuccessFactors / leur propre
+# plateforme, qui n'exposent pas d'API publique).
+#
+# Recherche publique (CEA, CNRS, Onera, INRIA, IFPEN, Orano, EDF, RTE,
+# Naval Group, MBDA, ArianeGroup, Dassault Aviation) : aucun n'expose un
+# slug SmartRecruiters/Greenhouse/Lever/Workable exploitable. Le projet
+# `simu-skills.fr` ou un crawler dédié serait nécessaire — hors scope du
+# Companies Watcher actuel.
 # ════════════════════════════════════════════════════════════════════════════
 
 companies:
 
-  # ─── Éditeurs de logiciels de simulation ──────────────────────────────
-  - name: "Dassault Systèmes"
-    category: "editeurs_simu"
-    ats: "smartrecruiters"
-    slug: "DassaultSystmes"
-
-  - name: "Hexagon (incl. MSC Software)"
-    category: "editeurs_simu"
-    ats: "smartrecruiters"
-    slug: "HexagonAB"
-
-  # ─── Industriels métallurgie & matériaux ───────────────────────────────
-  - name: "ArcelorMittal"
-    category: "metallurgie"
-    ats: "smartrecruiters"
-    slug: "ArcelorMittal"
-
   # ─── Aéronautique & Défense ────────────────────────────────────────────
-  - name: "Safran"
-    category: "aero_defense"
-    ats: "smartrecruiters"
-    slug: "Safran"
-
+  # Thales : seul major aéro/défense FR avec API SR publique active.
+  # Volume très faible (la majorité des postes passe par leur propre site
+  # talent.thalesgroup.com), mais l'endpoint répond → on garde.
   - name: "Thales"
     category: "aero_defense"
     ats: "smartrecruiters"
     slug: "Thales"
 
-  - name: "Airbus"
-    category: "aero_defense"
-    ats: "workday"
-    slug: "airbus"  # Workday non supporté nativement → le watcher l'ignorera et loggera
+  # ─── Sociétés d'ingénierie & R&D externalisée ──────────────────────────
+  # Cœur de cible : ces ESN d'ingénierie placent des consultants en simu /
+  # CFD / R&D chez les grands donneurs d'ordre (Safran, Stellantis, EDF…).
+  - name: "ALTEN"
+    category: "rd_services"
+    ats: "smartrecruiters"
+    slug: "ALTEN"
 
-  # ─── Énergie ──────────────────────────────────────────────────────────
-  - name: "TotalEnergies"
+  - name: "Segula Technologies"
+    category: "rd_services"
+    ats: "smartrecruiters"
+    slug: "SegulaTechnologies"
+
+  - name: "Assystem"
+    category: "rd_services"
+    ats: "smartrecruiters"
+    slug: "Assystem"
+
+  - name: "Egis Group"
+    category: "rd_services"
+    ats: "smartrecruiters"
+    slug: "EgisGroup"
+
+  - name: "Sopra Steria"
+    category: "rd_services"
+    ats: "smartrecruiters"
+    slug: "SopraSteria1"
+
+  - name: "Devoteam"
+    category: "rd_services"
+    ats: "smartrecruiters"
+    slug: "Devoteam"
+
+  # ─── Énergie / transition énergétique ──────────────────────────────────
+  - name: "Verkor"
     category: "energie"
-    ats: "smartrecruiters"
-    slug: "TotalEnergies"
-
-  - name: "Schneider Electric"
-    category: "energie"
-    ats: "smartrecruiters"
-    slug: "SchneiderElectric"
-
-  # ─── Automobile ───────────────────────────────────────────────────────
-  - name: "Forvia"
-    category: "auto"
-    ats: "smartrecruiters"
-    slug: "Faurecia1"
-
-  - name: "Valeo"
-    category: "auto"
-    ats: "smartrecruiters"
-    slug: "Valeo3"
+    ats: "lever"
+    slug: "verkor"
 
   # ─── Tech / R&D Paris (Greenhouse / Lever — ATS très répandus) ─────────
   - name: "Doctolib"
     category: "tech_rd"
-    ats: "lever"
+    ats: "greenhouse"
     slug: "doctolib"
 
   - name: "BlaBlaCar"
@@ -107,23 +116,50 @@ companies:
     ats: "greenhouse"
     slug: "stripe"
 
+  - name: "Mistral AI"
+    category: "tech_rd"
+    ats: "lever"
+    slug: "mistral"
+
+  - name: "Qonto"
+    category: "tech_rd"
+    ats: "lever"
+    slug: "qonto"
+
+  - name: "Pigment"
+    category: "tech_rd"
+    ats: "lever"
+    slug: "pigment"
+
+  - name: "Aircall"
+    category: "tech_rd"
+    ats: "lever"
+    slug: "aircall"
+
+  - name: "Contentsquare"
+    category: "tech_rd"
+    ats: "lever"
+    slug: "contentsquare"
+
 # Catégories disponibles pour la sélection UI
 categories:
-  - id: "editeurs_simu"
-    label: "Éditeurs de simulation"
-    emoji: "🧮"
-  - id: "metallurgie"
-    label: "Métallurgie & Matériaux"
-    emoji: "⚙️"
   - id: "aero_defense"
     label: "Aéronautique & Défense"
     emoji: "✈️"
+  - id: "rd_services"
+    label: "Ingénierie & R&D externalisée"
+    emoji: "🛠️"
   - id: "energie"
     label: "Énergie"
     emoji: "⚡"
-  - id: "auto"
-    label: "Automobile"
-    emoji: "🚗"
   - id: "tech_rd"
     label: "Tech & R&D"
     emoji: "💻"
+
+# ─── Catégories retirées lors de l'audit du 2026-04-27 ───────────────────
+# Les catégories `editeurs_simu`, `metallurgie` et `auto` ont été supprimées
+# car aucun employeur correspondant n'expose encore une API ATS publique
+# exploitable (les éditeurs de simu — Ansys, Cadence, Synopsys, Altair, ESI —
+# et les constructeurs auto FR ont migré vers Workday / SuccessFactors).
+# Si un slug valide est retrouvé pour l'un d'eux (via le script d'audit),
+# ré-ajouter d'abord la catégorie ici puis l'entrée `company` correspondante.

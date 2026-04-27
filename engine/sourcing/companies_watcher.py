@@ -383,7 +383,7 @@ def search(
     Interroge en parallèle les pages carrières des employeurs cibles,
     filtre par mots-clés et localisation France.
 
-    `selected_categories` : liste d'ids de catégories (ex ["editeurs_simu", "energie"]).
+    `selected_categories` : liste d'ids de catégories (ex ["rd_services", "energie"]).
                             Si None → toutes les catégories.
     """
     targets = load_targets()

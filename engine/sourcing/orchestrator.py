@@ -122,7 +122,7 @@ def scan_jobs(
         "summary": "…",
       }
 
-    `selected_categories` : pour le Companies Watcher (ex ["editeurs_simu", "energie"])
+    `selected_categories` : pour le Companies Watcher (ex ["rd_services", "energie"])
     `departments`         : codes département pour France Travail (ex ["75","69","31"])
     `extra_keywords`      : mots-clés ajoutés manuellement par l'utilisateur
     """

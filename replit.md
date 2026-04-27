@@ -35,10 +35,12 @@ engine/sourcing/
    Free tier : 1000 req/mois → cache disque 24h.
 
 3. **🎯 Companies Watcher** — l'innovation : surveille activement les pages carrières d'employeurs français curés (`profiles/target_companies.yaml`) via leurs APIs ATS publiques :
-   - Greenhouse Job Board API (Datadog, Stripe, Mirakl, Algolia…)
-   - Lever Postings API (BlaBlaCar, Doctolib…)
+   - Greenhouse Job Board API (Doctolib, Datadog, Stripe, Mirakl, Algolia…)
+   - Lever Postings API (BlaBlaCar, Mistral AI, Qonto, Pigment, Aircall, Verkor, Contentsquare…)
    - Workable Widget API
-   - SmartRecruiters Public Postings API (Dassault Systèmes, ArcelorMittal, Safran, Thales, TotalEnergies, Schneider, Forvia, Valeo…)
+   - SmartRecruiters Public Postings API (ALTEN, Segula, Assystem, Egis, Sopra Steria, Devoteam, Thales…)
+
+   La liste est auditable / extensible via `python scripts/audit_target_companies.py` (ping chaque slug et reporte status + offres FR).
 
 ### Pipeline de scoring partagé
 
