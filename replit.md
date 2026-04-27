@@ -69,16 +69,45 @@ UI minimale, un seul bouton **"🚀 Trouver mes offres"** :
 - 3 toggles IA (expansion / re-rank / extraction skills) — auto-désactivés si Gemini absent
 - Pattern asynchrone existant conservé : `ThreadPoolExecutor + threading.Event` permet d'annuler la recherche en cours sans perdre les offres déjà collectées.
 
+## Studio de Candidature — édition section-par-section
+
+Le Studio (modal Dashboard.py) permet de générer un CV adapté à une offre puis de l'**éditer section par section** avec l'aide de l'IA.
+
+### Sections éditables (`engine/section_rewrite.py`)
+
+Catalogue `EDITABLE_SECTIONS` — 9 sections pointables : 🎯 Accroche, 📝 Résumé, 💼 Puces d'expérience (par `exp_id`), 🚀 Description / Mots-clés de projet (par `proj_id`), 🛠️ Compétences techniques, 🧠 Connaissances métier, 🤝 Savoir-être, ✉️ Lettre.
+
+Pour chaque section, l'IA reçoit **(a) la donnée brute du profil maître** (via `extract_source`), **(b) la version courante du CV** (via `extract_current`), **(c) l'offre**, **(d) l'instruction utilisateur**. Réponse parsée typée (str / list_str / str_dot_separated) via `parse_section_value`.
+
+### Flow utilisateur
+
+1. Génération initiale du CV (sélection auto du profil cible + LLM + compactage Typst).
+2. Onglets section-par-section dans le Studio : aperçu courant + champ instruction + bouton 🤖.
+3. Proposition affichée → boutons ✅ Appliquer / ❌ Annuler.
+4. Override stocké dans `gen_state["section_overrides"]` (dict imbriqué par `section_key`).
+5. Bouton 🔄 Recompiler → `generate_documents` passe `section_overrides` à `cv_generator.generate_one_page_cv` → `_apply_text_overrides` injecte les overrides après assemblage final → nouveau PDF.
+
+### Garde-fous UX
+
+- `find_unapplied_overrides` détecte les overrides per-item dont l'`id` n'est plus présent dans le CV courant (ex : expérience écartée par le compactage) et affiche un warning expanddable dans le Studio.
+- Les overrides legacy (`headline_override`, `summary_override`) restent supportés pour rétrocompatibilité ; les `section_overrides` ont la priorité.
+- Les `id` des expériences/projets sont **propagés depuis le profil maître** dans `_assemble_final_data` (sans ça, le matching d'overrides par id ne fonctionne pas).
+
 ## Autres modules
 
 - `engine/database.py` — SQLite, statuts, upsert idempotent, ID stable hash MD5
-- `engine/cv_generator.py` — génération CV/LM via Gemini + rendu Typst
+- `engine/cv_generator.py` — génération CV/LM via Gemini + rendu Typst, avec injection des `section_overrides`
+- `engine/section_rewrite.py` — réécriture LLM ciblée d'UNE section (catalogue + extract + prompt + parse)
 - `engine/prompts.py` — prompts factorisés
 - `Sniper.py` — CLI standalone fast-apply (utilise `scan_jobs()` aussi)
 
 ## Tests
 
-`tests/` : `test_database.py`, `test_cv_generator_unit.py`, `test_matching.py`, `test_prompts.py`, `test_sourcing_orchestrator.py` (smoke tests dégradé / dédup / isolation des erreurs / profils), `integrity_check.py`.
+`tests/` :
+- `test_database.py`, `test_cv_generator_unit.py`, `test_matching.py`, `test_prompts.py` (existants)
+- `test_sourcing_orchestrator.py` (4 tests : dégradé / dédup / isolation des erreurs / profils)
+- `test_section_rewrite.py` (29 tests : catalogue, extract source/current, prompt, parsing, lettre, find_unapplied_overrides, intégration overrides via `cv_generator._apply_text_overrides`)
+- `integrity_check.py`
 
 ## Important — Préférences utilisateur
 

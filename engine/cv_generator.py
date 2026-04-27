@@ -438,11 +438,13 @@ class PersonalCVGenerator:
         job: Dict,
         headline_override: Optional[str] = None,
         summary_override: Optional[str] = None,
+        section_overrides: Optional[Dict[str, Any]] = None,
     ) -> Dict:
         return await self.generate_one_page_cv(
             job,
             headline_override=headline_override,
             summary_override=summary_override,
+            section_overrides=section_overrides,
         )
 
     async def generate_one_page_cv(
@@ -450,6 +452,7 @@ class PersonalCVGenerator:
         job: Dict,
         headline_override: Optional[str] = None,
         summary_override: Optional[str] = None,
+        section_overrides: Optional[Dict[str, Any]] = None,
     ) -> Dict:
         """Génère un CV avec Shrink Loop et séparation des pools Pro/Projets."""
         job_data = self._normalize_job(job)
@@ -572,6 +575,7 @@ class PersonalCVGenerator:
                 cv_data,
                 headline_override=headline_override,
                 summary_override=summary_override,
+                section_overrides=section_overrides,
             )
 
             rank_fill_report = ranked_content.get("fill_report", {})
@@ -665,14 +669,79 @@ class PersonalCVGenerator:
         cv_data: Dict,
         headline_override: Optional[str] = None,
         summary_override: Optional[str] = None,
+        section_overrides: Optional[Dict[str, Any]] = None,
     ) -> Dict:
+        """
+        Applique les overrides utilisateur sur le CV assemblé.
+
+        - `headline_override` / `summary_override` : compatibilité historique.
+        - `section_overrides` : overrides granulaires par section, schéma :
+            {
+              "headline": str,
+              "summary": str,
+              "achievements": {exp_id: [puce, ...]},
+              "project_description": {proj_id: str},
+              "project_keywords": {proj_id: str},
+              "skills_hard": [str, ...],
+              "skills_domain": [str, ...],
+              "skills_soft": [str, ...],
+            }
+        Les overrides granulaires écrasent les overrides legacy si présents.
+        """
         data = copy.deepcopy(cv_data)
-        headline = (headline_override or "").strip()
-        summary = (summary_override or "").strip()
+        section_overrides = section_overrides or {}
+
+        # 1. Headline & summary (overrides legacy + section_overrides)
+        headline = (section_overrides.get("headline") or headline_override or "").strip()
+        summary = (section_overrides.get("summary") or summary_override or "").strip()
         if headline:
             data["headline"] = re.sub(r"\s*:\s*", " : ", headline)
         if summary:
             data["summary"] = re.sub(r"\s*:\s*", " : ", summary)
+
+        # 2. Achievements par expérience (clé = exp_id provenant du profil maître)
+        ach_overrides = section_overrides.get("achievements") or {}
+        if ach_overrides:
+            for exp in data.get("experiences", []):
+                eid = exp.get("id")
+                if eid and eid in ach_overrides:
+                    new_bullets = [
+                        re.sub(r"\s*:\s*", " : ", str(b)).strip()
+                        for b in ach_overrides[eid]
+                        if str(b).strip()
+                    ]
+                    if new_bullets:
+                        exp["achievements"] = new_bullets
+
+        # 3. Description / mots-clés de projets (clé = proj_id)
+        desc_overrides = section_overrides.get("project_description") or {}
+        kw_overrides = section_overrides.get("project_keywords") or {}
+        if desc_overrides or kw_overrides:
+            for proj in data.get("projects", []):
+                pid = proj.get("id")
+                if pid and pid in desc_overrides:
+                    proj["description"] = str(desc_overrides[pid]).strip()
+                if pid and pid in kw_overrides:
+                    proj["keywords"] = str(kw_overrides[pid]).strip()
+
+        # 4. Compétences (3 sous-groupes) — remplace TOUT le sous-groupe si présent
+        grouped = data.setdefault("grouped_skills", {})
+        skill_map = {
+            "skills_hard": "Compétences Techniques",
+            "skills_domain": "Connaissances Métier",
+            "skills_soft": "Savoir-être",
+        }
+        for ov_key, group_label in skill_map.items():
+            items = section_overrides.get(ov_key)
+            if items is None:
+                continue
+            cleaned = [str(s).strip() for s in items if str(s).strip()]
+            if cleaned:
+                grouped[group_label] = [{"name": s} for s in cleaned]
+            elif group_label in grouped:
+                # liste vide explicite → on retire le groupe
+                del grouped[group_label]
+
         return data
 
     def _assemble_final_data(
@@ -713,6 +782,7 @@ class PersonalCVGenerator:
 
             final_exps.append(
                 {
+                    "id": exp.get("id"),
                     "position": rewritten_title,
                     "company": exp.get("company"),
                     "start_date": exp.get("period", "").split("-")[0].strip(),
@@ -756,6 +826,7 @@ class PersonalCVGenerator:
             
             final_projs.append(
                 {
+                    "id": p.get("id"),
                     "name": rewritten_proj_title,
                     "description": g.get("one_line_description", p.get("D", "")),
                     "keywords": g.get("keywords_inline", " · ".join(p.get("K", []))),

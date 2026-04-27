@@ -298,8 +298,14 @@ def safe_filename(value: str, max_len: int = 60) -> str:
 # ─── GÉNÉRATION (CV + LETTRE) ────────────────────────────────────
 def generate_documents(job: dict, gen_cv: bool, gen_letter: bool, use_llm: bool,
                        headline_override: str | None = None,
-                       summary_override: str | None = None) -> dict:
-    """Lance la génération CV + lettre via les modules existants."""
+                       summary_override: str | None = None,
+                       section_overrides: dict | None = None) -> dict:
+    """Lance la génération CV + lettre via les modules existants.
+
+    `section_overrides` permet de réinjecter des éditions ciblées par section
+    (puces d'expérience, compétences, projets…) — voir
+    `engine.cv_generator.PersonalCVGenerator._apply_text_overrides` pour le schéma.
+    """
     profile = load_profile()
     cv_result: dict = {}
     letter_text = ""
@@ -314,6 +320,7 @@ def generate_documents(job: dict, gen_cv: bool, gen_letter: bool, use_llm: bool,
                 job,
                 headline_override=headline_override or None,
                 summary_override=summary_override or None,
+                section_overrides=section_overrides or None,
             ),
             context="CV generation",
         )
@@ -382,87 +389,435 @@ def generate_documents(job: dict, gen_cv: bool, gen_letter: bool, use_llm: bool,
 
 
 # ─── COPILOTE IA : réécriture ciblée via le LLM existant ─────────
-def _copilot_rewrite(target: str, command: str, current_summary: str,
-                     current_letter: str, job: dict, profile: dict,
-                     custom_text: str = "") -> tuple[str | None, str | None]:
-    """Appelle le LLM (Gemini via cv_generator) pour réécrire un texte ciblé.
+def _rewrite_section_call(
+    section_key: str,
+    instruction: str,
+    profile: dict,
+    cv_data: dict,
+    job: dict,
+    item_id: str | None = None,
+) -> tuple[object, str | None]:
+    """Appelle le rewriter section-par-section (cf. engine.section_rewrite).
 
-    Renvoie un tuple `(texte_reformule, message_erreur)`.
-      - succès : `("...", None)`
-      - échec  : `(None, "message clair pour l'UI")`
+    Renvoie `(valeur_typée, message_erreur)`. La valeur est typée selon la section
+    (str pour headline/summary/letter/description, list[str] pour les puces
+    d'expérience et les listes de compétences, str pour les mots-clés projet).
     """
-    target = (target or "").strip()
-    if target == "Résumé CV":
-        current_text = current_summary or ""
-        context_hint = "résumé de CV (3-4 lignes max, orienté ATS, en français)"
-    elif target == "Introduction lettre uniquement":
-        chunks = (current_letter or "").split("\n\n")
-        current_text = chunks[2] if len(chunks) > 2 else (current_letter or "")[:500]
-        context_hint = "premier paragraphe d'une lettre de motivation (en français)"
-    elif target == "Lettre complète":
-        current_text = current_letter or ""
-        context_hint = "lettre de motivation complète (en français)"
-    elif target == "Texte libre (accroche, expérience, brique CV…)":
-        current_text = (custom_text or "").strip()
-        context_hint = ("brique de candidature libre (accroche, titre de profil, "
-                        "puce d'expérience, pitch de compétence, etc.) — en français")
-        if not current_text:
-            return None, "Colle d'abord le texte à reformuler dans le champ 'Texte à reformuler'."
-    else:
-        current_text = current_letter or ""
-        context_hint = "lettre de motivation complète (en français)"
-
-    prompt = f"""Tu es un expert en rédaction de candidatures pour ingénieurs en France.
-
-TEXTE ACTUEL ({context_hint}) :
-{current_text}
-
-POSTE CIBLÉ : {job.get('title','')} chez {job.get('company','')}
-LIEU : {job.get('location','')}
-COMPÉTENCES CLÉ : {', '.join((job.get('matched_skills') or [])[:6])}
-
-INSTRUCTION DE L'UTILISATEUR : {command}
-
-RÈGLES STRICTES :
-- Garde la même structure si l'utilisateur ne précise pas autrement
-- Reste professionnel et naturel, en français
-- N'ajoute AUCUN préambule type "Voici le texte réécrit :"
-- Réponds UNIQUEMENT avec le texte réécrit, rien d'autre
-"""
-
-    err_holder: dict = {"msg": None}
-
-    async def _call_llm():
-        try:
-            from engine.cv_generator import PersonalCVGenerator
-            gen = PersonalCVGenerator()
-            llm = getattr(gen, "llm", None)
-            if llm is None:
-                err_holder["msg"] = (
-                    "Aucun moteur LLM disponible. Vérifie que GEMINI_API_KEY est bien "
-                    "configurée dans les secrets Replit."
-                )
-                return None
-            text = await llm.generate(prompt, temperature=0.4)
-            if text is None:
-                # Récupère un message clair si le moteur en a posté un
-                err_holder["msg"] = (
-                    getattr(llm, "last_error_message", None)
-                    or "Le moteur LLM n'a renvoyé aucun texte."
-                )
-            return text
-        except Exception as exc:
-            err_holder["msg"] = f"Erreur LLM : {exc}"
-            return None
+    from engine.cv_generator import PersonalCVGenerator
+    from engine.section_rewrite import rewrite_section
 
     try:
-        result = run_coroutine_sync(_call_llm(), context="copilot rewrite")
+        gen = PersonalCVGenerator()
+    except Exception as exc:
+        return None, f"Impossible d'initialiser le moteur : {exc}"
+
+    llm = getattr(gen, "llm", None)
+    if llm is None:
+        return None, (
+            "Aucun moteur LLM disponible. Vérifie que GEMINI_API_KEY est bien "
+            "configurée dans les secrets Replit."
+        )
+
+    async def _go():
+        return await rewrite_section(
+            llm,
+            section_key=section_key,
+            profile=profile,
+            cv_data=cv_data,
+            job=job,
+            instruction=instruction,
+            item_id=item_id,
+        )
+
+    try:
+        return run_coroutine_sync(_go(), context=f"section_rewrite:{section_key}")
     except Exception as exc:
         return None, f"Erreur d'exécution asynchrone : {exc}"
 
+
+def _rewrite_letter_call(
+    instruction: str,
+    current_letter: str,
+    job: dict,
+) -> tuple[str | None, str | None]:
+    """Réécrit la lettre de motivation entière en s'appuyant sur la version actuelle."""
+    from engine.cv_generator import PersonalCVGenerator
+
+    try:
+        gen = PersonalCVGenerator()
+    except Exception as exc:
+        return None, f"Impossible d'initialiser le moteur : {exc}"
+
+    llm = getattr(gen, "llm", None)
+    if llm is None:
+        return None, "Aucun moteur LLM disponible. Vérifie GEMINI_API_KEY."
+
+    prompt = f"""Tu es un expert en rédaction de lettres de motivation pour ingénieurs en France.
+
+LETTRE ACTUELLE :
+{current_letter or '(vide)'}
+
+POSTE VISÉ : {job.get('title','')} chez {job.get('company','')} — {job.get('location','')}
+COMPÉTENCES CIBLÉES : {', '.join((job.get('matched_skills') or [])[:8])}
+EXTRAIT DE L'OFFRE :
+{(job.get('description') or '')[:1200]}
+
+INSTRUCTION DE L'UTILISATEUR : {instruction}
+
+RÈGLES :
+- Garde une structure 3-4 paragraphes (intro / valeur / motivation / call-to-action).
+- Ton pro mais incarné (1ère personne).
+- 250-400 mots.
+- N'ajoute AUCUN préambule type "Voici la lettre :".
+- Réponds UNIQUEMENT avec la lettre réécrite.
+"""
+
+    async def _go():
+        try:
+            return await llm.generate(prompt, temperature=0.4)
+        except Exception as exc:
+            return f"__ERR__{exc}"
+
+    try:
+        result = run_coroutine_sync(_go(), context="letter_rewrite")
+    except Exception as exc:
+        return None, f"Erreur d'exécution asynchrone : {exc}"
+
+    if result is None:
+        return None, getattr(llm, "last_error_message", None) or "Aucune réponse du LLM."
+    if isinstance(result, str) and result.startswith("__ERR__"):
+        return None, f"Erreur LLM : {result[7:]}"
     if isinstance(result, str) and result.strip():
         return result.strip(), None
-    return None, err_holder["msg"] or "Le copilote n'a renvoyé aucun texte."
+    return None, "Le LLM n'a rien renvoyé."
+
+
+# ─── ÉDITEUR DE SECTION (nouvelle UI Studio) ────────────────────
+def _section_block(
+    *,
+    section_key: str,
+    job_id: str,
+    job: dict,
+    profile: dict,
+    cv_data: dict,
+    gen_state: dict,
+    state_key: str,
+    item_id: str | None = None,
+    item_label: str | None = None,
+):
+    """Affiche un bloc d'édition pour UNE section ciblée.
+
+    Le bloc montre :
+      - la valeur actuelle (lecture seule)
+      - un champ d'instruction
+      - un bouton "Améliorer avec l'IA"
+      - quand une proposition existe : preview + Appliquer / Annuler
+    Les overrides validés sont stockés dans `gen_state["section_overrides"]`.
+    """
+    from engine.section_rewrite import EDITABLE_SECTIONS, extract_current
+
+    spec = EDITABLE_SECTIONS.get(section_key, {})
+    icon = spec.get("icon", "")
+    label = spec.get("label", section_key)
+    value_type = spec.get("value_type", "str")
+
+    # Clé unique pour widgets (intègre item_id si applicable)
+    suffix = f"{section_key}_{item_id}" if item_id else section_key
+    suffix = suffix.replace(" ", "_").replace("/", "_")
+
+    # Valeur actuelle = override si existe, sinon valeur du CV courant
+    overrides = gen_state.setdefault("section_overrides", {})
+    if spec.get("per_item"):
+        bucket = overrides.get(section_key, {})
+        current_override = bucket.get(item_id)
+    else:
+        current_override = overrides.get(section_key)
+
+    if current_override is not None:
+        current_val = current_override
+    else:
+        current_val = extract_current(cv_data, section_key, item_id=item_id)
+
+    # ── Affichage de la valeur actuelle ──
+    title = f"**{icon} {label}**"
+    if item_label:
+        title += f" — *{item_label}*"
+    st.markdown(title)
+
+    if current_override is not None:
+        st.caption("✏️ Édition appliquée (sera utilisée à la recompilation)")
+
+    if value_type == "list_str":
+        current_str = "\n".join(f"• {x}" for x in (current_val or []))
+        st.text_area(
+            "Contenu actuel",
+            value=current_str,
+            height=80 if section_key == "achievements" else 110,
+            disabled=True,
+            key=f"sec_show_{suffix}_{job_id}",
+            label_visibility="collapsed",
+        )
+    else:
+        height = {
+            "headline": 60,
+            "summary": 110,
+            "project_description": 60,
+            "project_keywords": 60,
+            "letter": 240,
+        }.get(section_key, 80)
+        st.text_area(
+            "Contenu actuel",
+            value=str(current_val or ""),
+            height=height,
+            disabled=True,
+            key=f"sec_show_{suffix}_{job_id}",
+            label_visibility="collapsed",
+        )
+
+    # ── Champ instruction + bouton IA ──
+    instruction = st.text_input(
+        "Demande à l'IA",
+        placeholder="Ex : Ajoute une mention CFD · Rends plus concret · Insiste sur Python",
+        key=f"sec_instr_{suffix}_{job_id}",
+    )
+
+    c_ai, c_clear = st.columns([3, 1])
+    with c_ai:
+        run_ai = st.button(
+            f"🤖 Améliorer avec l'IA",
+            key=f"sec_ai_{suffix}_{job_id}",
+            use_container_width=True,
+            type="primary",
+        )
+    with c_clear:
+        clear_btn = st.button(
+            "↩️ Reset" if current_override is not None else "—",
+            key=f"sec_clear_{suffix}_{job_id}",
+            use_container_width=True,
+            disabled=current_override is None,
+            help="Annule l'édition et revient à la version générée",
+        )
+
+    if clear_btn and current_override is not None:
+        if spec.get("per_item"):
+            overrides[section_key] = {
+                k: v for k, v in overrides.get(section_key, {}).items() if k != item_id
+            }
+            if not overrides[section_key]:
+                del overrides[section_key]
+        else:
+            overrides.pop(section_key, None)
+        st.session_state[state_key] = gen_state
+        st.rerun()
+
+    if run_ai:
+        if not instruction.strip():
+            st.warning("Précise ton instruction avant de lancer l'IA.")
+        else:
+            with st.spinner("L'IA retravaille cette section..."):
+                if section_key == "letter":
+                    val, err = _rewrite_letter_call(
+                        instruction=instruction.strip(),
+                        current_letter=str(current_val or ""),
+                        job=job,
+                    )
+                else:
+                    val, err = _rewrite_section_call(
+                        section_key=section_key,
+                        instruction=instruction.strip(),
+                        profile=profile,
+                        cv_data=cv_data,
+                        job=job,
+                        item_id=item_id,
+                    )
+            if err or val is None:
+                st.error(f"❌ {err or 'Réponse vide.'}")
+            else:
+                # Stocker comme proposition en attente (pas appliqué tant que pas validé)
+                proposals = gen_state.setdefault("section_proposal", {})
+                prop_key = f"{section_key}::{item_id}" if item_id else section_key
+                proposals[prop_key] = val
+                st.session_state[state_key] = gen_state
+                st.rerun()
+
+    # ── Affichage proposition en attente ──
+    proposals = gen_state.get("section_proposal", {})
+    prop_key = f"{section_key}::{item_id}" if item_id else section_key
+    proposal = proposals.get(prop_key)
+    if proposal is not None:
+        st.markdown("##### 💡 Proposition de l'IA")
+        if value_type == "list_str":
+            prop_str = "\n".join(f"• {x}" for x in proposal)
+        else:
+            prop_str = str(proposal)
+        st.text_area(
+            "Proposition",
+            value=prop_str,
+            height=120,
+            key=f"sec_prop_{suffix}_{job_id}",
+            label_visibility="collapsed",
+        )
+        cap, can = st.columns(2)
+        with cap:
+            if st.button("✅ Appliquer", type="primary",
+                         key=f"sec_apply_{suffix}_{job_id}",
+                         use_container_width=True):
+                if section_key == "letter":
+                    gen_state["letter_text"] = str(proposal)
+                else:
+                    if spec.get("per_item"):
+                        bucket = overrides.setdefault(section_key, {})
+                        bucket[item_id] = proposal
+                    else:
+                        overrides[section_key] = proposal
+                proposals.pop(prop_key, None)
+                st.session_state[state_key] = gen_state
+                st.success("Édition enregistrée. Clique sur 🔄 Recompiler pour mettre à jour le PDF.")
+                st.rerun()
+        with can:
+            if st.button("❌ Annuler",
+                         key=f"sec_cancel_{suffix}_{job_id}",
+                         use_container_width=True):
+                proposals.pop(prop_key, None)
+                st.session_state[state_key] = gen_state
+                st.rerun()
+
+
+def _render_section_editor(job: dict, profile: dict, gen_state: dict,
+                            state_key: str, job_id: str):
+    """Onglets section-par-section pour éditer le CV + lettre avec aide de l'IA."""
+    from engine.section_rewrite import list_experience_items, list_project_items
+
+    cv_data_src = gen_state.get("cv_data") or {}
+    if not cv_data_src:
+        st.info(
+            "Le CV n'a pas encore été généré pour cette offre. "
+            "Lance d'abord la génération initiale."
+        )
+        return
+
+    # Enrichit cv_data avec letter_text courant pour que extract_current(letter) fonctionne
+    cv_data = dict(cv_data_src)
+    cv_data["letter_text"] = gen_state.get("letter_text", "") or ""
+
+    st.markdown("##### ✨ Édition assistée par l'IA")
+    st.caption(
+        "Choisis une section, formule ta demande, valide la proposition. "
+        "L'IA voit ton profil maître + l'offre pour adapter au plus juste."
+    )
+
+    # Avertit si des overrides ne matchent plus aucun item du CV courant
+    from engine.section_rewrite import find_unapplied_overrides
+    unmatched = find_unapplied_overrides(cv_data, gen_state.get("section_overrides") or {})
+    if unmatched:
+        with st.expander(f"⚠️ {len(unmatched)} édition(s) en attente sans correspondance dans le CV courant",
+                         expanded=False):
+            for msg in unmatched:
+                st.warning(msg)
+            st.caption(
+                "Ces éditions concernent des items qui ne sont plus présents dans le CV "
+                "(par ex. une expérience écartée par la sélection automatique). "
+                "Elles seront ignorées tant qu'elles ne matchent pas un id présent."
+            )
+
+    exp_items = list_experience_items(cv_data)
+    proj_items = list_project_items(cv_data)
+
+    tab_labels = [
+        "🎯 Accroche",
+        "📝 Résumé",
+        "💼 Expériences",
+        "🚀 Projets",
+        "🛠️ Compétences",
+        "✉️ Lettre",
+    ]
+    tabs = st.tabs(tab_labels)
+
+    common = dict(
+        job=job, profile=profile, cv_data=cv_data,
+        gen_state=gen_state, state_key=state_key, job_id=job_id,
+    )
+
+    # 🎯 Accroche
+    with tabs[0]:
+        _section_block(section_key="headline", **common)
+
+    # 📝 Résumé
+    with tabs[1]:
+        _section_block(section_key="summary", **common)
+
+    # 💼 Expériences (sélecteur d'expérience)
+    with tabs[2]:
+        if not exp_items:
+            st.info("Aucune expérience dans le CV courant.")
+        else:
+            labels = [e["label"] for e in exp_items]
+            chosen = st.selectbox(
+                "Quelle expérience retravailler ?",
+                options=range(len(labels)),
+                format_func=lambda i: labels[i],
+                key=f"sel_exp_{job_id}",
+            )
+            chosen_exp = exp_items[chosen]
+            _section_block(
+                section_key="achievements",
+                item_id=chosen_exp["id"],
+                item_label=chosen_exp["label"],
+                **common,
+            )
+
+    # 🚀 Projets (sélecteur + 2 sous-éditions : description + mots-clés)
+    with tabs[3]:
+        if not proj_items:
+            st.info("Aucun projet dans le CV courant.")
+        else:
+            labels = [p["label"] for p in proj_items]
+            chosen = st.selectbox(
+                "Quel projet retravailler ?",
+                options=range(len(labels)),
+                format_func=lambda i: labels[i],
+                key=f"sel_proj_{job_id}",
+            )
+            chosen_proj = proj_items[chosen]
+            _section_block(
+                section_key="project_description",
+                item_id=chosen_proj["id"],
+                item_label=chosen_proj["label"],
+                **common,
+            )
+            st.markdown("---")
+            _section_block(
+                section_key="project_keywords",
+                item_id=chosen_proj["id"],
+                item_label=chosen_proj["label"],
+                **common,
+            )
+
+    # 🛠️ Compétences (3 sous-onglets)
+    with tabs[4]:
+        sub_tabs = st.tabs(["🛠️ Techniques", "🧠 Métier", "🤝 Savoir-être"])
+        with sub_tabs[0]:
+            _section_block(section_key="skills_hard", **common)
+        with sub_tabs[1]:
+            _section_block(section_key="skills_domain", **common)
+        with sub_tabs[2]:
+            _section_block(section_key="skills_soft", **common)
+
+    # ✉️ Lettre
+    with tabs[5]:
+        # Pour la lettre, on autorise aussi une édition manuelle directe
+        st.markdown("**✉️ Lettre de motivation**")
+        edited_letter = st.text_area(
+            "Modifie directement la lettre ici, ou utilise l'IA en dessous",
+            value=gen_state.get("letter_text", ""),
+            height=240,
+            key=f"letter_manual_{job_id}",
+        )
+        if edited_letter != gen_state.get("letter_text", ""):
+            gen_state["letter_text"] = edited_letter
+            st.session_state[state_key] = gen_state
+        st.markdown("---")
+        _section_block(section_key="letter", **common)
 
 
 # ─── MODALE STUDIO ───────────────────────────────────────────────
@@ -504,14 +859,9 @@ def studio_dialog(job_id: str):
         except Exception:
             gen_state.setdefault("letter_text", "")
 
-    # Pré-remplit le résumé par défaut depuis le profil
-    if "edited_summary" not in gen_state or not gen_state.get("edited_summary"):
-        default_summary = (
-            (profile.get("personal_info") or {}).get("summary_default")
-            or (profile.get("personal_info") or {}).get("summary")
-            or "Ingénieur R&D — modélisation, simulation et data engineering."
-        )
-        gen_state["edited_summary"] = default_summary
+    # Initialise le dict d'overrides section-par-section
+    if "section_overrides" not in gen_state:
+        gen_state["section_overrides"] = {}
         st.session_state[state_key] = gen_state
 
     # ── 2 ONGLETS ───────────────────────────────────────────────
@@ -584,18 +934,15 @@ def studio_dialog(job_id: str):
                     try:
                         result = generate_documents(
                             job, gen_cv=True, gen_letter=True, use_llm=True,
-                            headline_override=gen_state.get("edited_headline"),
-                            summary_override=gen_state.get("edited_summary"),
+                            section_overrides=gen_state.get("section_overrides") or {},
                         )
                         gen_state.update(result)
                         if result.get("letter_text"):
                             gen_state["letter_text"] = result["letter_text"]
-                        # Récupère headline/summary réellement utilisés par le générateur
+                        # Stocker cv_data complet pour l'éditeur section-par-section
                         cv_res = result.get("cv_result") or {}
-                        if cv_res.get("headline"):
-                            gen_state["edited_headline"] = cv_res["headline"]
-                        if cv_res.get("summary"):
-                            gen_state["edited_summary"] = cv_res["summary"]
+                        if cv_res.get("cv_data"):
+                            gen_state["cv_data"] = cv_res["cv_data"]
                         gen_state["studio_initialized"] = True
                         st.session_state[state_key] = gen_state
                         st.success("✅ Génération terminée. Aperçu PDF disponible ci-dessous.")
@@ -645,124 +992,36 @@ def studio_dialog(job_id: str):
                         try:
                             result = generate_documents(
                                 job, gen_cv=True, gen_letter=False, use_llm=False,
-                                headline_override=gen_state.get("edited_headline"),
-                                summary_override=gen_state.get("edited_summary"),
+                                section_overrides=gen_state.get("section_overrides") or {},
                             )
                             gen_state["cv_path"] = result.get("cv_path", "")
+                            cv_res = result.get("cv_result") or {}
+                            if cv_res.get("cv_data"):
+                                gen_state["cv_data"] = cv_res["cv_data"]
                             st.session_state[state_key] = gen_state
                             st.rerun()
                         except Exception as exc:
                             st.error(f"Erreur : {exc}")
 
-            # ───── COLONNE DROITE : ÉDITION + COPILOTE ─────────
+                if gen_state.get("section_overrides"):
+                    n_over = sum(
+                        len(v) if isinstance(v, dict) else (1 if v else 0)
+                        for v in gen_state["section_overrides"].values()
+                    )
+                    st.caption(
+                        f"✏️ {n_over} édition(s) en attente — clique 'Recompiler' pour les appliquer."
+                    )
+                    if st.button("🗑️ Effacer toutes mes éditions",
+                                 use_container_width=True,
+                                 key=f"clear_overrides_{job_id}"):
+                        gen_state["section_overrides"] = {}
+                        gen_state.pop("section_proposal", None)
+                        st.session_state[state_key] = gen_state
+                        st.rerun()
+
+            # ───── COLONNE DROITE : ÉDITION SECTION PAR SECTION ────
             with edit_col:
-                st.markdown("##### ✏️ Édition manuelle")
-                edited_headline = st.text_area(
-                    "Accroche",
-                    value=gen_state.get("edited_headline", ""),
-                    height=70, key=f"hl_{job_id}",
-                    placeholder="Ex: Ingénieur R&D · Python · Simulation thermomécanique",
-                )
-                gen_state["edited_headline"] = edited_headline
-
-                edited_summary = st.text_area(
-                    "Résumé professionnel",
-                    value=gen_state.get("edited_summary", ""),
-                    height=140, key=f"sm_{job_id}",
-                )
-                gen_state["edited_summary"] = edited_summary
-                cnt = len(edited_summary)
-                color = "#4ade80" if cnt <= 400 else "#f87171"
-                st.markdown(
-                    f"<span style='font-size:0.72rem;color:{color};'>"
-                    f"{cnt}/400 caractères recommandés</span>",
-                    unsafe_allow_html=True,
-                )
-
-                edited_letter = st.text_area(
-                    "Lettre de motivation",
-                    value=gen_state.get("letter_text", ""),
-                    height=240, key=f"lt_{job_id}",
-                )
-                gen_state["letter_text"] = edited_letter
-                st.session_state[state_key] = gen_state
-
-                st.markdown("---")
-                st.markdown("##### 🤖 Copilote IA")
-                st.caption(
-                    "Demande des retouches ciblées. "
-                    "Ex : *Rends l'intro plus orientée résultats* · "
-                    "*Ajoute une mention CFD* · *Raccourcis la lettre*"
-                )
-                cop_target = st.radio(
-                    "Cible",
-                    [
-                        "Résumé CV",
-                        "Lettre complète",
-                        "Introduction lettre uniquement",
-                        "Texte libre (accroche, expérience, brique CV…)",
-                    ],
-                    horizontal=False, key=f"cop_target_{job_id}",
-                )
-                # Champ "texte libre" visible uniquement si la cible le requiert
-                cop_custom_text = ""
-                if cop_target == "Texte libre (accroche, expérience, brique CV…)":
-                    cop_custom_text = st.text_area(
-                        "Texte à reformuler",
-                        placeholder=(
-                            "Colle ici le texte exact à reformuler : une accroche, "
-                            "une puce d'expérience, un pitch de compétence, etc."
-                        ),
-                        height=120,
-                        key=f"cop_custom_{job_id}",
-                    )
-                cop_cmd = st.text_input(
-                    "Instruction",
-                    placeholder="Ex: Reformule en orienté impact business",
-                    key=f"cop_cmd_{job_id}",
-                )
-                if st.button("⚡ Appliquer", type="primary",
-                             use_container_width=True,
-                             key=f"cop_run_{job_id}"):
-                    if not cop_cmd.strip():
-                        st.warning("Tape une instruction d'abord.")
-                    else:
-                        with st.spinner("Le copilote réécrit..."):
-                            rewritten, err = _copilot_rewrite(
-                                target=cop_target, command=cop_cmd,
-                                current_summary=gen_state.get("edited_summary", ""),
-                                current_letter=gen_state.get("letter_text", ""),
-                                job=job, profile=profile,
-                                custom_text=cop_custom_text,
-                            )
-                        if rewritten:
-                            if cop_target == "Résumé CV":
-                                gen_state["edited_summary"] = rewritten
-                                st.success("✅ Résumé mis à jour. Pense à recompiler le PDF.")
-                            elif cop_target == "Texte libre (accroche, expérience, brique CV…)":
-                                # On ne touche à rien automatiquement : on affiche le résultat
-                                # pour que l'utilisateur copie/colle où il veut.
-                                gen_state[f"copilot_freeform_result_{job_id}"] = rewritten
-                                st.success("✅ Texte reformulé — copie-le où tu veux ci-dessous.")
-                            else:
-                                gen_state["letter_text"] = rewritten
-                                st.success("✅ Lettre mise à jour. Pense à recompiler le PDF.")
-                            st.session_state[state_key] = gen_state
-                            if cop_target != "Texte libre (accroche, expérience, brique CV…)":
-                                st.rerun()
-                        else:
-                            st.error("❌ " + (err or "Le copilote n'a rien renvoyé."))
-
-                # Affichage persistant du dernier résultat "texte libre"
-                freeform_result = gen_state.get(f"copilot_freeform_result_{job_id}")
-                if cop_target == "Texte libre (accroche, expérience, brique CV…)" and freeform_result:
-                    st.markdown("**📝 Texte reformulé (copie-le où tu veux) :**")
-                    st.text_area(
-                        "Résultat",
-                        value=freeform_result,
-                        height=140,
-                        key=f"cop_freeform_result_{job_id}",
-                    )
+                _render_section_editor(job, profile, gen_state, state_key, job_id)
 
             # ───── BLOC VALIDATION & EXPORT ────────────────────
             st.markdown("---")
@@ -804,10 +1063,12 @@ def studio_dialog(job_id: str):
                         # On recompile une dernière fois avec les éditions
                         result = generate_documents(
                             job, gen_cv=True, gen_letter=False, use_llm=False,
-                            headline_override=gen_state.get("edited_headline"),
-                            summary_override=gen_state.get("edited_summary"),
+                            section_overrides=gen_state.get("section_overrides") or {},
                         )
                         gen_state["cv_path"] = result.get("cv_path", "") or gen_state.get("cv_path", "")
+                        cv_res = result.get("cv_result") or {}
+                        if cv_res.get("cv_data"):
+                            gen_state["cv_data"] = cv_res["cv_data"]
                         # Persiste la lettre éditée
                         if gen_state.get("letter_text"):
                             out_dir = ROOT / "vault" / safe_filename(
@@ -817,11 +1078,13 @@ def studio_dialog(job_id: str):
                             lp = out_dir / "lettre.txt"
                             lp.write_text(gen_state["letter_text"], encoding="utf-8")
                             gen_state["letter_path"] = str(lp)
+                        # Récupère headline/summary du CV final pour archive
+                        final_cv_data = gen_state.get("cv_data") or {}
                         # Sauvegarde versions finales
                         db.save_resume_version(
                             job_id=job_id,
-                            headline=gen_state.get("edited_headline", ""),
-                            summary=gen_state.get("edited_summary", ""),
+                            headline=final_cv_data.get("headline", ""),
+                            summary=final_cv_data.get("summary", ""),
                             cv_path=gen_state.get("cv_path", ""),
                             is_final=True,
                             notes="Validée finale par l'utilisateur",
@@ -844,10 +1107,11 @@ def studio_dialog(job_id: str):
             if st.button("📤 J'ai postulé — clore la candidature",
                          type="secondary", use_container_width=True,
                          key=f"sent_{job_id}"):
+                final_cv_data = gen_state.get("cv_data") or {}
                 db.mark_as_sent(
                     job_id=job_id, via="manual",
-                    edited_headline=gen_state.get("edited_headline", ""),
-                    edited_summary=gen_state.get("edited_summary", ""),
+                    edited_headline=final_cv_data.get("headline", ""),
+                    edited_summary=final_cv_data.get("summary", ""),
                     vault_path=gen_state.get("cv_path") or gen_state.get("letter_path"),
                 )
                 st.session_state.pop(state_key, None)
