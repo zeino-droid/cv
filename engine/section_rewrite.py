@@ -42,8 +42,8 @@ EDITABLE_SECTIONS: Dict[str, Dict[str, Any]] = {
         ),
         "format_rules": (
             "- Une seule ligne, 110 caractères MAX.\n"
-            "- Pas de phrase complète : style 'titre' avec séparateurs ' | ' ou ' · '.\n"
-            "- Doit contenir 1 mot-clé fort de l'offre."
+            "- Formulation naturelle et fluide (style titre ou mini-phrase accepté).\n"
+            "- Inclure idéalement 1 mot-clé fort de l'offre."
         ),
     },
     "summary": {
@@ -58,8 +58,8 @@ EDITABLE_SECTIONS: Dict[str, Dict[str, Any]] = {
         ),
         "format_rules": (
             "- 3 à 4 phrases, 400 caractères MAX.\n"
-            "- Français pro, pas de 'je', style descriptif d'un profil.\n"
-            "- Doit contenir 2-3 mots-clés explicites de l'offre."
+            "- Français professionnel, ton humain et crédible.\n"
+            "- Intégrer 1 à 3 mots-clés explicites de l'offre quand c'est pertinent."
         ),
     },
     "achievements": {
@@ -74,10 +74,10 @@ EDITABLE_SECTIONS: Dict[str, Dict[str, Any]] = {
             "Chaque puce raconte un Action+Résultat aligné sur l'offre."
         ),
         "format_rules": (
-            "- EXACTEMENT 2 puces, 180 caractères MAX par puce.\n"
-            "- Format : 'Action concrète + outil/méthode + résultat mesurable'.\n"
-            "- Verbes d'action en début de puce (Conçu, Modélisé, Validé, etc).\n"
-            "- Réutilise les mots exacts de l'offre quand pertinent."
+            "- Jusqu'à 2 puces, 180 caractères MAX par puce.\n"
+            "- Décrire des contributions concrètes avec un style naturel.\n"
+            "- Les verbes d'action sont recommandés mais pas imposés.\n"
+            "- Réutiliser les mots de l'offre quand cela apporte de la clarté."
         ),
     },
     "project_description": {
@@ -92,7 +92,7 @@ EDITABLE_SECTIONS: Dict[str, Dict[str, Any]] = {
         ),
         "format_rules": (
             "- 1 phrase, 150 caractères MAX.\n"
-            "- Format : 'Quoi (sujet) + Comment (outil/méthode) + Quel résultat'."
+            "- Formulation libre, claire et orientée valeur."
         ),
     },
     "project_keywords": {
@@ -109,7 +109,7 @@ EDITABLE_SECTIONS: Dict[str, Dict[str, Any]] = {
         "format_rules": (
             "- 4 à 6 mots-clés MAX, séparés par ' · '.\n"
             "- 1-3 mots par item.\n"
-            "- Privilégier les outils/méthodes/normes nommés dans l'offre."
+            "- Privilégier les termes utiles pour le poste, sans forçage artificiel."
         ),
     },
     "skills_hard": {
@@ -125,7 +125,7 @@ EDITABLE_SECTIONS: Dict[str, Dict[str, Any]] = {
         ),
         "format_rules": (
             "- 8 à 12 items MAX.\n"
-            "- Garde uniquement ceux mentionnés ou clairement utiles à l'offre.\n"
+            "- Garder les compétences vraiment utiles, y compris les fondamentaux transverses.\n"
             "- Conserve les noms tels qu'ils apparaissent dans le profil source."
         ),
     },
