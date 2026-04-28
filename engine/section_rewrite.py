@@ -10,6 +10,23 @@ Pour chaque section éditable du CV, ce module :
 
 Le résultat est stocké dans `gen_state["section_overrides"][section_key]` puis
 réinjecté dans `cv_generator.generate_one_page_cv(section_overrides=...)`.
+
+─────────────────────────────────────────────────────────────────────────────
+SÉPARATION DES RESPONSABILITÉS DANS LE PIPELINE
+─────────────────────────────────────────────────────────────────────────────
+• Génération (cv_generator.generate_one_page_cv)
+    Produit une version complète neuve à partir du profil brut et de l'offre.
+    Ne touche pas aux section_overrides existants.
+
+• Amélioration (ce module — section_rewrite)
+    Modifie UNIQUEMENT la section ciblée par l'utilisateur (un delta).
+    Travaille sur le CV déjà rendu (current) + la source du profil maître.
+    N'appelle jamais generate_one_page_cv en interne.
+
+• Recompilation (cv_generator.generate_one_page_cv avec section_overrides)
+    Réassemble le CV en appliquant les overrides sans rappeler le LLM.
+    Garantit que seules les sections explicitement surchargées changent.
+─────────────────────────────────────────────────────────────────────────────
 """
 
 from __future__ import annotations
