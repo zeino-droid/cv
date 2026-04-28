@@ -3,8 +3,6 @@ storage/*.db
 storage/*.sqlite
 .env
 *.env
-profiles/master_profile.json
-profiles/*.json
 !profiles/search_config.yaml
 
 # --- ARCHIVES & BACKUPS ---
@@ -38,6 +36,7 @@ Thumbs.db
 templates/*.jpg
 templates/*.png
 templates/*.jpeg
+!templates/photo.jpg
 
 # --- SOURCING CACHE (regenerated at runtime) ---
 storage/sourcing_cache/
