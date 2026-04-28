@@ -299,12 +299,16 @@ def safe_filename(value: str, max_len: int = 60) -> str:
 def generate_documents(job: dict, gen_cv: bool, gen_letter: bool, use_llm: bool,
                        headline_override: str | None = None,
                        summary_override: str | None = None,
-                       section_overrides: dict | None = None) -> dict:
+                       section_overrides: dict | None = None,
+                       photo_path: str | None = None) -> dict:
     """Lance la génération CV + lettre via les modules existants.
 
     `section_overrides` permet de réinjecter des éditions ciblées par section
     (puces d'expérience, compétences, projets…) — voir
     `engine.cv_generator.PersonalCVGenerator._apply_text_overrides` pour le schéma.
+
+    `photo_path` est le chemin absolu de la photo de profil uploadée (st.session_state.photo_path).
+    Si None ou absent, aucune photo n'est ajoutée au CV.
     """
     profile = load_profile()
     cv_result: dict = {}
@@ -321,6 +325,7 @@ def generate_documents(job: dict, gen_cv: bool, gen_letter: bool, use_llm: bool,
                 headline_override=headline_override or None,
                 summary_override=summary_override or None,
                 section_overrides=section_overrides or None,
+                photo_path=photo_path or None,
             ),
             context="CV generation",
         )
@@ -935,6 +940,7 @@ def studio_dialog(job_id: str):
                         result = generate_documents(
                             job, gen_cv=True, gen_letter=True, use_llm=True,
                             section_overrides=gen_state.get("section_overrides") or {},
+                            photo_path=st.session_state.get("photo_path"),
                         )
                         gen_state.update(result)
                         if result.get("letter_text"):
@@ -993,6 +999,7 @@ def studio_dialog(job_id: str):
                             result = generate_documents(
                                 job, gen_cv=True, gen_letter=False, use_llm=False,
                                 section_overrides=gen_state.get("section_overrides") or {},
+                                photo_path=st.session_state.get("photo_path"),
                             )
                             gen_state["cv_path"] = result.get("cv_path", "")
                             cv_res = result.get("cv_result") or {}
@@ -1064,6 +1071,7 @@ def studio_dialog(job_id: str):
                         result = generate_documents(
                             job, gen_cv=True, gen_letter=False, use_llm=False,
                             section_overrides=gen_state.get("section_overrides") or {},
+                            photo_path=st.session_state.get("photo_path"),
                         )
                         gen_state["cv_path"] = result.get("cv_path", "") or gen_state.get("cv_path", "")
                         cv_res = result.get("cv_result") or {}

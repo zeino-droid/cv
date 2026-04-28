@@ -1,5 +1,6 @@
 import json
 import re
+import shutil
 import subprocess
 import unicodedata
 from datetime import datetime
@@ -42,6 +43,7 @@ class TypstRenderer(Renderer):
         leading: float = 0.65,
         section_gap: float = 20.0,
         margin_sides: float = 14.0,
+        photo_path: Optional[str] = None,
         **kwargs,
     ) -> Optional[Path]:
         """
@@ -51,6 +53,9 @@ class TypstRenderer(Renderer):
             leading (float): Paragraph leading in em (default 0.65 for better readability).
             section_gap (float): Section spacing in pt (default 20.0 for clearer visual blocks).
             margin_sides (float): Right margin in pt.
+            photo_path (str | None): Absolute path to the profile photo uploaded by the user.
+                When provided the file is copied into the template directory so Typst can
+                access it within its sandboxed root, then cleaned up after compilation.
         Defaults are aligned with the Typst template to avoid dense text rendering.
         """
         if not self.available or not self.template_path.exists():
@@ -63,6 +68,23 @@ class TypstRenderer(Renderer):
         with open(data_path, "w", encoding="utf-8") as f:
             json.dump(cv_data, f, ensure_ascii=False, indent=2)
 
+        # Resolve the photo: prefer the explicit path, fall back to legacy photo.jpg
+        copied_photo: Optional[Path] = None
+        resolved_photo_filename: Optional[str] = None
+
+        if photo_path and Path(photo_path).is_file():
+            source = Path(photo_path)
+            suffix = source.suffix.lower() if source.suffix else ".jpg"
+            dest_name = "_profile_photo" + suffix
+            dest = template_dir / dest_name
+            shutil.copy2(source, dest)
+            copied_photo = dest
+            resolved_photo_filename = dest_name
+        elif (template_dir / "photo.jpg").exists():
+            resolved_photo_filename = "photo.jpg"
+
+        has_photo = resolved_photo_filename is not None
+
         try:
             if typst is None:
                 raise ImportError("Le module python 'typst' n'est pas installé.")
@@ -74,21 +96,22 @@ class TypstRenderer(Renderer):
             pdf_abs = str(pdf_path.resolve())
             root_abs = str(template_dir.resolve())
 
-            # Détection optionnelle de la photo (templates/photo.jpg)
-            has_photo = (template_dir / "photo.jpg").exists()
+            sys_inputs = {
+                "data-path": "_cv_data.json",
+                "font-size-delta": f"{font_size_delta:.2f}",
+                "leading": f"{leading:.2f}",
+                "section-gap": f"{section_gap:.1f}",
+                "margin-sides": f"{margin_sides:.1f}",
+                "has-photo": "true" if has_photo else "false",
+            }
+            if has_photo:
+                sys_inputs["photo-path"] = resolved_photo_filename
 
             typst.compile(
                 template_abs,
                 output=pdf_abs,
                 root=root_abs,
-                sys_inputs={
-                    "data-path": "_cv_data.json",
-                    "font-size-delta": f"{font_size_delta:.2f}",
-                    "leading": f"{leading:.2f}",
-                    "section-gap": f"{section_gap:.1f}",
-                    "margin-sides": f"{margin_sides:.1f}",
-                    "has-photo": "true" if has_photo else "false",
-                },
+                sys_inputs=sys_inputs,
             )
             return pdf_path
         except Exception as e:
@@ -97,6 +120,8 @@ class TypstRenderer(Renderer):
             print(f"   ⚠️  Erreur Typst: {e}")
         finally:
             data_path.unlink(missing_ok=True)
+            if copied_photo is not None:
+                copied_photo.unlink(missing_ok=True)
         return None
 
     def get_page_count(self, pdf_path: Path) -> int:

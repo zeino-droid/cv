@@ -303,6 +303,7 @@ async def process_single_job(
     profile: Dict,
     job: Dict,
     use_llm_letter: bool = True,
+    photo_path: Optional[str] = None,
 ) -> Dict[str, Any]:
     company = job.get("company", "Unknown")
     title = job.get("title", "Poste")
@@ -318,7 +319,7 @@ async def process_single_job(
     job_output_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. CV Adaptation
-    cv_result = await generator.generate_cv_for_job(job)
+    cv_result = await generator.generate_cv_for_job(job, photo_path=photo_path)
     
     # 2. Letter Generation
     letter_text = None

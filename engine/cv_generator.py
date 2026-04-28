@@ -439,12 +439,14 @@ class PersonalCVGenerator:
         headline_override: Optional[str] = None,
         summary_override: Optional[str] = None,
         section_overrides: Optional[Dict[str, Any]] = None,
+        photo_path: Optional[str] = None,
     ) -> Dict:
         return await self.generate_one_page_cv(
             job,
             headline_override=headline_override,
             summary_override=summary_override,
             section_overrides=section_overrides,
+            photo_path=photo_path,
         )
 
     async def generate_one_page_cv(
@@ -453,6 +455,7 @@ class PersonalCVGenerator:
         headline_override: Optional[str] = None,
         summary_override: Optional[str] = None,
         section_overrides: Optional[Dict[str, Any]] = None,
+        photo_path: Optional[str] = None,
     ) -> Dict:
         """Génère un CV avec Shrink Loop et séparation des pools Pro/Projets."""
         job_data = self._normalize_job(job)
@@ -620,6 +623,7 @@ class PersonalCVGenerator:
                 leading=config["leading"],
                 section_gap=config["section_gap"],
                 margin_sides=config["margin_sides"],
+                photo_path=photo_path,
             )
 
             if pdf_path:

@@ -103,16 +103,17 @@
      inset: (left: 1.0cm, right: 10pt, top: 0.4cm, bottom: 0.5cm),
      [
        #set align(center)
-       // Photo optionnelle : on l'affiche seulement si templates/photo.jpg existe.
+       // Photo optionnelle : on l'affiche seulement si has-photo == "true".
+       // Le chemin du fichier photo est transmis via l'input "photo-path".
        // Sans cette garde, le compileur Typst plante et le PDF n'est pas généré.
        #context {
-         let photo_path = "photo.jpg"
+         let photo_file = sys.inputs.at("photo-path", default: "photo.jpg")
          if sys.inputs.at("has-photo", default: "false") == "true" {
            box(
              clip: true,
-             radius: 50%,
+             radius: 20%,
              stroke: 1.2pt + white,
-             image(photo_path, width: 2.9cm)
+             image(photo_file, width: 3.5cm)
            )
          } else {
            // Placeholder discret (cercle avec initiales) si pas de photo
