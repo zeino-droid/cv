@@ -1768,6 +1768,33 @@ def _save_profile(data: dict) -> None:
 prof = _load_profile()
 pi = prof.setdefault("personal_info", {})
 
+# ─── PHOTO DE PROFIL ────────────────────────────────────────────
+st.subheader("📸 Photo de profil")
+col_photo, col_info = st.columns([1, 2])
+with col_photo:
+    current_photo = st.session_state.get("photo_path")
+    if current_photo and Path(current_photo).exists():
+        st.image(current_photo, width=150, caption="Photo actuelle")
+    else:
+        st.markdown("_(aucune photo)_")
+with col_info:
+    uploaded = st.file_uploader(
+        "Uploader ta photo (JPG/PNG)",
+        type=["jpg", "jpeg", "png"],
+        key="photo_uploader",
+    )
+    if uploaded:
+        import tempfile
+        suffix = Path(uploaded.name).suffix or ".jpg"
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+        tmp.write(uploaded.read())
+        tmp.flush()
+        st.session_state["photo_path"] = tmp.name
+        st.success(f"✅ Photo enregistrée ({uploaded.name})")
+        st.image(tmp.name, width=150)
+
+st.divider()
+
 p_tab1, p_tab2, p_tab3, p_tab4, p_tab5 = st.tabs([
     "👤 Identité", "🎓 Formation", "💼 Expériences",
     "🛠️ Compétences", "📦 JSON brut",
