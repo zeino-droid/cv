@@ -112,11 +112,27 @@ def build_generation_prompt(job_offer: Dict, candidate_context: Dict, profile_id
         "objective": f"Générer un CV percutant pour le poste de {job_offer.get('title')} chez {job_offer.get('company')}.",
         "one_page_policy": build_one_page_constraints(content_cfg),
         "constraints": [
+            # ── HONNÊTETÉ ABSOLUE ──────────────────────────────────────────
+            "INTERDIT : N'invente, n'ajoute, ni ne suppose aucune compétence, outil, diplôme ou expérience absent de candidate_context.",
+            "Si une compétence de l'offre est absente du profil : ne la mentionne pas. Jamais.",
+            "Travaille exclusivement avec ce qui est fourni dans input_data.candidate_context.",
+            # ── ADAPTATION INTELLIGENTE (pas du copier-coller) ─────────────
+            "Pour chaque expérience ou projet, identifie l'angle le plus pertinent pour l'offre et reformule dans ce sens.",
+            "Exemple de reformulation correcte : si le profil dit 'simulation thermique Matlab/Simulink' et l'offre parle d'échangeurs thermiques → reformule en 'Simulation du comportement thermique d'échangeurs sous Matlab/Simulink'.",
+            "Utilise les mots-clés EXACTS de l'offre dès qu'une expérience du profil le justifie réellement (ex : CODAP, EN 13445, notes de calcul, traçabilité...).",
+            "Trie les expériences et projets par pertinence pour l'offre — pas forcément par ordre chronologique.",
+            "Si l'expérience pro est courte, mets en avant les projets académiques directement liés à l'offre.",
+            # ── CONTENU DES BULLETS ────────────────────────────────────────
+            "Chaque expérience doit avoir entre 2 et 4 bullets. Jamais 1 seul bullet.",
+            "Chaque bullet : verbe d'action fort + outil/méthode concret + résultat ou contexte mesurable si disponible.",
             "INTERDICTION FORMELLE d'utiliser les mots : 'Apprenti', 'Étudiant', 'Élève'.",
             "Présenter le candidat comme un expert opérationnel immédiatement productif.",
+            # ── RÉSUMÉ ─────────────────────────────────────────────────────
+            "Le résumé : 3 phrases max. Structure = profil général → compétences clés matchées avec l'offre → valeur ajoutée concrète.",
+            "Le résumé doit reprendre les mots-clés de l'offre présents dans le profil, jamais des termes inventés.",
+            # ── STYLE ──────────────────────────────────────────────────────
             "Le ton doit être professionnel, technique et axé sur les résultats.",
             "Utiliser un vocabulaire technique dense et précis pour maximiser l'information par ligne.",
-            "Utiliser des verbes d'action forts.",
             "La headline doit être ultra-ciblée au poste visé et inclure des expertises techniques concrètes.",
             "Toutes les sorties doivent être en Français."
         ],
