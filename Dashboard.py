@@ -7,6 +7,7 @@ Refonte SPA : Smart Match → Studio (Modale) → Archives.
 import asyncio
 import atexit
 import json
+import logging
 import os
 import sys
 import threading
@@ -22,6 +23,8 @@ ROOT = Path(__file__).parent
 sys.path.insert(0, str(ROOT))
 
 from engine.database import STATUS_EMOJI, JobDatabase
+
+_logger = logging.getLogger(__name__)
 
 ASYNC_EXECUTOR = ThreadPoolExecutor(max_workers=1)
 atexit.register(lambda: ASYNC_EXECUTOR.shutdown(wait=False, cancel_futures=True))
@@ -391,6 +394,41 @@ def generate_documents(job: dict, gen_cv: bool, gen_letter: bool, use_llm: bool,
         "letter_text": letter_text,
         "letter_path": letter_path,
     }
+
+
+# ─── COUCHE SERVICE : logique métier extraite de studio_dialog ───
+# Les implémentations vivent dans engine/studio_service.py (testable sans Streamlit).
+# Ces fonctions sont de fines enveloppes qui injectent les dépendances globales.
+from engine.studio_service import (
+    _init_gen_state,
+    mark_application_as_sent as _svc_mark_sent,
+    save_final_candidate_version as _svc_save_final,
+)
+
+
+def save_final_candidate_version(
+    job_id: str,
+    job: dict,
+    gen_state: dict,
+    photo_path: str | None = None,
+) -> dict:
+    """Recompile le CV, persiste la lettre et archive les versions finales.
+
+    Délègue à :func:`engine.studio_service.save_final_candidate_version` en
+    injectant les dépendances du module (``db``, ``ROOT``, …).
+    """
+    return _svc_save_final(
+        job_id, job, gen_state, photo_path,
+        db=db,
+        root=ROOT,
+        generate_documents_fn=generate_documents,
+        safe_filename_fn=safe_filename,
+    )
+
+
+def mark_application_as_sent(job_id: str, gen_state: dict) -> None:
+    """Marque la candidature comme envoyée. Délègue à engine.studio_service."""
+    _svc_mark_sent(job_id, gen_state, db=db)
 
 
 # ─── COPILOTE IA : réécriture ciblée via le LLM existant ─────────
@@ -855,19 +893,9 @@ def studio_dialog(job_id: str):
         unsafe_allow_html=True,
     )
 
-    # Pré-remplit la lettre par défaut (heuristique, rapide, sans LLM)
-    if "letter_text" not in gen_state or not gen_state.get("letter_text"):
-        try:
-            from Pipeline import generate_cover_letter_heuristic
-            gen_state["letter_text"] = generate_cover_letter_heuristic(profile, job)
-            st.session_state[state_key] = gen_state
-        except Exception:
-            gen_state.setdefault("letter_text", "")
-
-    # Initialise le dict d'overrides section-par-section
-    if "section_overrides" not in gen_state:
-        gen_state["section_overrides"] = {}
-        st.session_state[state_key] = gen_state
+    # Initialise les clés gen_state obligatoires (lettre heuristique + overrides)
+    _init_gen_state(gen_state, profile, job)
+    st.session_state[state_key] = gen_state
 
     # ── 2 ONGLETS ───────────────────────────────────────────────
     tab_analyse, tab_studio = st.tabs(
@@ -1067,65 +1095,37 @@ def studio_dialog(job_id: str):
                              use_container_width=True,
                              key=f"final_{job_id}"):
                     try:
-                        # On recompile une dernière fois avec les éditions
-                        result = generate_documents(
-                            job, gen_cv=True, gen_letter=False, use_llm=False,
-                            section_overrides=gen_state.get("section_overrides") or {},
+                        save_final_candidate_version(
+                            job_id=job_id,
+                            job=job,
+                            gen_state=gen_state,
                             photo_path=st.session_state.get("photo_path"),
                         )
-                        gen_state["cv_path"] = result.get("cv_path", "") or gen_state.get("cv_path", "")
-                        cv_res = result.get("cv_result") or {}
-                        if cv_res.get("cv_data"):
-                            gen_state["cv_data"] = cv_res["cv_data"]
-                        # Persiste la lettre éditée
-                        if gen_state.get("letter_text"):
-                            out_dir = ROOT / "vault" / safe_filename(
-                                f"{job.get('company','job')}_{job.get('title','cv')}"
-                            )
-                            out_dir.mkdir(parents=True, exist_ok=True)
-                            lp = out_dir / "lettre.txt"
-                            lp.write_text(gen_state["letter_text"], encoding="utf-8")
-                            gen_state["letter_path"] = str(lp)
-                        # Récupère headline/summary du CV final pour archive
-                        final_cv_data = gen_state.get("cv_data") or {}
-                        # Sauvegarde versions finales
-                        db.save_resume_version(
-                            job_id=job_id,
-                            headline=final_cv_data.get("headline", ""),
-                            summary=final_cv_data.get("summary", ""),
-                            cv_path=gen_state.get("cv_path", ""),
-                            is_final=True,
-                            notes="Validée finale par l'utilisateur",
-                        )
-                        if gen_state.get("letter_text"):
-                            db.save_cover_letter_version(
-                                job_id=job_id,
-                                letter_text=gen_state.get("letter_text", ""),
-                                letter_path=gen_state.get("letter_path", ""),
-                                is_final=True,
-                                notes="Validée finale par l'utilisateur",
-                            )
                         st.session_state[state_key] = gen_state
                         st.success("⭐ Version finale archivée.")
                         st.rerun()
                     except Exception as exc:
+                        _logger.exception(
+                            "Erreur lors de la validation finale — job_id=%s", job_id
+                        )
                         st.error(f"Erreur : {exc}")
 
             # ───── MARQUER COMME ENVOYÉ ────────────────────────
             if st.button("📤 J'ai postulé — clore la candidature",
                          type="secondary", use_container_width=True,
                          key=f"sent_{job_id}"):
-                final_cv_data = gen_state.get("cv_data") or {}
-                db.mark_as_sent(
-                    job_id=job_id, via="manual",
-                    edited_headline=final_cv_data.get("headline", ""),
-                    edited_summary=final_cv_data.get("summary", ""),
-                    vault_path=gen_state.get("cv_path") or gen_state.get("letter_path"),
-                )
-                st.session_state.pop(state_key, None)
-                st.session_state.pop("studio_open_for", None)
-                st.success("Candidature archivée 🎉")
-                st.rerun()
+                try:
+                    mark_application_as_sent(job_id=job_id, gen_state=gen_state)
+                except Exception as exc:
+                    _logger.exception(
+                        "Erreur lors du marquage envoyé — job_id=%s", job_id
+                    )
+                    st.error(f"Erreur : {exc}")
+                else:
+                    st.session_state.pop(state_key, None)
+                    st.session_state.pop("studio_open_for", None)
+                    st.success("Candidature archivée 🎉")
+                    st.rerun()
 
             # ───── HISTORIQUE DES VERSIONS ─────────────────────
             with st.expander("🗂 Historique des versions"):
