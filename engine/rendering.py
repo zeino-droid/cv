@@ -44,6 +44,7 @@ class TypstRenderer(Renderer):
         section_gap: float = 20.0,
         margin_sides: float = 14.0,
         photo_path: Optional[str] = None,
+        theme: str = "premium",
         **kwargs,
     ) -> Optional[Path]:
         """
@@ -56,6 +57,7 @@ class TypstRenderer(Renderer):
             photo_path (str | None): Absolute path to the profile photo uploaded by the user.
                 When provided the file is copied into the template directory so Typst can
                 access it within its sandboxed root, then cleaned up after compilation.
+            theme (str): Colour theme — "premium" (default), "subtle", or "ats".
         Defaults are aligned with the Typst template to avoid dense text rendering.
         """
         if not self.available or not self.template_path.exists():
@@ -103,6 +105,7 @@ class TypstRenderer(Renderer):
                 "section-gap": f"{section_gap:.1f}",
                 "margin-sides": f"{margin_sides:.1f}",
                 "has-photo": "true" if has_photo else "false",
+                "theme": theme,
             }
             if has_photo:
                 sys_inputs["photo-path"] = resolved_photo_filename

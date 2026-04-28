@@ -7,6 +7,7 @@
 #let leading-val        = float(sys.inputs.at("leading",        default: "0.65"))  * 1em
 #let section-gap-val    = float(sys.inputs.at("section-gap",    default: "20.0"))  * 1pt
 #let margin-sides-val   = float(sys.inputs.at("margin-sides",   default: "14.0"))  * 1pt
+#let theme-name         = sys.inputs.at("theme",           default: "premium")
 
 // ─── Données JSON ───
 #let cv_data = json(data-path)
@@ -33,12 +34,45 @@
   leading: leading-val,
 )
 
-// ─── Couleurs Premium ───
-#let primary = rgb("#1a1a2e")
-#let secondary = rgb("#475569")
-#let light-bg = rgb("#f0f4f8")
-#let accent-light = rgb("#e8f4fd")
-#let divider-color = rgb("#e2e8f0")
+// ─── Thèmes ───
+// Chaque thème est un dictionnaire de cinq couleurs.
+// Variantes disponibles :
+//   premium  — look sombre et élégant (défaut)
+//   subtle   — tons neutres doux, sobre
+//   ats      — noir/blanc haut-contraste, optimal pour les parseurs ATS
+#let themes = (
+  premium: (
+    primary:       rgb("#1a1a2e"),
+    secondary:     rgb("#475569"),
+    light-bg:      rgb("#f0f4f8"),
+    accent-light:  rgb("#e8f4fd"),
+    divider-color: rgb("#e2e8f0"),
+  ),
+  subtle: (
+    primary:       rgb("#2d3748"),
+    secondary:     rgb("#718096"),
+    light-bg:      rgb("#f7fafc"),
+    accent-light:  rgb("#edf2f7"),
+    divider-color: rgb("#e2e8f0"),
+  ),
+  ats: (
+    primary:       rgb("#000000"),
+    secondary:     rgb("#333333"),
+    light-bg:      rgb("#ffffff"),
+    accent-light:  rgb("#f5f5f5"),
+    divider-color: rgb("#cccccc"),
+  ),
+)
+
+#let resolved-theme = if themes.keys().contains(theme-name) { theme-name } else { "premium" }
+#let theme = themes.at(resolved-theme)
+
+// Aliases locaux — identiques aux anciens noms pour garder le reste du template intact
+#let primary       = theme.at("primary")
+#let secondary     = theme.at("secondary")
+#let light-bg      = theme.at("light-bg")
+#let accent-light  = theme.at("accent-light")
+#let divider-color = theme.at("divider-color")
 
 // ─── Composants ───
 #let pill(text-content) = {
