@@ -34,9 +34,10 @@
 )
 
 // ─── Couleurs Premium ───
-#let primary = rgb("#0f172a")
+#let primary = rgb("#1a1a2e")
 #let secondary = rgb("#475569")
-#let light-bg = rgb("#f1f5f9")
+#let light-bg = rgb("#f0f4f8")
+#let accent-light = rgb("#e8f4fd")
 #let divider-color = rgb("#e2e8f0")
 
 // ─── Composants ───
