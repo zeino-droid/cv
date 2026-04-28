@@ -511,6 +511,14 @@ class PersonalCVGenerator:
             candidate_context["ranked_projects"] = (
                 current_proj  # Injecter les projets dans le contexte
             )
+            # Action 3 : Injecter les mots-clés matchés (intersection profil × offre)
+            profile_target_kw = {
+                k.lower() for k in
+                self.master_profile.get("profiles", {}).get(profile_id, {}).get("target_keywords", [])
+            }
+            candidate_context["matched_job_keywords"] = sorted(
+                set(job_keywords) & profile_target_kw
+            )
             prompt_content_cfg = {
                 "max_pro_exp": config["max_pro_exp"],
                 "min_pro_exp": FILL_BUDGET["pro_minimum"],

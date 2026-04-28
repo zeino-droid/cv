@@ -22,6 +22,9 @@ import streamlit as st
 ROOT = Path(__file__).parent
 sys.path.insert(0, str(ROOT))
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from engine.database import STATUS_EMOJI, JobDatabase
 
 _logger = logging.getLogger(__name__)
@@ -66,25 +69,46 @@ st.markdown(
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --brand: #38bdf8;
-            --brand-glow: rgba(56, 189, 248, 0.3);
-            --bg: #020617;
-            --card-bg: rgba(30, 41, 59, 0.4);
-            --border: rgba(148, 163, 184, 0.1);
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-            --radius: 20px;
+            --brand: #8b5cf6;
+            --brand-secondary: #3b82f6;
+            --brand-glow: rgba(139, 92, 246, 0.25);
+            --brand-glow-subtle: rgba(139, 92, 246, 0.1);
+            --bg: #09090b;
+            --card-bg: rgba(24, 24, 27, 0.6);
+            --border: rgba(255, 255, 255, 0.08);
+            --text-main: #ededed;
+            --text-muted: #a1a1aa;
+            --radius: 16px;
             --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-
-        .main { background-color: var(--bg); color: var(--text-main); font-family: 'Outfit', sans-serif; }
-        .stApp { background: var(--bg); }
+        .main { font-family: 'Outfit', sans-serif; }
         [data-testid="stHeader"] { background: transparent; }
+
+        /* Correction de la couleur des phrases avec background (inline code) */
+        [data-testid="stMarkdownContainer"] code {
+            color: var(--brand) !important;
+            background-color: rgba(255, 255, 255, 0.05) !important;
+            padding: 2px 6px !important;
+            border-radius: 4px !important;
+        }
+
+        /* Correction de la couleur pour les textes surlignés (<mark>) */
+        mark {
+            background-color: rgba(139, 92, 246, 0.3) !important;
+            color: var(--text-main) !important;
+            border-radius: 4px;
+            padding: 0 4px;
+        }
+
+        /* Fix expander summary text */
+        [data-testid="stExpander"] summary p {
+            color: var(--text-main) !important;
+            font-weight: 600 !important;
+        }
 
         /* Cache la sidebar (SPA) */
         [data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"] { display: none !important; }
         section[data-testid="stSidebar"] { width: 0 !important; }
-
         h1, h2, h3, h4 {
             font-family: 'Outfit', sans-serif !important;
             font-weight: 800 !important;
@@ -94,7 +118,7 @@ st.markdown(
         .hero-container { padding: 32px 0 24px 0; }
         .hero-h1 {
             font-size: 56px !important;
-            background: linear-gradient(135deg, #ffffff 0%, #38bdf8 50%, #818cf8 100%);
+            background: linear-gradient(135deg, #ffffff 0%, var(--brand) 50%, var(--brand-secondary) 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             margin-bottom: 12px; line-height: 1.1;
@@ -134,14 +158,14 @@ st.markdown(
             font-weight: 700; margin-bottom: 6px;
         }
         .section-h2 {
-            font-size: 32px !important; color: white;
+            font-size: 32px !important; color: white !important;
             font-weight: 800 !important; margin-bottom: 22px;
             font-family: 'Outfit', sans-serif !important;
         }
 
         /* KPI metric cards */
         [data-testid="stMetric"] {
-            background: linear-gradient(135deg, rgba(30,41,59,0.6) 0%, rgba(15,23,42,0.8) 100%);
+            background: linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%);
             border: 1px solid var(--border);
             border-radius: 16px;
             padding: 16px 20px;
@@ -155,13 +179,13 @@ st.markdown(
         [data-testid="stMetricValue"] {
             font-size: 2.2rem !important;
             font-weight: 800 !important;
-            background: linear-gradient(135deg, var(--brand), #818cf8);
+            background: linear-gradient(135deg, var(--brand), var(--brand-secondary));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
         .row-card {
-            background: rgba(15, 23, 42, 0.5);
+            background: rgba(255, 255, 255, 0.02);
             border: 1px solid var(--border);
             border-radius: 14px;
             padding: 14px 18px;
@@ -170,11 +194,11 @@ st.markdown(
         }
         .row-card:hover {
             border-color: var(--brand);
-            background: rgba(15, 23, 42, 0.75);
+            background: rgba(255, 255, 255, 0.05);
             transform: translateX(4px);
             box-shadow: -4px 0 0 0 var(--brand);
         }
-        .row-title { font-weight: 700; color: white; font-size: 1rem; }
+        .row-title { font-weight: 700; color: white !important; font-size: 1rem; }
         .row-meta { color: var(--text-muted); font-size: 0.85rem; margin-top: 2px; }
 
         .score-pill {
@@ -185,9 +209,9 @@ st.markdown(
             font-size: 0.8rem;
             transition: var(--transition);
         }
-        .score-high { background: linear-gradient(135deg, rgba(34,197,94,0.15), rgba(34,197,94,0.05)); color: #4ade80; border: 1px solid rgba(34,197,94,0.3); }
-        .score-mid  { background: linear-gradient(135deg, rgba(245,158,11,0.15), rgba(245,158,11,0.05)); color: #fcd34d; border: 1px solid rgba(245,158,11,0.3); }
-        .score-low  { background: linear-gradient(135deg, rgba(239,68,68,0.15), rgba(239,68,68,0.05)); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3); }
+        .score-high { background: linear-gradient(135deg, rgba(16,185,129,0.15), rgba(16,185,129,0.05)); color: #10b981; border: 1px solid rgba(16,185,129,0.3); }
+        .score-mid  { background: linear-gradient(135deg, rgba(245,158,11,0.15), rgba(245,158,11,0.05)); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); }
+        .score-low  { background: linear-gradient(135deg, rgba(239,68,68,0.15), rgba(239,68,68,0.05)); color: #ef4444; border: 1px solid rgba(239,68,68,0.3); }
 
         div.stButton > button {
             background: var(--text-main) !important;
@@ -202,6 +226,7 @@ st.markdown(
         }
         div.stButton > button:hover {
             background: var(--brand) !important;
+            color: #ffffff !important;
             transform: scale(1.02);
             box-shadow: 0 0 20px var(--brand-glow);
         }
@@ -209,14 +234,31 @@ st.markdown(
             animation: pulseGlow 3s ease-in-out infinite;
         }
 
-        .stTextInput input, .stTextArea textarea { border-radius: 12px !important; }
+        /* Forms & Inputs Customization */
+        .stTextInput input, .stTextArea textarea { 
+            border-radius: 12px !important; 
+            background-color: var(--card-bg) !important;
+            color: var(--text-main) !important;
+            border: 1px solid var(--border) !important;
+        }
+        
+        .stSelectbox div[data-baseweb="select"] > div {
+            background-color: var(--card-bg) !important;
+            color: var(--text-main) !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 12px !important;
+        }
 
         /* Tabs styling */
-        .stTabs [data-baseweb="tab"] {
+        .stTabs [data-baseweb="tab"] p {
             font-family: 'Outfit', sans-serif !important;
             font-weight: 600 !important;
             letter-spacing: 0.02em;
         }
+
+        /* Fix markdown tables */
+        th { border-bottom: 1px solid var(--border) !important; }
+        td { border-bottom: 1px solid rgba(255,255,255,0.04) !important; }
 
         #MainMenu { visibility: hidden; }
         footer { visibility: hidden; }
@@ -314,6 +356,11 @@ def generate_documents(job: dict, gen_cv: bool, gen_letter: bool, use_llm: bool,
     Si None ou absent, aucune photo n'est ajoutée au CV.
     """
     profile = load_profile()
+    if not profile:
+        raise FileNotFoundError(
+            "Le profil maître est vide ou introuvable "
+            "(profiles/master_profile.json). Remplis la section ④ Profil d'abord."
+        )
     cv_result: dict = {}
     letter_text = ""
     cv_path = ""
@@ -879,15 +926,15 @@ def studio_dialog(job_id: str):
     score = int(job.get("fit_score", 0))
     st.markdown(
         f"### {job['title']} "
-        f"<span style='font-size:0.85rem;color:#94a3b8;font-weight:500;'>"
+        f"<span style='font-size:0.85rem;color:var(--text-muted);font-weight:500;'>"
         f"— {job.get('company','?')} · 📍 {job.get('location','?')}</span>",
         unsafe_allow_html=True,
     )
     st.markdown(
         f"<div style='margin:6px 0 12px 0;'>"
         f"<span class='score-pill {score_class(score)}'>{score}% Fit</span> "
-        f"<span class='score-pill' style='background:rgba(56,189,248,0.1);"
-        f"color:var(--brand);border:1px solid rgba(56,189,248,0.25);'>"
+        f"<span class='score-pill' style='background:var(--brand-glow-subtle);"
+        f"color:var(--brand);border:1px solid var(--brand-glow);'>"
         f"{STATUS_EMOJI.get(job.get('status','new'),'•')} {job.get('status','new')}</span>"
         f"</div>",
         unsafe_allow_html=True,
@@ -949,9 +996,9 @@ def studio_dialog(job_id: str):
         # ─── PHASE 1 : génération initiale via Gemini ──────────
         if not already_generated:
             st.markdown(
-                "<div style='background:rgba(56,189,248,0.08);border:1px solid "
-                "rgba(56,189,248,0.25);border-radius:8px;padding:14px;"
-                "color:#e2e8f0;font-size:0.92rem;line-height:1.55;'>"
+                "<div style='background:var(--brand-glow-subtle);border:1px solid "
+                "var(--brand-glow);border-radius:8px;padding:14px;"
+                "color:var(--text-main);font-size:0.92rem;line-height:1.55;'>"
                 "<strong>🧠 Génération intelligente.</strong> "
                 "Gemini va lire ton profil complet et l'offre ciblée, puis "
                 "rédiger un CV professionnel et une lettre personnalisée. "
@@ -1019,8 +1066,9 @@ def studio_dialog(job_id: str):
                         "Clique sur **Recompiler PDF** ci-dessous."
                     )
 
-                if st.button("🔄 Recompiler PDF avec mes éditions",
+                if st.button("🔄 Recompiler le CV PDF (applique mes éditions)",
                              use_container_width=True,
+                             help="Régénère le PDF en intégrant tes éditions de sections. La lettre n'est pas affectée.",
                              key=f"recomp_{job_id}"):
                     with st.spinner("Recompilation..."):
                         try:
@@ -1112,7 +1160,7 @@ def studio_dialog(job_id: str):
 
             # ───── MARQUER COMME ENVOYÉ ────────────────────────
             if st.button("📤 J'ai postulé — clore la candidature",
-                         type="secondary", use_container_width=True,
+                         use_container_width=True,
                          key=f"sent_{job_id}"):
                 try:
                     mark_application_as_sent(job_id=job_id, gen_state=gen_state)
@@ -1139,7 +1187,7 @@ def studio_dialog(job_id: str):
                     for v in cv_vers[:8]:
                         flag = " ⭐" if v.get("is_final") else ""
                         st.markdown(
-                            f"<div style='font-size:0.78rem;color:#94a3b8;'>"
+                            f"<div style='font-size:0.78rem;color:var(--text-muted);'>"
                             f"v{v['version']}{flag} · {v.get('created_at','')[:16]}"
                             f"</div>",
                             unsafe_allow_html=True,
@@ -1151,7 +1199,7 @@ def studio_dialog(job_id: str):
                     for v in lt_vers[:8]:
                         flag = " ⭐" if v.get("is_final") else ""
                         st.markdown(
-                            f"<div style='font-size:0.78rem;color:#94a3b8;'>"
+                            f"<div style='font-size:0.78rem;color:var(--text-muted);'>"
                             f"v{v['version']}{flag} · {v.get('created_at','')[:16]}"
                             f"</div>",
                             unsafe_allow_html=True,
@@ -1750,16 +1798,20 @@ st.caption(
     "et utilisées immédiatement par le moteur de génération de CV/lettre."
 )
 
-PROFILE_PATH = Path("profiles/master_profile.json")
+PROFILE_PATH = ROOT / "profiles" / "master_profile.json"
 
 
 def _load_profile() -> dict:
     if PROFILE_PATH.exists():
-        return json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+        try:
+            return json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return {}
     return {}
 
 
 def _save_profile(data: dict) -> None:
+    PROFILE_PATH.parent.mkdir(parents=True, exist_ok=True)
     PROFILE_PATH.write_text(
         json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
     )

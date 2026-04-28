@@ -1,0 +1,306 @@
+{
+  "personal_info": {
+    "name": "Zein ELAJAMY",
+    "email": "zeinfrance4@gmail.com",
+    "phone": "+33 7 54 45 47 42",
+    "location": "France (mobilité nationale)",
+    "linkedin": "https://www.linkedin.com/in/zein-elajamy",
+    "github": "",
+    "hobbies": ["Basketball", "Randonnée", "F1"],
+    "current_status": {
+      "value": "Élève-ingénieur ENSEM (3A) en apprentissage chez ArcelorMittal R&D",
+      "hidden": true,
+      "inject_in_prompt": false
+    },
+    "headline_default": "Ingénieur Simulation & Énergie | EF · CFD · Jumeaux Numériques | R&D Procédés Industriels",
+    "summary_default": "Ingénieur R&D spécialisé en simulation numérique et performance énergétique industrielle. Expertise en Éléments Finis (Abaqus/Metafor), CFD (Ansys Fluent) et développement d'outils Python pour l'industrie 4.0. Expérience terrain chez ArcelorMittal R&D : modèle thermique validé à 95% sur ligne de recuit continu, automatisation d'audits énergétiques (gain >70%, de 2-3 jours à 30 min), identification d'un potentiel de réduction de consommation par facteur 10 à 20 sur les sections de refroidissement. PFE sur la stabilité numérique du flambage dynamique de plaques post-laminage.",
+    "languages": [
+      {"language": "Anglais", "level": "C1", "certification": "TOEIC 860/990"},
+      {"language": "Français", "level": "Courant"},
+      {"language": "Arabe", "level": "Maternel"}
+    ]
+  },
+
+  "certifications": [
+    {"name": "TOEIC", "score": "860/990", "level": "C1", "year": "2023"}
+  ],
+
+  "education": [
+    {
+      "degree": "Diplôme d'Ingénieur",
+      "institution": "ENSEM (École Nationale Supérieure d'Électricité et de Mécanique)",
+      "period": "2023 - 2026",
+      "specialization": "Énergie & Systèmes — Formation par Apprentissage",
+      "details": "Cursus généraliste avec une spécialisation en ingénierie thermique, mécanique et électrique. Formation axée sur la maîtrise de la chaîne de l’énergie : de la modélisation théorique des milieux fluides et solides à l’implémentation numérique de lois de commande et de stratégies de stockage",
+      "curriculum_highlights": {
+        "S5_S6": [
+          "Mécanique des Milieux Continus (MMC) — fondements de la mécanique des solides déformables",
+          "Thermodynamique fondamentale et machines thermiques",
+          "Électricité, magnétisme et circuits magnétiques",
+          "Signaux et systèmes : modélisation et traitement du signal",
+          "Programmation et algorithmique (Python, C)",
+          "Mathématiques pour l'ingénieur : analyse complexe, EDP, séries de Fourier",
+          "Analyse numérique et implémentation d'algorithmes (méthodes de résolution d'EDP, schémas numériques)"
+        ],
+        "S7_S8": [
+          "Dynamique des solides et des structures (vibrations, stabilité, flambement)",
+          "Mécanique des fluides avancée (couche limite, turbulence)",
+          "Convertisseurs statiques et Compatibilité Électromagnétique (CEM)",
+          "Réseaux d'énergie électrique et Smart Grids",
+          "Transferts thermiques et modélisation énergétique (conduction, convection, rayonnement)",
+          "Stockage mécanique et thermique de l'énergie",
+          "Automatismes industriels, commande et supervision",
+          "Électronique de puissance et Drives"
+        ],
+        "S9": [
+          "Transferts d'énergies avancés (couplages multi-physiques)",
+          "Dimensionnement des systèmes énergétiques complexes",
+          "Sources et stockage de l'énergie électrique",
+          "Science et comportement mécanique des matériaux (fatigue, rupture, plasticité)",
+          "Simulations numériques et applications industrielles",
+          "Réseaux Internet et communication industrielle"
+        ]
+      }
+    },
+    {
+      "degree": "Licence Mécanique des Fluides & Énergétique",
+      "institution": "Faculté des sciences et technologies — Université de Lorraine, Nancy",
+      "period": "2022 - 2023",
+      "specialization": "Énergétique et Mécanique",
+      "details": "Formation approfondie en énergétique et mécanique des fluides. Compétences solides en dynamique des fluides (écoulements laminaires et turbulents), thermodynamique technique, transferts de chaleur (conduction, convection, rayonnement) et méthodes mathématiques appliquées à la physique."
+    }
+  ],
+
+  "academic_foundations": [
+    {
+      "name": "Mécanique des Milieux Continus (MMC)",
+      "level": "Maîtrise",
+      "period": "S5-S6",
+      "relevance": ["calcul structure", "éléments finis", "mécanique", "contraintes et déformations"]
+    },
+    {
+      "name": "Transferts thermiques avancés (conduction, convection, rayonnement, multi-physiques)",
+      "level": "Maîtrise",
+      "period": "S7-S9",
+      "relevance": ["thermique industrielle", "échangeurs", "énergie", "modélisation thermique"]
+    },
+    {
+      "name": "Dynamique des solides et structures (vibrations, stabilité, flambement)",
+      "level": "Maîtrise",
+      "period": "S7-S8",
+      "relevance": ["calcul structure", "flambage", "stabilité", "bureau d'études"]
+    },
+    {
+      "name": "Analyse numérique et méthodes de résolution d'EDP",
+      "level": "Avancé",
+      "period": "S5-S6",
+      "relevance": ["simulation numérique", "calcul scientifique", "schémas numériques"]
+    },
+    {
+      "name": "Dimensionnement des systèmes énergétiques complexes",
+      "level": "Maîtrise",
+      "period": "S9",
+      "relevance": ["énergie", "bureau d'études", "dimensionnement", "appareils à pression"]
+    },
+    {
+      "name": "Science et comportement mécanique des matériaux (fatigue, rupture, plasticité)",
+      "level": "Maîtrise",
+      "period": "S9",
+      "relevance": ["matériaux", "calcul structure", "tenue mécanique"]
+    },
+    {
+      "name": "Mécanique des fluides avancée (couche limite, turbulence)",
+      "level": "Maîtrise",
+      "period": "S7-S8",
+      "relevance": ["CFD", "aérodynamique", "échangeurs", "fluides"]
+    }
+  ],
+
+  "experience_stark": [
+    {
+      "id": "AM_PFE",
+      "title": "PFE : Stabilité Numérique du Flambage Dynamique de Plaques Post-Laminage",
+      "company": "ArcelorMittal R&D",
+      "period": "Avril 2026 - Août 2026",
+      "profiles_tags": ["simulation_rd", "calcul_digital", "all"],
+      "context_rd": "Travail en environnement R&D industriel ArcelorMittal. Présentation des avancements lors des revues de projet mensuelles devant les experts R&D. Rédaction de rapports techniques formels (Word).",
+      "S": "Prédire l'apparition de plis d'instabilité de planéité (plis de rive, plis de centre) sur les tôles minces après laminage, sous l'effet de champs de contraintes résiduelles hétérogènes.",
+      "T": "Développer une méthodologie numérique rigoureuse pour étudier le phénomène de Snap-Through (transition brutale d'équilibre) sur un modèle de plaque tronquée représentatif des conditions industrielles.",
+      "A": "Phase 1 — Validation : Benchmark sur le cas test de référence mondiale 'Toit de Scordelis-Lo'. Correction des repères locaux par rotation d'instance pour aligner efforts et conditions de symétrie. Validation d'Abaqus/Explicit pour capter le basculement brutal de la structure vers un autre état d’équilibre. Phase 2 — Convergence de maillage : Étude de sensibilité numérique démontrant qu'un maillage de 20×20 (400 éléments S4R) constitue le compromis optimal. Comparaison éléments Coques vs Solides pour détecter le verrouillage numérique. Phase 3 — Benchmarking logiciel : Comparaison de la robustesse d'Abaqus face à la méthode ANM (Asymptotic Numerical Method) de Metafor sur le modèle réduit. Phase 4 — Application industrielle : Application de champs de contraintes résiduelles réels ArcelorMittal sur plaques tronquées (1200–1680 mm) pour identifier les seuils de stabilité.",
+      "R": "Identification des paramètres critiques provoquant les plis de rive et de centre. Rapport technique définissant les limites de stabilité et les performances comparées des solveurs Abaqus et Metafor face aux grandes transformations non-linéaires.",
+      "K": ["Abaqus", "Metafor", "Flambage Dynamique", "Snap-Through", "Éléments Finis", "Non-linéaire", "Analyse de stabilité", "Éléments coques (S4R)"]
+    },
+    {
+      "id": "AM_A2",
+      "title": "Développement d’un outil d’audit énergétique & décarbonation",
+      "company": "ArcelorMittal R&D",
+      "period": "Année 2 (2024-2025)",
+      "profiles_tags": ["energie_cfd", "calcul_digital", "energie_enr", "all"],
+      "context_rd": "Outil déployé auprès de 3 profils utilisateurs : ingénieurs R&D (validation modèles), ingénieurs Process (optimisation réglages), Management Downstream (justification investissements CAPEX). Présentations mensuelles devant experts R&D.",
+      "S": "L'analyse d'une campagne de production sur la Ligne de Recuit Continu (CAL) nécessitait 2 à 3 jours de traitement manuel : extraction de signaux issus du système de supervision industrielle, calculs sur feuilles Excel disparates et corrélations thermiques manuelles.",
+      "T": "Automatiser l'audit énergétique des sections de refroidissement de la CAL et quantifier les potentiels de gain pour la trajectoire de décarbonation.",
+      "A": "Développement du module Python ARCTIC (pipeline Excel → Python → Rapport HTML). Intégration de données capteurs IBA (signaux industriels). Inversion mathématique de corrélations physiques complexes pour calculer les bilans thermiques. Création de dashboards interactifs via Plotly. Audit des auxiliaires électriques : ventilateurs haute puissance (jets de gaz, tunnels) et pompes hydrauliques. Étude thermodynamique comparative entre refroidissement gaz (Jets, tunnels) et technologie “refroidissement par rouleaux magnétiques (Magnetic Roll Quench).",
+      "R": "Réduction du temps de traitement de 2-3 jours à moins de 30 minutes (gain > 70%). Chiffrage du rendement global du système de refroidissement gaz actuel à 3–6% (perte de 94%+). Identification d'un potentiel de réduction de consommation de 20–55 kWh/t à moins de 2 kWh/t en passant au refroidissement par rouleaux magnétiques, soit une division par 10 à 20 de la consommation spécifique. Rapport utilisé pour justifier des décisions d'investissement CAPEX.",
+      "K": ["Python", "Plotly", "Audit Énergétique", "Décarbonation", "Bilan thermique", "IBA (signaux industriels)", "Data Visualization", "Git"]
+    },
+    {
+      "id": "AM_A1",
+      "title": "modèle numérique répliquant le comportement thermique d’un procédé industriel(Jumeau numérique) — Ligne de Recuit Continu",
+      "company": "ArcelorMittal R&D",
+      "period": "Année 1 (2023-2024)",
+      "profiles_tags": ["simulation_rd", "energie_cfd", "calcul_digital", "all"],
+      "context_rd": "Modèle développé en environnement R&D industriel. Revues mensuelles devant les experts ArcelorMittal. Documentation technique rédigée en Word.",
+      "S": "Nécessité de simuler et anticiper les profils de température sur la section de refroidissement de la Ligne de Recuit Continu (CAL), sur une plage de 1200°C à 500°C, à partir de données réelles de production.",
+      "T": "Concevoir un modèle thermique offline intégrant les données capteurs réels pour simuler le refroidissement industriel et accélérer l'analyse des campagnes de production.",
+      "A": "Développement d'un logiciel de simulation thermique hors-ligne en Python. Intégration de signaux capteurs réels (thermocouples, IBA). Implémentation de corrélations physiques de transferts thermiques (convection forcée, conduction) et de données géométriques réelles de la ligne. Structuration du code pour la reproductibilité et la maintenabilité industrielle. Versioning Git interne.",
+      "R": "Validation du modèle avec une corrélation de 95% entre températures théoriques et mesures capteurs réels. Réduction significative du temps de post-traitement des simulations de production. Base technique réutilisée dans le module ARCTIC (A2).",
+      "K": ["Modélisation thermique", "Jumeau numérique", "Python", "Simulation offline", "Transferts thermiques", "Capteurs industriels", "Git", "Ligne de Recuit Continu (CAL)"]
+    },
+    {
+      "id": "IJL_STAGE",
+      "title": "Stagiaire Recherche — Thermodynamique des Alliages Fe-Cr-Ni",
+      "company": "Institut Jean Lamour (IJL — CNRS UMR 7198)",
+      "period": "2023",
+      "profiles_tags": ["simulation_rd", "all"],
+      "S": "Étude du comportement thermodynamique des aciers inoxydables à haute teneur en Chrome (systèmes Fe-Cr-Ni) au sein d'un laboratoire CNRS de rang mondial.",
+      "T": "Modéliser les équilibres de phases et les transformations de phases sous gradient thermique pour prédire le comportement des alliages lors des procédés de traitement thermique.",
+      "A": "Modélisation CALPHAD des équilibres de phases sous ThermoCalc sur des systèmes Fe-Cr-Ni (aciers inoxydables). Calcul de diagrammes de phases binaires et ternaires. Analyse et interprétation de données de caractérisation microstructurale. Rédaction d'un rapport technique en Français avec résumé en Anglais.",
+      "R": "Expertise acquise en thermodynamique computationnelle des matériaux (méthode CALPHAD). Compréhension des transformations de phases sous gradient thermique, directement transférable aux procédés de traitement thermique industriel (recuit, trempe, revenu). Contribution à la base de données de modélisation du laboratoire.",
+      "K": ["Thermodynamique", "CALPHAD", "ThermoCalc", "Aciers inoxydables (Fe-Cr-Ni)", "Diagrammes de phases", "Science des matériaux", "Traitement thermique"]
+    },
+    {
+      "id": "ENSEM_PROJ_FLUENT",
+      "title": "Analyse CFD — Profil d'Aile NACA 23012",
+      "company": "ENSEM Nancy",
+      "type": "academic_project",
+      "profiles_tags": ["energie_cfd", "calcul_digital"],
+      "period": "Semestre 9",
+      "S": "Validation numérique des performances aérodynamiques et identification de l'angle de décrochage d'un profil d'aile portant.",
+      "T": "Calculer les coefficients aérodynamiques Cl/Cd et prédire le comportement à haute incidence par simulation CFD.",
+      "A": "Génération d'un maillage structuré sous Ansys Meshing avec raffinement de couche limite (y+ ≈ 1). Setup Fluent avec modèle de turbulence adapté aux écoulements avec décollement (k-omega SST). Schémas de discrétisation du second ordre. Étude de plusieurs angles d'incidence de 0° à 20°. Post-traitement des champs de vitesse et de pression (zones de recirculation).",
+      "R": "Identification de l'angle de décrochage à 15° avec une erreur inférieure à 4% par rapport aux données expérimentales NACA. Visualisation et analyse des mécanismes de décollement de couche limite. Validation de la méthodologie numérique CFD.",
+      "K": ["Ansys Fluent", "CFD", "k-omega SST", "Aérodynamique", "Maillage structuré", "Couche limite", "Décrochage"]
+    },
+    {
+      "id": "ENSEM_PROJ_COMPOSITES",
+      "title": "Comportement Thermomécanique d'un Composite Stratifié Carbone/Époxy",
+      "company": "ENSEM Nancy",
+      "type": "academic_project",
+      "profiles_tags": ["simulation_rd"],
+      "period": "Semestre 9",
+      "S": "Analyse des contraintes résiduelles et risques de délaminage dans un composite stratifié sous gradient thermique.",
+      "T": "Modéliser une plaque stratifiée carbone/époxy sous couplage thermomécanique (gradient thermique imposé sur plaque bridée).",
+      "A": "Approche analytique par la Théorie Classique des Stratifiés (CLT) sur séquence quasi-isotrope [0/90/±45]s. Simulation Abaqus/CAE avec couplage thermomécanique. Analyse des contraintes interlaminaires et résiduelle post-cuisson. Comparaison numérique/analytique.",
+      "R": "Validation du modèle numérique par rapport à la théorie classique des stratifiés (CLT). Compréhension des mécanismes d'initiation de délaminage thermique. Maîtrise des séquences d'empilement et de leur influence sur la rigidité.",
+      "K": ["Matériaux Composites", "Carbone/Époxy", "Thermomécanique", "Abaqus/CAE", "Théorie Classique des Stratifiés (CLT)", "Délaminage", "Contraintes résiduelles"]
+    },
+    {
+      "id": "ENSEM_TP_SOLAR",
+      "title": "Dimensionnement de Systèmes Photovoltaïques (10 kW)",
+      "company": "ENSEM Nancy",
+      "type": "academic_project",
+      "profiles_tags": ["energie_enr"],
+      "period": "Semestre 8",
+      "S": "Maîtrise du dimensionnement d'une installation solaire pilote à l'échelle 10 kW.",
+      "T": "Caractériser une installation PV et simuler son comportement sous Matlab/Simulink.",
+      "A": "Modélisation de la chaîne de conversion (panneau → onduleur → réseau). Analyse des courbes I-V et P-V. Simulation des performances sous différents ensoleillement. Validation sur banc d'essai expérimental.",
+      "R": "Validation des modèles théoriques par rapport aux mesures expérimentales. Maîtrise du dimensionnement d'une installation solaire raccordée au réseau.",
+      "K": ["Matlab/Simulink", "Photovoltaïque", "Dimensionnement énergétique", "Courbes I-V"]
+    },
+    {
+      "id": "ENSEM_TP_WIND",
+      "title": "Étude Aérodynamique et Commande d'Éoliennes",
+      "company": "ENSEM Nancy",
+      "type": "academic_project",
+      "profiles_tags": ["energie_enr"],
+      "period": "Semestre 8",
+      "S": "Optimisation de la capture de puissance d'une éolienne sur plage de vent variable.",
+      "T": "Analyser les performances aérodynamiques et implanter des lois de commande avancées.",
+      "A": "Modélisation sous Simulink de la turbine et de la génératrice. Implantation de lois de commande MPPT et régulation Pitch. Test de stratégies sur plage de vent variable.",
+      "R": "Optimisation de la capture de puissance dans le respect de la limite de Betz. Validation des stratégies de commande MPPT.",
+      "K": ["Simulink", "Énergie Éolienne", "MPPT", "Commande Pitch", "Automatique"]
+    },
+    {
+      "id": "ENSEM_TP_HYDRO",
+      "title": "Caractérisation de Turbomachines Hydrauliques (Pelton / Francis)",
+      "company": "ENSEM Nancy",
+      "type": "academic_project",
+      "profiles_tags": ["energie_enr"],
+      "period": "Semestre 8",
+      "S": "Prédiction du fonctionnement optimal de turbines hydrauliques pour le stockage d'énergie par pompage.",
+      "T": "Réaliser des essais de performance sur turbines Pelton et Francis de laboratoire.",
+      "A": "Mesures physiques sur banc d'essai. Tracé des collines de rendement sous Matlab. Analyse de phénomènes hydrauliques complexes (cavitation, variation de débit).",
+      "R": "Identification des points de fonctionnement optimaux. Maîtrise des courbes caractéristiques des turbomachines.",
+      "K": ["Hydraulique", "Turbines Pelton/Francis", "Turbomachines", "Matlab", "Collines de rendement"]
+    }
+  ],
+
+  "profiles": {
+    "simulation_rd": {
+      "headline": "Ingénieur Simulation Numérique | Éléments Finis & Stabilité Dynamique | R&D Industrielle",
+      "target_keywords": ["Abaqus", "Metafor", "Éléments Finis", "Non-linéaire", "Flambage", "Snap-Through", "Composites", "Science des matériaux"],
+      "priority_experiences": ["AM_PFE", "ENSEM_PROJ_COMPOSITES", "AM_A1", "IJL_STAGE"]
+    },
+    "energie_cfd": {
+      "headline": "Ingénieur Énergie & CFD | Jumeaux Numériques & Décarbonation Industrielle | Ansys Fluent",
+      "target_keywords": ["CFD", "Ansys Fluent", "k-omega SST", "Décarbonation", "Audit Énergétique", "Bilan thermique", "Jumeau Numérique"],
+      "priority_experiences": ["AM_A2", "AM_A1", "ENSEM_PROJ_FLUENT", "AM_PFE"]
+    },
+    "energie_enr": {
+      "headline": "Ingénieur Énergie Renouvelable | Systèmes PV · Éolien · Hydro | Smart Grids",
+      "target_keywords": ["ENR", "Photovoltaïque", "Éolien", "Hydraulique", "Smart Grid", "MPPT", "Automatique"],
+      "priority_experiences": ["ENSEM_TP_SOLAR", "ENSEM_TP_WIND", "ENSEM_TP_HYDRO", "AM_A2"]
+    },
+    "calcul_digital": {
+      "headline": "Ingénieur Calcul Scientifique & Digital | Python · Simulation · Jumeaux Numériques Industriels",
+      "target_keywords": ["Python", "Simulation", "Jumeau numérique", "Automatisation", "Data Visualization", "Plotly", "Git"],
+      "priority_experiences": ["AM_A2", "AM_A1", "AM_PFE", "ENSEM_PROJ_FLUENT"]
+    },
+    "bureau_etudes": {
+      "headline": "Ingénieur Bureau d'Études | Calcul Structure & Thermique | Simulation Numérique",
+      "target_keywords": ["Calcul structure", "Éléments finis", "Tenue mécanique", "Transferts thermiques", "Notes de calcul", "Abaqus", "Dimensionnement"],
+      "priority_experiences": ["AM_PFE", "ENSEM_PROJ_COMPOSITES", "AM_A1", "ENSEM_PROJ_FLUENT"]
+    }
+  },
+
+  "skills_taxonomy": {
+    "hard_skills": [
+      {"name": "Abaqus / Abaqus CAE", "level": "Avancé", "context": "PFE Flambage, Composites S9"},
+      {"name": "Metafor (ANM)", "level": "Intermédiaire", "context": "PFE Benchmarking logiciel"},
+      {"name": "Ansys Fluent", "level": "Avancé", "context": "Projet S9 CFD NACA 23012"},
+      {"name": "Analyse par Éléments Finis (EF)", "level": "Avancé", "context": "PFE, Composites, Couches limites"},
+      {"name": "Python", "level": "Avancé", "context": "ArcelorMittal — Jumeaux Numériques, Module ARCTIC"},
+      {"name": "Matlab / Simulink", "level": "Avancé", "context": "ENR, Turbomachines, Automatique"},
+      {"name": "Plotly (Data Visualization)", "level": "Avancé", "context": "Dashboards interactifs ARCTIC"},
+      {"name": "ThermoCalc (CALPHAD)", "level": "Intermédiaire", "context": "Stage IJL — Aciers inoxydables Fe-Cr-Ni"},
+      {"name": "Git (versioning)", "level": "Intermédiaire", "context": "Code Python ArcelorMittal (Git interne)"},
+      {"name": "Transferts thermiques (conduction, convection, rayonnement)", "level": "Avancé", "context": "Jumeau Thermique AM, Licence MFE, ENSEM S7-S9"},
+      {"name": "Mécanique des structures / MMC", "level": "Avancé", "context": "ENSEM S5-S8, PFE, Composites"},
+      {"name": "Calcul thermomécanique", "level": "Intermédiaire", "context": "Composites S9, IJL"},
+      {"name": "Rédaction de rapports techniques", "level": "Avancé", "context": "ArcelorMittal (Word), ENSEM (LaTeX)"},
+      {"name": "Smart Grids / Réseaux électriques", "level": "Intermédiaire", "context": "Cours ENSEM S7-S8"},
+      {"name": "Électronique de puissance", "level": "Intermédiaire", "context": "Cours ENSEM S6-S8"}
+    ],
+    "domain_knowledge": [
+      "Simulation numérique non-linéaire (grandes transformations, Snap-Through, flambage)",
+      "Éléments Finis (coques S4R, solides, éléments EAS)",
+      "Jumeaux Numériques Industriels (thermique, énergétique)",
+      "Audit énergétique et décarbonation industrielle",
+      "Transferts thermiques multi-physiques",
+      "CFD et aérodynamique (k-omega SST, couche limite)",
+      "Matériaux composites stratifiés (CLT, délaminage)",
+      "Thermodynamique des matériaux et CALPHAD",
+      "Énergies Renouvelables (Solaire, Éolien, Hydro)",
+      "Automatique & Commande (MPPT, Pitch)",
+      "Efficacité Énergétique & Décarbonation"
+    ],
+    "soft_skills": [
+      "Présentation de résultats techniques devant experts R&D et management (revues mensuelles)",
+      "Rédaction de rapports R&D formels (Word, LaTeX)",
+      "Rigueur scientifique et validation numérique rigoureuse",
+      "Travail en environnement R&D industriel multi-équipes",
+      "Adaptabilité (alternance industrie/école)",
+      "Capacité à corriger et challenger les résultats numériques"
+    ]
+  }
+}

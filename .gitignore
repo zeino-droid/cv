@@ -22,8 +22,7 @@ dist/
 *.egg-info/
 
 # --- STREAMLIT & UI ---
-.streamlit/config.toml
-! .streamlit/
+!.streamlit/config.toml
 
 # --- LOGS ---
 logs/
