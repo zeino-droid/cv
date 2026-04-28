@@ -1,44 +1,21 @@
-import json
-from typing import Dict, List, Any, Optional
+import re
+from typing import Any, Dict, List, Optional, TypedDict
 from .matching import get_safe_personal_info
 
+
+class CandidateContext(TypedDict, total=False):
+    """Structure attendue du contexte candidat."""
+    personal_info: Dict[str, Any]
+    target_profile: Dict[str, str]
+    experiences: List[Dict[str, Any]]
+    skills: Dict[str, Any]
+    education: List[Dict[str, Any]]
+    ranked_projects: List[Dict[str, Any]]
+
+
 # ============================================
-# CONTRAINTES DE CONTENU (Phase 4)
+# SOURCE UNIQUE DES CONTRAINTES (Phase 4)
 # ============================================
-PROJECT_CONSTRAINTS = """
-[CONTRAINTES PROJETS — FORMAT COMPACT]
-SECTION "PROJETS TECHNIQUES" (distincte de "EXPÉRIENCES") :
-Pour CHAQUE projet retenu :
-- TITRE : MAX 70 caractères — doit contenir le(s) outil(s) clé(s). Format : "[Sujet] — [Outil] | [Contexte]"
-- DESCRIPTION : 1 seule ligne — MAX 150 caractères. Décrire clairement le sujet, l'approche et l'impact.
-- KEYWORDS : liste de 3 à 4 mots-clés techniques séparés par " · "
-INTERDIT : Bullets multiples, mention "TP/cours" (utiliser "Projet").
-"""
-
-ONE_PAGE_CONSTRAINTS = """
-[CONTRAINTES STRICTES — ONE PAGE — NON NÉGOCIABLES]
-
-SUMMARY :
-- MAXIMUM 3 lignes.
-- MAXIMUM 400 caractères (espaces inclus).
-- Format : 1 phrase de positionnement + 1 phrase de preuve chiffrée + 1 phrase de valeur ajoutée.
-- INTERDIT : listes, tirets, sauts de ligne dans le summary.
-
-EXPERIENCES (Pool A) :
-- MAXIMUM 2 expériences.
-- MAXIMUM 2 bullet points par expérience.
-- MAXIMUM 120 caractères par bullet (espaces inclus).
-- Format recommandé : phrase claire, orientée contribution et impact.
-- Style obligatoire : vocabulaire technique dense, précis, sans remplissage.
-
-PROJETS (Pool B) :
-""" + PROJECT_CONSTRAINTS + """
-
-HEADLINE :
-- MAXIMUM 1 ligne.
-- MAXIMUM 90 caractères.
-"""
-
 DEFAULT_CONTENT_CONFIG = {
     "summary_min_chars": 280,
     "summary_max_chars": 420,
@@ -51,6 +28,10 @@ DEFAULT_CONTENT_CONFIG = {
     "max_bullet_chars": 120,
     "skills_count": 12,
     "skills_min": 6,
+    "headline_max_chars": 90,
+    "project_title_max_chars": 70,
+    "project_desc_min_chars": 60,
+    "project_desc_max_chars": 150,
 }
 
 
@@ -71,8 +52,8 @@ EXPERIENCES:
 
 PROJETS:
 - MIN {config["min_projects"]}, MAX {config["max_projects"]} projets
-- Titre MAX 70 chars
-- Description MIN 60 chars, MAX 150 chars
+- Titre MAX {config["project_title_max_chars"]} chars
+- Description MIN {config["project_desc_min_chars"]} chars, MAX {config["project_desc_max_chars"]} chars
 - Keywords: 3 à 4 mots techniques séparés par " · "
 
 SKILLS:
@@ -80,13 +61,13 @@ SKILLS:
 - INTERDIT d'en mettre moins que le minimum
 
 HEADLINE:
-- MAX 90 chars
+- MAX {config["headline_max_chars"]} chars
 - Format recommandé : [Métier ciblé] | [2-3 expertises techniques clés]
 - Éviter les formulations génériques ("Ingénieur", "Profil polyvalent", etc.)
 """
 
 
-def build_candidate_context(profile_id: str, profile_index: Dict, filtered_experiences: List[Dict], filtered_skills: Dict) -> Dict:
+def build_candidate_context(profile_id: str, profile_index: Dict, filtered_experiences: List[Dict], filtered_skills: Dict) -> CandidateContext:
     """Prépare le contexte candidat pour le prompt."""
     personal_info = get_safe_personal_info(profile_index.get("personal_info", {}))
     profile_def = profile_index.get("profiles", {}).get(profile_id, {})
@@ -104,7 +85,7 @@ def build_candidate_context(profile_id: str, profile_index: Dict, filtered_exper
     }
     return context
 
-def build_generation_prompt(job_offer: Dict, candidate_context: Dict, profile_id: str, content_config: Optional[Dict] = None) -> Dict:
+def build_generation_prompt(job_offer: Dict, candidate_context: CandidateContext, profile_id: str, content_config: Optional[Dict] = None) -> Dict:
     """Génère un dictionnaire structuré qui servira de prompt unique avec contraintes One-Page V2."""
     content_cfg = {**DEFAULT_CONTENT_CONFIG, **(content_config or {})}
     prompt_dict = {
@@ -142,7 +123,7 @@ def build_generation_prompt(job_offer: Dict, candidate_context: Dict, profile_id
         },
         "output_format": {
             "cv": {
-                "headline": {"value": "string — MAX 90 chars", "char_count": "integer"},
+                "headline": {"value": f"string — MAX {content_cfg['headline_max_chars']} chars", "char_count": "integer"},
                 "summary": {"value": f"string — MIN {content_cfg['summary_min_chars']} / MAX {content_cfg['summary_max_chars']} chars", "char_count": "integer"},
                 "experiences": [
                     {
@@ -154,8 +135,8 @@ def build_generation_prompt(job_offer: Dict, candidate_context: Dict, profile_id
                 "projects": [
                     {
                         "id": "string",
-                        "rewritten_title": "string — MAX 70 chars",
-                        "one_line_description": "string — MAX 150 chars",
+                        "rewritten_title": f"string — MAX {content_cfg['project_title_max_chars']} chars",
+                        "one_line_description": f"string — MIN {content_cfg['project_desc_min_chars']} / MAX {content_cfg['project_desc_max_chars']} chars",
                         "keywords_inline": "string — 3 à 4 mots techniques · séparés"
                     }
                 ],
@@ -178,8 +159,8 @@ def validate_llm_output_constraints(cv_data: Dict, content_config: Optional[Dict
     # 1. Headline
     headline_obj = cv.get("headline", {})
     headline = headline_obj.get("value", "") if isinstance(headline_obj, dict) else str(headline_obj)
-    if len(headline) > 90:
-        headline = _truncate_at_word(headline, 90)
+    if len(headline) > cfg["headline_max_chars"]:
+        headline = _truncate_at_word(headline, cfg["headline_max_chars"])
         violations.append({"field": "headline", "action": "truncated"})
     cv["headline"] = {"value": headline, "char_count": len(headline)}
 
@@ -225,20 +206,20 @@ def validate_llm_output_constraints(cv_data: Dict, content_config: Optional[Dict
     
     for i, proj in enumerate(projs):
         title = proj.get("rewritten_title", "")
-        if len(title) > 70:
-            proj["rewritten_title"] = _truncate_at_word(title, 70)
+        if len(title) > cfg["project_title_max_chars"]:
+            proj["rewritten_title"] = _truncate_at_word(title, cfg["project_title_max_chars"])
             violations.append({"field": f"proj[{i}].title", "action": "truncated"})
-        
+
         desc = proj.get("one_line_description", "")
-        if len(desc) > 150:
-            proj["one_line_description"] = _truncate_at_word(desc, 150)
+        if len(desc) > cfg["project_desc_max_chars"]:
+            proj["one_line_description"] = _truncate_at_word(desc, cfg["project_desc_max_chars"])
             violations.append({"field": f"proj[{i}].desc", "action": "truncated"})
     cv["projects"] = projs
 
-    # 5. Skills inline (Min/Max)
+    # 5. Skills inline (Min/Max) — accepts · or • as separators, normalises to ·
     skills_inline = cv.get("skills_inline", "")
     if isinstance(skills_inline, str) and skills_inline.strip():
-        skills = [s.strip() for s in skills_inline.split("·") if s.strip()]
+        skills = [s.strip() for s in re.split(r"\s*[·•]\s*", skills_inline) if s.strip()]
         if len(skills) > cfg["skills_count"]:
             skills = skills[: cfg["skills_count"]]
             violations.append({"field": "skills_inline", "action": "cut_to_max"})
