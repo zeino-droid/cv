@@ -198,8 +198,8 @@ class GeminiEngine(LLMEngine):
         "gemini-flash-lite-latest",
     ]
 
-    def __init__(self, api_key: str = None, model_name: str = "gemini-flash-latest"):
-        self.model_name = model_name
+    def __init__(self, api_key: str = None, model_name: str = None):
+        self.model_name = model_name or os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
         self.api_key = api_key or os.environ.get("GEMINI_API_KEY")
         self.available = False
         self.client = None
