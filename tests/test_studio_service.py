@@ -88,13 +88,13 @@ class TestInitGenState:
         )
         with patch.dict("sys.modules", {"Pipeline": pipeline_mock}):
             _init_gen_state(state, _profile(), _job())
-        assert "letter_text" in state
+        assert state.get("letter_text") == ""
 
     def test_sets_empty_string_when_pipeline_import_fails(self):
         state = {}
         with patch.dict("sys.modules", {"Pipeline": None}):
             _init_gen_state(state, _profile(), _job())
-        assert "letter_text" in state
+        assert state.get("letter_text") == ""
 
 
 # ---------------------------------------------------------------------------
