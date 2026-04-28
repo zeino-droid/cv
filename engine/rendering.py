@@ -74,7 +74,8 @@ class TypstRenderer(Renderer):
 
         if photo_path and Path(photo_path).is_file():
             source = Path(photo_path)
-            dest_name = "_profile_photo" + source.suffix.lower()
+            suffix = source.suffix.lower() if source.suffix else ".jpg"
+            dest_name = "_profile_photo" + suffix
             dest = template_dir / dest_name
             shutil.copy2(source, dest)
             copied_photo = dest
