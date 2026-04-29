@@ -227,9 +227,24 @@ class JobDatabase:
         return d
 
     def upsert_jobs(self, jobs: List[Dict]) -> int:
-        """Insère ou met à jour les offres. Retourne le nombre de nouvelles offres."""
+        """Insère ou met à jour les offres. Retourne le nombre de nouvelles offres.
+        
+        V2 : Inclut une vérification fuzzy (titre+entreprise) pour éviter les doublons
+        qui arrivent avec des IDs légèrement différents entre les sources/sessions.
+        """
         new_count = 0
         with self._connect() as conn:
+            # Pré-charger les titres+entreprises existants pour la dédup fuzzy
+            existing_signatures = {}
+            try:
+                rows = conn.execute("SELECT id, title, company FROM jobs").fetchall()
+                for row in rows:
+                    title_tokens = set((row["title"] or "").lower().split())
+                    company_lower = (row["company"] or "").lower().strip()
+                    existing_signatures[row["id"]] = (title_tokens, company_lower)
+            except Exception:
+                pass
+
             for job in jobs:
                 job_id = (
                     job.get("id")
@@ -238,6 +253,35 @@ class JobDatabase:
                 existing = conn.execute(
                     "SELECT id FROM jobs WHERE id = ?", (job_id,)
                 ).fetchone()
+
+                # V2 : Vérification fuzzy — si le job n'existe pas par ID,
+                # vérifier par titre+entreprise similaire (Jaccard > 0.7)
+                if existing is None and existing_signatures:
+                    new_title_tokens = set((job.get("title") or "").lower().split())
+                    new_company = (job.get("company") or "").lower().strip()
+                    
+                    for ex_id, (ex_tokens, ex_company) in existing_signatures.items():
+                        # Même entreprise (ou très similaire)
+                        company_match = (
+                            new_company == ex_company
+                            or new_company in ex_company
+                            or ex_company in new_company
+                        )
+                        if not company_match:
+                            continue
+                        # Jaccard sur les tokens du titre
+                        if new_title_tokens and ex_tokens:
+                            inter = len(new_title_tokens & ex_tokens)
+                            union = len(new_title_tokens | ex_tokens) or 1
+                            if inter / union >= 0.7:
+                                # C'est un doublon — on met à jour le score si meilleur
+                                new_score = int(job.get("fit_score", 0))
+                                conn.execute(
+                                    "UPDATE jobs SET fit_score = MAX(fit_score, ?), updated_at = datetime('now') WHERE id = ?",
+                                    (new_score, ex_id),
+                                )
+                                existing = True  # Flag pour skip l'insert
+                                break
 
                 ms_json = json.dumps(job.get("matched_skills", []), ensure_ascii=False)
                 rs_json = json.dumps(job.get("required_skills", []), ensure_ascii=False)
@@ -273,8 +317,13 @@ class JobDatabase:
                             posted_date,
                         ),
                     )
+                    # Ajouter à l'index pour les prochaines itérations
+                    title_tokens = set((job.get("title", "")).lower().split())
+                    company_lower = (job.get("company", "")).lower().strip()
+                    existing_signatures[job_id] = (title_tokens, company_lower)
                     new_count += 1
-                else:
+                elif existing is not True:
+                    # existing est un Row (pas le flag True de la dédup fuzzy)
                     conn.execute(
                         """UPDATE jobs SET
                                fit_score        = ?,

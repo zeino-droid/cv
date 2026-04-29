@@ -169,13 +169,22 @@ EDITABLE_SECTIONS: Dict[str, Dict[str, Any]] = {
         "max_chars": 2500,
         "per_item": False,
         "prompt_role": (
-            "lettre de motivation complète en français, structurée en 3-4 paragraphes "
-            "(intro / valeur ajoutée / motivation / call-to-action)."
+            "lettre de motivation complète en français, structurée en 4 paragraphes "
+            "selon la méthode VOUS → MOI → NOUS : "
+            "(1) Accroche montrant la connaissance de l'entreprise et du poste, "
+            "(2) Valeur ajoutée avec réalisations concrètes et chiffrées, "
+            "(3) Motivation expliquant l'adéquation candidat/entreprise, "
+            "(4) Call-to-action proposant un entretien."
         ),
         "format_rules": (
             "- Garde l'en-tête et la signature s'ils existent.\n"
-            "- Ton pro mais incarné (1ère personne).\n"
-            "- 250-400 mots."
+            "- Ton professionnel, confiant, incarné (1ère personne).\n"
+            "- 250-350 mots pour le corps.\n"
+            "- Mentionner l'entreprise au moins 2 fois.\n"
+            "- JAMAIS de 'Apprenti', 'Étudiant', 'Élève'.\n"
+            "- JAMAIS de 'Je me permets de...', 'Suite à votre annonce...'.\n"
+            "- JAMAIS de 'Cordialement' — formule de politesse longue obligatoire.\n"
+            "- Au moins 1 donnée chiffrée ou contextualisée."
         ),
     },
 }
@@ -385,29 +394,59 @@ def find_unapplied_overrides(
         return []
     msgs: List[str] = []
     exp_ids = {e.get("id") for e in cv_data.get("experiences", []) if e.get("id")}
+    exp_pos = {e.get("position") for e in cv_data.get("experiences", []) if e.get("position")}
+    
     proj_ids = {p.get("id") for p in cv_data.get("projects", []) if p.get("id")}
+    proj_names = {p.get("name") for p in cv_data.get("projects", []) if p.get("name")}
 
     ach = section_overrides.get("achievements") or {}
     for eid in ach:
-        if eid not in exp_ids:
+        if eid not in exp_ids and eid not in exp_pos:
             msgs.append(f"Puces d'expérience pour « {eid} » (non présent dans le CV courant)")
 
     desc = section_overrides.get("project_description") or {}
     for pid in desc:
-        if pid not in proj_ids:
+        if pid not in proj_ids and pid not in proj_names:
             msgs.append(f"Description du projet « {pid} » (non présent dans le CV courant)")
 
     kw = section_overrides.get("project_keywords") or {}
     for pid in kw:
-        if pid not in proj_ids:
+        if pid not in proj_ids and pid not in proj_names:
             msgs.append(f"Mots-clés du projet « {pid} » (non présent dans le CV courant)")
 
     return msgs
 
 
 # ============================================================
-# 4. Construction du prompt spécialisé
+# 4. Construction du prompt spécialisé (Action 5 — Direction éditoriale)
 # ============================================================
+# Mots-clés déclencheurs pour le gradient d'ambition
+_AMBITION_HIGH_MARKERS = {
+    "plus percutant", "plus fort", "améliore", "impactant", "réécris",
+    "plus vendeur", "plus technique", "reformule", "transforme",
+}
+_AMBITION_LOW_MARKERS = {
+    "corrige", "ajuste", "léger", "petit", "faute", "typo",
+    "orthographe", "ponctuation", "minime",
+}
+
+_AMBITION_DIRECTIVES = {
+    "low": "Fais des ajustements légers. Garde le sens, la structure et le ton actuels.",
+    "medium": "Reformule avec un angle plus percutant orienté vers l'offre. Tu peux restructurer si ça améliore l'impact.",
+    "high": "Réécris complètement pour maximiser l'impact. Sois audacieux, technique et orienté résultats. Seule la matière source te limite.",
+}
+
+
+def _detect_ambition(instruction: str) -> str:
+    """Détecte le niveau d'ambition attendu à partir de l'instruction utilisateur."""
+    instr_lower = instruction.lower()
+    if any(marker in instr_lower for marker in _AMBITION_HIGH_MARKERS):
+        return "high"
+    if any(marker in instr_lower for marker in _AMBITION_LOW_MARKERS):
+        return "low"
+    return "medium"
+
+
 def build_section_prompt(
     section_key: str,
     source: Dict[str, Any],
@@ -417,11 +456,20 @@ def build_section_prompt(
 ) -> str:
     """
     Construit le prompt envoyé au LLM pour réécrire UNE section ciblée.
+
+    Action 5 améliorations :
+    - Persona éditoriale forte (rédacteur senior, pas un "expert" générique)
+    - Gradient d'ambition dynamique (low/medium/high) détecté depuis l'instruction
+    - Consigne de ne jamais inventer intégrée naturellement dans le brief
     """
     spec = EDITABLE_SECTIONS.get(section_key, {})
     role = spec.get("prompt_role", "")
     rules = spec.get("format_rules", "")
     value_type = spec.get("value_type", "str")
+
+    # Gradient d'ambition
+    ambition = _detect_ambition(instruction)
+    ambition_directive = _AMBITION_DIRECTIVES[ambition]
 
     job_ctx = (
         f"INTITULÉ : {job.get('title', '')}\n"
@@ -448,9 +496,15 @@ def build_section_prompt(
     source_label = source.get("label", "")
     source_dump = source.get("json_dump", "")
 
-    return f"""Tu es un expert en rédaction de CV/lettres pour ingénieurs en France.
-Tu vas réécrire UNE SECTION ciblée du CV en t'appuyant sur la donnée source du profil
-et sur l'offre d'emploi visée.
+    return f"""Tu es un rédacteur senior spécialisé dans le placement d'ingénieurs R&D en France.
+Tu connais les attentes des recruteurs français et tu sais vendre un profil technique
+sans tomber dans le bullshit. Tu travailles uniquement à partir de la matière réelle du
+candidat — jamais d'invention.
+
+Ta mission : réécrire la section ci-dessous pour maximiser les chances d'entretien.
+
+NIVEAU D'AMBITION : {ambition.upper()}
+→ {ambition_directive}
 
 ═══════════════════════════════════════════
 SECTION À RÉÉCRIRE : {spec.get('label', section_key)}

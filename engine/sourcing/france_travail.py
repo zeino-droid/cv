@@ -134,7 +134,8 @@ def _invalidate_token() -> None:
 
 
 def _search_one(
-    rome_codes: List[str],
+    rome_codes: Optional[List[str]] = None,
+    mots_cles: Optional[str] = None,
     departement: Optional[str] = None,
     type_contrat: str = "CDI",
     publiee_depuis: int = 31,
@@ -143,6 +144,10 @@ def _search_one(
 ) -> Tuple[List[Dict], str]:
     """
     Effectue une requête /offres/search avec gestion robuste des erreurs.
+
+    Supporte 2 modes de recherche (combinables) :
+      - `rome_codes` : codes ROME métier (ex H1206)
+      - `mots_cles`  : recherche textuelle libre (ex "ingénieur simulation CFD")
 
     Retourne `(jobs, status)` où `status` ∈ {
         "ok"            : réponse OK (peut contenir 0 résultat = fin de pagination),
@@ -156,13 +161,19 @@ def _search_one(
     alors qu'un 429 ne doit PAS être interprété comme une fin de pages.
     """
     params: Dict[str, object] = {
-        "codeROME": ",".join(rome_codes),
         "typeContrat": type_contrat,
         "publieeDepuis": publiee_depuis,
         "range": range_str,
     }
+    if rome_codes:
+        params["codeROME"] = ",".join(rome_codes)
+    if mots_cles:
+        params["motsCles"] = mots_cles
     if departement:
         params["departement"] = departement
+    # Au moins un critère de recherche
+    if not rome_codes and not mots_cles:
+        return [], "ok"
 
     cache_key = repr(sorted(params.items()))
     cached = get_cache("france_travail", cache_key, ttl_seconds=86400)
@@ -225,7 +236,8 @@ def _search_one(
 
 
 def search(
-    rome_codes: List[str],
+    rome_codes: Optional[List[str]] = None,
+    keyword_queries: Optional[List[str]] = None,
     departments: Optional[List[str]] = None,
     type_contrat: str = "CDI",
     publiee_depuis: int = 31,
@@ -234,12 +246,14 @@ def search(
     should_stop: Optional[Callable[[], bool]] = None,
 ) -> List[Dict]:
     """
-    Recherche multi-départements pour un set de codes ROME.
+    Recherche multi-départements avec 2 stratégies combinées :
+      1. Par codes ROME (tous les ROME en une requête)
+      2. Par mots-clés textuels (`motsCles`) — un appel par groupe de mots-clés
 
     Si `departments` est vide ou None : recherche nationale.
     Renvoie une liste de jobs au format standard, dédupliquée par id.
     """
-    if not rome_codes:
+    if not rome_codes and not keyword_queries:
         return []
 
     # Sanity-check des credentials avant de lancer (le _get_token() est appelé
@@ -252,50 +266,90 @@ def search(
     targets: List[Optional[str]] = list(departments) if departments else [None]
     out: Dict[str, Dict] = {}
 
-    for dep in targets:
-        if should_stop and should_stop():
-            break
-
-        if progress_callback:
-            label = dep or "national"
-            progress_callback(0.0, f"🇫🇷 France Travail · {label}")
-
-        # Pagination simple : on prend jusqu'à max_per_query par département.
-        # On ne stoppe la pagination QUE sur status "ok" + liste vide
-        # (vrai signal de fin) ou sur erreur explicite — pas sur 429/401 transients.
-        page_size = 49
-        start = 0
-        while start < max_per_query:
+    # --- Stratégie 1 : recherche par codes ROME ---
+    if rome_codes:
+        for dep in targets:
             if should_stop and should_stop():
                 break
-            end = min(start + page_size, max_per_query - 1)
-            range_str = f"{start}-{end}"
-            results, status = _search_one(
-                rome_codes=rome_codes,
-                departement=dep,
-                type_contrat=type_contrat,
-                publiee_depuis=publiee_depuis,
-                range_str=range_str,
-            )
 
-            if status == "auth_failed":
-                # Token global mort → inutile de continuer toute la session
-                return list(out.values())
+            if progress_callback:
+                label = dep or "national"
+                progress_callback(0.0, f"🇫🇷 France Travail · ROME · {label}")
 
-            if status != "ok":
-                # rate_limited persistant / http_error / network_error : on passe au département suivant
+            page_size = 49
+            start = 0
+            while start < max_per_query:
+                if should_stop and should_stop():
+                    break
+                end = min(start + page_size, max_per_query - 1)
+                range_str = f"{start}-{end}"
+                results, status = _search_one(
+                    rome_codes=rome_codes,
+                    departement=dep,
+                    type_contrat=type_contrat,
+                    publiee_depuis=publiee_depuis,
+                    range_str=range_str,
+                )
+
+                if status == "auth_failed":
+                    return list(out.values())
+                if status != "ok":
+                    break
+                if not results:
+                    break
+
+                for job in results:
+                    out[job["id"]] = job
+
+                if len(results) < page_size + 1:
+                    break
+                start = end + 1
+                time.sleep(0.4)  # politesse
+
+    # --- Stratégie 2 : recherche par mots-clés textuels ---
+    if keyword_queries:
+        for kw_query in keyword_queries:
+            if should_stop and should_stop():
                 break
 
-            if not results:
-                # Vraie fin de pagination
-                break
+            for dep in targets:
+                if should_stop and should_stop():
+                    break
 
-            for job in results:
-                out[job["id"]] = job
+                if progress_callback:
+                    label = dep or "national"
+                    progress_callback(0.0, f"🇫🇷 France Travail · \"{kw_query}\" · {label}")
 
-            if len(results) < page_size + 1:
-                break
-            start = end + 1
-            time.sleep(0.4)  # politesse
+                page_size = 49
+                start = 0
+                # Limiter la pagination par mots-clés à 50 résultats (pour ne pas cramer le quota)
+                kw_max = min(max_per_query, 50)
+                while start < kw_max:
+                    if should_stop and should_stop():
+                        break
+                    end = min(start + page_size, kw_max - 1)
+                    range_str = f"{start}-{end}"
+                    results, status = _search_one(
+                        mots_cles=kw_query,
+                        departement=dep,
+                        type_contrat=type_contrat,
+                        publiee_depuis=publiee_depuis,
+                        range_str=range_str,
+                    )
+
+                    if status == "auth_failed":
+                        return list(out.values())
+                    if status != "ok":
+                        break
+                    if not results:
+                        break
+
+                    for job in results:
+                        out[job["id"]] = job
+
+                    if len(results) < page_size + 1:
+                        break
+                    start = end + 1
+                    time.sleep(0.4)  # politesse
 
     return list(out.values())

@@ -260,9 +260,18 @@ def _freshness_bonus(posted_date: str) -> int:
 
 
 def score_job(job: Dict, profile: Dict, config: Dict) -> Dict:
-    """Scoring heuristique : alias compétences + premium keywords + freshness + location."""
+    """Scoring heuristique V2 — plus discriminant, plus intelligent.
+
+    Changements clés vs V1 :
+      - Base score réduit (10 au lieu de 20) pour une meilleure discrimination
+      - Skill matching pondéré : titre > description
+      - Title Relevance Score : bonus/malus basé sur la densité technique du titre
+      - Bonus explicite CDI, junior-friendly
+      - TF-IDF léger : similarité textuelle profil → description (sans LLM)
+      - Plafond 95% (100 réservé au manual override)
+    """
     scoring = config.get("scoring", {})
-    score = scoring.get("base_score", 20)
+    score = scoring.get("base_score", 10)
     title_lower = (job.get("title") or "").lower()
     desc_lower = (job.get("description") or "").lower()
     haystack = f"{title_lower} {desc_lower}"
@@ -274,38 +283,136 @@ def score_job(job: Dict, profile: Dict, config: Dict) -> Dict:
     profile_skills.extend(taxonomy.get("domain_knowledge", []))
 
     matched: List[str] = []
-    TITLE_BONUS = 6
+    title_matches = 0
+
+    # --- Phase 1 : Skill matching pondéré ---
+    TITLE_MATCH_BONUS = 15   # Skill trouvé dans le TITRE (très fort signal)
+    DESC_MATCH_BONUS = 5     # Skill trouvé dans la description (signal modéré)
     for skill in profile_skills:
         if not skill:
             continue
         variants = _build_skill_variants(skill)
-        skill_found = any(v in haystack for v in variants)
-        if skill_found:
+        in_title = any(v in title_lower for v in variants)
+        in_desc = any(v in haystack for v in variants)
+        if in_title:
             matched.append(skill)
-            score += scoring.get("per_skill_match", 8)
-            if any(v in title_lower for v in variants):
-                score += TITLE_BONUS
+            score += TITLE_MATCH_BONUS
+            title_matches += 1
+        elif in_desc:
+            matched.append(skill)
+            score += DESC_MATCH_BONUS
 
+    # --- Phase 2 : Premium keywords ---
     for kw, bonus in scoring.get("premium_keywords", {}).items():
         if str(kw).lower() in haystack:
             score += int(bonus)
 
+    # --- Phase 3 : Location bonus ---
     loc = (job.get("location") or "").lower()
     for zone in scoring.get("preferred_locations", []):
         if zone in loc:
             score += scoring.get("location_bonus", 5)
             break
 
+    # --- Phase 4 : Title Relevance (pénalise les titres trop génériques) ---
+    TECH_TITLE_KEYWORDS = {
+        "simulation", "calcul", "cfd", "thermique", "mécanique", "numérique",
+        "modélisation", "éléments finis", "r&d", "recherche", "développement",
+        "énergie", "ingénieur", "engineer", "fea", "fem", "abaqus", "ansys",
+        "fluent", "python", "matlab", "composites", "structures", "matériaux",
+        "dimensionnement", "bureau d'études", "be", "conception",
+    }
+    title_tokens = set(title_lower.split())
+    title_tech_hits = sum(1 for kw in TECH_TITLE_KEYWORDS if kw in title_lower)
+
+    if title_tech_hits == 0:
+        score -= 8   # Titre complètement générique (ex: "Consultant")
+    elif title_tech_hits >= 3:
+        score += 6   # Titre très technique et ciblé
+
+    # --- Phase 5 : Junior / Jeune diplômé friendly ---
+    JD_KEYWORDS = {"débutant", "junior", "jeune diplômé", "jeune diplome",
+                   "première expérience", "sans expérience", "jeune ingénieur",
+                   "graduate", "entry level", "recent graduate"}
+    if any(kw in haystack for kw in JD_KEYWORDS):
+        score += 8
+
+    # --- Phase 6 : CDI explicite ---
+    if "cdi" in title_lower or "cdi" in desc_lower[:200]:
+        score += 3
+
+    # --- Phase 7 : Stage/alternance HARD exclusion (titre uniquement) ---
     HARD_TITLE_EXCLUDES = {"stage", "stagiaire", "alternance", "apprenti"}
     for kw in config.get("filters", {}).get("exclude_keywords", []):
         if kw.lower() in HARD_TITLE_EXCLUDES and kw.lower() in title_lower:
             score += scoring.get("stage_penalty", -50)
             break
 
+    # --- Phase 8 : Freshness bonus ---
     score += _freshness_bonus(job.get("posted_date", ""))
-    job["fit_score"] = max(0, min(100, score))
+
+    # --- Phase 9 : TF-IDF léger (similarité profil ↔ description, SANS LLM) ---
+    score += _tfidf_similarity_bonus(profile, desc_lower)
+
+    # --- Plafonnement ---
+    job["fit_score"] = max(0, min(95, score))
     job["matched_skills"] = list(dict.fromkeys(matched))[:10]
     return job
+
+
+def _tfidf_similarity_bonus(profile: Dict, desc_lower: str) -> int:
+    """Calcule un bonus basé sur la similarité textuelle profil → description.
+
+    Utilise un micro-TF-IDF : on extrait les termes clés du profil (headline +
+    summary + target_keywords du profil actif) et on compte combien apparaissent
+    dans la description. Pas de lib externe, juste du bag-of-words intelligent.
+    """
+    # Construire le "vocabulaire profil"
+    pi = profile.get("personal_info", {})
+    headline = (pi.get("headline_default") or "").lower()
+    summary = (pi.get("summary_default") or "").lower()
+
+    # Ajouter les target_keywords du profil actif (si spécifié)
+    active_key = profile.get("_active_profile_key")
+    profile_keywords = []
+    if active_key:
+        prof_def = (profile.get("profiles") or {}).get(active_key) or {}
+        profile_keywords = [kw.lower() for kw in prof_def.get("target_keywords", [])]
+
+    # Tokeniser le texte profil
+    import re
+    profile_text = f"{headline} {summary} {' '.join(profile_keywords)}"
+    # Garder les tokens de 3+ caractères, supprimer les mots vides français
+    STOP_WORDS = {
+        "les", "des", "une", "par", "pour", "dans", "sur", "avec", "qui", "que",
+        "est", "sont", "aux", "ses", "son", "leur", "cette", "ces", "tout",
+        "tous", "elle", "ils", "plus", "pas", "mais", "bien", "très", "comme",
+        "entre", "même", "fait", "été", "avoir", "être", "faire", "mise",
+        "and", "the", "for", "with", "from", "that", "this", "also", "has",
+    }
+    profile_tokens = set()
+    for token in re.findall(r"\b\w{3,}\b", profile_text):
+        if token not in STOP_WORDS:
+            profile_tokens.add(token)
+
+    if not profile_tokens or not desc_lower:
+        return 0
+
+    # Compter les hits
+    desc_tokens = set(re.findall(r"\b\w{3,}\b", desc_lower))
+    matches = profile_tokens & desc_tokens
+    ratio = len(matches) / len(profile_tokens) if profile_tokens else 0
+
+    # Bonus progressif : 0-12 points
+    if ratio >= 0.5:
+        return 12
+    elif ratio >= 0.35:
+        return 9
+    elif ratio >= 0.2:
+        return 6
+    elif ratio >= 0.1:
+        return 3
+    return 0
 
 
 # ──────────────────────────────────────────────────────────────────

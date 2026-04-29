@@ -26,6 +26,21 @@ from engine.sourcing.ranking import (
 )
 
 ROOT = Path(__file__).parent.parent.parent
+
+# Charger les variables d'environnement (.env) — indispensable pour les credentials FT/Adzuna
+try:
+    from dotenv import load_dotenv
+    load_dotenv(ROOT / ".env")
+except ImportError:
+    # Fallback manuel si python-dotenv n'est pas installé
+    _env_path = ROOT / ".env"
+    if _env_path.exists():
+        import os as _os
+        for line in _env_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                _os.environ.setdefault(k.strip(), v.strip())
 SEARCH_CONFIG_PATH = ROOT / "profiles" / "search_config.yaml"
 MASTER_PROFILE_PATH = ROOT / "profiles" / "master_profile.json"
 
@@ -213,14 +228,25 @@ def scan_jobs(
 
     by_source: Dict[str, List[Dict]] = {s: [] for s in sources_active}
 
+    # Construction des requêtes textuelles France Travail (motsCles)
+    # On envoie les 5 premiers mots-clés les plus pertinents comme requêtes séparées
+    ft_keyword_queries: List[str] = []
+    if keywords:
+        # Garder les mots-clés les plus spécifiques (pas trop longs)
+        for kw in keywords[:8]:
+            kw_clean = kw.strip()
+            if kw_clean and len(kw_clean) < 80:
+                ft_keyword_queries.append(kw_clean)
+
     def _run_ft():
         if "france_travail" not in sources_active:
             return
         def cb(_p, msg):
             bus.update(0, _p, msg)
-        bus.update(0, 0.05, "🇫🇷 France Travail · démarrage")
+        bus.update(0, 0.05, "🇫🇷 France Travail · démarrage (ROME + mots-clés)")
         results = france_travail.search(
-            rome_codes=rome_codes,
+            rome_codes=rome_codes if rome_codes else None,
+            keyword_queries=ft_keyword_queries if ft_keyword_queries else None,
             departments=departments or None,
             type_contrat="CDI",
             publiee_depuis=publiee_depuis,

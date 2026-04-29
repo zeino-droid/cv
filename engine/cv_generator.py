@@ -716,10 +716,12 @@ class PersonalCVGenerator:
         if ach_overrides:
             for exp in data.get("experiences", []):
                 eid = exp.get("id")
-                if eid and eid in ach_overrides:
+                # Fallback: matcher par titre/position si id ne matche pas
+                match_key = eid if (eid and eid in ach_overrides) else exp.get("position")
+                if match_key and match_key in ach_overrides:
                     new_bullets = [
                         re.sub(r"\s*:\s*", " : ", str(b)).strip()
-                        for b in ach_overrides[eid]
+                        for b in ach_overrides[match_key]
                         if str(b).strip()
                     ]
                     if new_bullets:
@@ -731,10 +733,12 @@ class PersonalCVGenerator:
         if desc_overrides or kw_overrides:
             for proj in data.get("projects", []):
                 pid = proj.get("id")
-                if pid and pid in desc_overrides:
-                    proj["description"] = str(desc_overrides[pid]).strip()
-                if pid and pid in kw_overrides:
-                    proj["keywords"] = str(kw_overrides[pid]).strip()
+                # Fallback: matcher par nom
+                match_key = pid if (pid and (pid in desc_overrides or pid in kw_overrides)) else proj.get("name")
+                if match_key and match_key in desc_overrides:
+                    proj["description"] = str(desc_overrides[match_key]).strip()
+                if match_key and match_key in kw_overrides:
+                    proj["keywords"] = str(kw_overrides[match_key]).strip()
 
         # 4. Compétences (3 sous-groupes) — remplace TOUT le sous-groupe si présent
         grouped = data.setdefault("grouped_skills", {})
@@ -766,9 +770,13 @@ class PersonalCVGenerator:
 
         # Expériences Pro (Pool A)
         final_exps = []
-        gen_exps = {exp["id"]: exp for exp in cv_gen.get("experiences", [])}
+        gen_exps = {exp["id"]: exp for exp in cv_gen.get("experiences", []) if exp.get("id")}
         for exp in context["experiences"]:
             eid = exp.get("id")
+            if not eid:
+                base = f"{exp.get('company', '')}_{exp.get('title', '')}".strip()
+                eid = re.sub(r"[^a-z0-9_]", "", base.lower().replace(" ", "_")) or f"exp_{len(final_exps)}"
+            
             g = gen_exps.get(eid, {})
 
             # Gestion intelligente du Fallback pour STAR-K (A est souvent un bloc de texte)
@@ -794,7 +802,7 @@ class PersonalCVGenerator:
 
             final_exps.append(
                 {
-                    "id": exp.get("id"),
+                    "id": eid,
                     "position": rewritten_title,
                     "company": exp.get("company"),
                     "start_date": exp.get("period", "").split("-")[0].strip(),
@@ -828,9 +836,13 @@ class PersonalCVGenerator:
 
         # Projets (Pool B)
         final_projs = []
-        gen_projs = {p["id"]: p for p in cv_gen.get("projects", [])}
+        gen_projs = {p["id"]: p for p in cv_gen.get("projects", []) if p.get("id")}
         for p in context.get("ranked_projects", []):
             pid = p.get("id")
+            if not pid:
+                base = f"proj_{p.get('title', '')}".strip()
+                pid = re.sub(r"[^a-z0-9_]", "", base.lower().replace(" ", "_")) or f"proj_{len(final_projs)}"
+                
             g = gen_projs.get(pid, {})
             raw_proj_title = g.get("rewritten_title", p.get("title"))
             # Correction typographique française : espace avant les deux points
@@ -838,7 +850,7 @@ class PersonalCVGenerator:
             
             final_projs.append(
                 {
-                    "id": p.get("id"),
+                    "id": pid,
                     "name": rewritten_proj_title,
                     "description": g.get("one_line_description", p.get("D", "")),
                     "keywords": g.get("keywords_inline", " · ".join(p.get("K", []))),

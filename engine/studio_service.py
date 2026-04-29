@@ -79,9 +79,54 @@ def save_final_candidate_version(
             f"{job.get('company', 'job')}_{job.get('title', 'cv')}"
         )
         out_dir.mkdir(parents=True, exist_ok=True)
-        lp = out_dir / "lettre.txt"
-        lp.write_text(gen_state["letter_text"], encoding="utf-8")
-        gen_state["letter_path"] = str(lp)
+
+        # Tenter le rendu PDF via Typst
+        try:
+            from engine.letter_renderer import LetterRenderer, build_letter_data
+            import re as _re
+
+            renderer = LetterRenderer()
+            letter_text = gen_state["letter_text"]
+            # Extraire les paragraphes du corps
+            raw_paragraphs = [
+                p.strip() for p in _re.split(r"\n\s*\n", letter_text)
+                if p.strip()
+                and not p.strip().startswith("Objet")
+                and not p.strip().startswith("Madame")
+                and "salutations" not in p.lower()
+                and "@" not in p
+                and not _re.match(r"^\+?\d", p.strip())
+                and not _re.match(r"^\d{2}/\d{2}/\d{4}$", p.strip())
+            ]
+            paragraphs = raw_paragraphs if raw_paragraphs else [letter_text]
+
+            # Charger le profil pour build_letter_data
+            import json as _json
+            profile_path = root / "profiles" / "master_profile.json"
+            profile = {}
+            if profile_path.exists():
+                with open(profile_path, "r", encoding="utf-8") as _f:
+                    profile = _json.load(_f)
+
+            letter_data = build_letter_data(profile, job, paragraphs)
+            pdf_path = out_dir / "lettre.pdf"
+            pdf_result = renderer.render(letter_data, pdf_path)
+            if pdf_result and pdf_result.exists():
+                gen_state["letter_path"] = str(pdf_result)
+            else:
+                # Fallback texte
+                lp = out_dir / "lettre.txt"
+                lp.write_text(gen_state["letter_text"], encoding="utf-8")
+                gen_state["letter_path"] = str(lp)
+        except Exception:
+            lp = out_dir / "lettre.txt"
+            lp.write_text(gen_state["letter_text"], encoding="utf-8")
+            gen_state["letter_path"] = str(lp)
+
+        # Toujours sauvegarder le fallback texte
+        txt_fallback = out_dir / "lettre.txt"
+        if not txt_fallback.exists():
+            txt_fallback.write_text(gen_state["letter_text"], encoding="utf-8")
 
     final_cv_data = gen_state.get("cv_data") or {}
     db.save_resume_version(

@@ -12,15 +12,47 @@ def _flatten_skills(profile: dict) -> set[str]:
     """Récupère toutes les compétences du profil, normalisées en lowercase."""
     skills: set[str] = set()
 
-    # Compétences déclarées sous différents formats
+    # Compétences déclarées sous différents formats (clés racine)
     for key in ("hard_skills", "soft_skills", "skills", "tools", "languages"):
         val = profile.get(key)
         if isinstance(val, list):
-            skills.update(str(s).lower().strip() for s in val if s)
+            for s in val:
+                if isinstance(s, dict):
+                    name = s.get("name", "")
+                elif s:
+                    name = str(s)
+                else:
+                    continue
+                if name:
+                    skills.add(str(name).lower().strip())
         elif isinstance(val, dict):
             for sub in val.values():
                 if isinstance(sub, list):
-                    skills.update(str(s).lower().strip() for s in sub if s)
+                    for s in sub:
+                        if isinstance(s, dict):
+                            name = s.get("name", "")
+                        elif s:
+                            name = str(s)
+                        else:
+                            continue
+                        if name:
+                            skills.add(str(name).lower().strip())
+
+    # Taxonomie structurée (skills_taxonomy.hard_skills = [{name, level}, ...])
+    taxonomy = profile.get("skills_taxonomy", {})
+    if isinstance(taxonomy, dict):
+        for tax_key in ("hard_skills", "soft_skills", "domain_knowledge"):
+            tax_val = taxonomy.get(tax_key, [])
+            if isinstance(tax_val, list):
+                for s in tax_val:
+                    if isinstance(s, dict):
+                        name = s.get("name", "")
+                    elif isinstance(s, str):
+                        name = s
+                    else:
+                        continue
+                    if name:
+                        skills.add(str(name).lower().strip())
 
     # Expériences (clé "K" pour les keywords STARK ou "skills")
     for exp in profile.get("experience_stark", []) or profile.get("experiences", []) or []:
@@ -85,63 +117,63 @@ def _pill(skill: str, color: str, bg: str) -> str:
 def render_heatmap_html(matrix: dict) -> str:
     """Bloc HTML/CSS prêt pour st.components.v1.html — pas de dépendance externe."""
     matched_html = "".join(
-        _pill(s, "#4ade80", "rgba(34,197,94,0.10)") for s in matrix["matched"]
-    ) or '<span style="color:#475569;font-size:0.8rem;">Aucune détectée</span>'
+        _pill(s, "#10b981", "rgba(16,185,129,0.15)") for s in matrix["matched"]
+    ) or '<span style="color:#a1a1aa;font-size:0.8rem;">Aucune détectée</span>'
 
     missing_html = "".join(
-        _pill(s, "#f87171", "rgba(239,68,68,0.10)") for s in matrix["missing"]
-    ) or '<span style="color:#4ade80;font-size:0.8rem;">Parfait match ! 🎯</span>'
+        _pill(s, "#ef4444", "rgba(239,68,68,0.15)") for s in matrix["missing"]
+    ) or '<span style="color:#10b981;font-size:0.8rem;">Parfait match ! 🎯</span>'
 
     bonus_html = "".join(
-        _pill(s, "#60a5fa", "rgba(96,165,250,0.10)") for s in matrix["bonus"][:14]
-    ) or '<span style="color:#475569;font-size:0.8rem;">—</span>'
+        _pill(s, "#3b82f6", "rgba(59,130,246,0.15)") for s in matrix["bonus"][:14]
+    ) or '<span style="color:#a1a1aa;font-size:0.8rem;">—</span>'
 
     score = matrix["score"]
     total = matrix["total_job"] or 1
     match_pct = round(len(matrix["matched"]) / total * 100) if total else 0
 
     return f"""
-    <div style="font-family:'Outfit','Inter',sans-serif;color:#e2e8f0;">
+    <div style="font-family:'Outfit','Inter',sans-serif;color:#ededed;">
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px;">
-        <div style="background:rgba(34,197,94,0.08);border-radius:14px;padding:14px;
-                    border:1px solid rgba(34,197,94,0.25);">
-          <div style="font-size:1.9rem;font-weight:800;color:#4ade80;line-height:1;">
+        <div style="background:rgba(16,185,129,0.10);border-radius:14px;padding:14px;
+                    border:1px solid rgba(16,185,129,0.30);">
+          <div style="font-size:1.9rem;font-weight:800;color:#10b981;line-height:1;">
             {len(matrix['matched'])}
           </div>
-          <div style="font-size:0.75rem;color:#94a3b8;margin-top:4px;">Compétences matchées</div>
+          <div style="font-size:0.75rem;color:#a1a1aa;margin-top:4px;">Compétences matchées</div>
         </div>
-        <div style="background:rgba(239,68,68,0.08);border-radius:14px;padding:14px;
-                    border:1px solid rgba(239,68,68,0.25);">
-          <div style="font-size:1.9rem;font-weight:800;color:#f87171;line-height:1;">
+        <div style="background:rgba(239,68,68,0.10);border-radius:14px;padding:14px;
+                    border:1px solid rgba(239,68,68,0.30);">
+          <div style="font-size:1.9rem;font-weight:800;color:#ef4444;line-height:1;">
             {len(matrix['missing'])}
           </div>
-          <div style="font-size:0.75rem;color:#94a3b8;margin-top:4px;">À combler</div>
+          <div style="font-size:0.75rem;color:#a1a1aa;margin-top:4px;">À combler</div>
         </div>
-        <div style="background:rgba(56,189,248,0.08);border-radius:14px;padding:14px;
-                    border:1px solid rgba(56,189,248,0.25);">
-          <div style="font-size:1.9rem;font-weight:800;color:#38bdf8;line-height:1;">
+        <div style="background:rgba(139,92,246,0.10);border-radius:14px;padding:14px;
+                    border:1px solid rgba(139,92,246,0.30);">
+          <div style="font-size:1.9rem;font-weight:800;color:#8b5cf6;line-height:1;">
             {score}%
           </div>
-          <div style="font-size:0.75rem;color:#94a3b8;margin-top:4px;">
+          <div style="font-size:0.75rem;color:#a1a1aa;margin-top:4px;">
             Score Fit · {match_pct}% requis couverts
           </div>
         </div>
       </div>
 
       <div style="margin-bottom:14px;">
-        <div style="font-size:0.72rem;color:#94a3b8;text-transform:uppercase;
+        <div style="font-size:0.72rem;color:#a1a1aa;text-transform:uppercase;
                     letter-spacing:.08em;margin-bottom:6px;">✅ Maîtrisées</div>
         <div>{matched_html}</div>
       </div>
 
       <div style="margin-bottom:14px;">
-        <div style="font-size:0.72rem;color:#94a3b8;text-transform:uppercase;
+        <div style="font-size:0.72rem;color:#a1a1aa;text-transform:uppercase;
                     letter-spacing:.08em;margin-bottom:6px;">⚠️ À mentionner / Lacunes</div>
         <div>{missing_html}</div>
       </div>
 
       <div>
-        <div style="font-size:0.72rem;color:#94a3b8;text-transform:uppercase;
+        <div style="font-size:0.72rem;color:#a1a1aa;text-transform:uppercase;
                     letter-spacing:.08em;margin-bottom:6px;">💡 Bonus (atouts non demandés)</div>
         <div>{bonus_html}</div>
       </div>

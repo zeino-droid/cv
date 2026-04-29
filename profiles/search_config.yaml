@@ -1,40 +1,47 @@
 # ════════════════════════════════════════════════════════════════════════════
-# Configuration du sourcing France-First
+# Configuration du sourcing France-First — V2 (Optimisée)
 #
 # Ce fichier pilote 3 sources :
-#   • France Travail (codeROME + département)
+#   • France Travail (codeROME + motsCles + département)
 #   • Adzuna         (keywords libres)
 #   • Companies Watcher (catégorie d'employeurs définie dans target_companies.yaml)
 #
-# Le scoring (heuristique + Gemini) reste partagé entre toutes les sources.
+# Le scoring (heuristique V2 + Gemini) reste partagé entre toutes les sources.
 # ════════════════════════════════════════════════════════════════════════════
 
 search:
   # ── Codes ROME (France Travail) — référentiel métier officiel français ──
-  # H1206 — Management et ingénierie études, recherche et développement industriel  ★ CORE profil
+  # STRATÉGIE V2 : Prioriser les 2 ROME cœur + garder les complémentaires
+  # H1206 — Management et ingénierie études, R&D industriel  ★ CORE
+  # H1210 — Animation d'activités de R&D                     ★ CORE
   # H1402 — Management et ingénierie méthodes de production
   # H1502 — Management et ingénierie qualité industrielle
+  # H1208 — Intervention technique en automatisme
   # H2502 — Management et ingénierie de production
-  # H1208 — Intervention technique en études et conception en automatisme
-  # H1404 — Intervention technique en méthodes et industrialisation
-  # M1805 — Études et développement informatique (pour les postes Python R&D)
   rome_codes:
     - "H1206"
+    - "H1210"
     - "H1402"
     - "H1502"
-    - "H2502"
     - "H1208"
-    - "H1404"
+    - "H2502"
 
-  # ── Mots-clés (Adzuna + Companies Watcher) ──
+  # ── Mots-clés (France Travail motsCles + Adzuna + Companies Watcher) ──
+  # STRATÉGIE V2 : Mots-clés PRÉCIS et VARIÉS pour couvrir tous les angles
+  # Ces mots-clés sont maintenant aussi envoyés à France Travail via le
+  # paramètre `motsCles` de l'API, en plus de la recherche ROME classique.
   keywords:
-    - "Ingénieur simulation"
+    - "Ingénieur simulation numérique"
+    - "Ingénieur calcul de structures"
     - "Ingénieur CFD"
-    - "Ingénieur calcul mécanique"
+    - "Ingénieur R&D mécanique"
     - "Ingénieur éléments finis"
-    - "Ingénieur R&D"
+    - "Ingénieur thermique"
+    - "Ingénieur modélisation"
     - "Simulation engineer"
     - "CFD engineer"
+    - "Ingénieur bureau d'études calcul"
+    - "Ingénieur énergies renouvelables"
 
   # ── Régions / départements (France Travail) ──
   # Codes département INSEE : 75=Paris, 69=Rhône, 31=Hte-Garonne, 33=Gironde,
@@ -44,6 +51,7 @@ search:
     - { code: "75", label: "Paris (75)" }
     - { code: "92", label: "Hauts-de-Seine (92)" }
     - { code: "78", label: "Yvelines (78)" }
+    - { code: "91", label: "Essonne (91)" }
     - { code: "69", label: "Rhône / Lyon (69)" }
     - { code: "31", label: "Haute-Garonne / Toulouse (31)" }
     - { code: "33", label: "Gironde / Bordeaux (33)" }
@@ -51,12 +59,13 @@ search:
     - { code: "06", label: "Alpes-Maritimes / Sophia (06)" }
     - { code: "13", label: "Bouches-du-Rhône / Marseille (13)" }
     - { code: "44", label: "Loire-Atlantique / Nantes (44)" }
+    - { code: "54", label: "Meurthe-et-Moselle / Nancy (54)" }
 
-  publiee_depuis: 31      # France Travail : 1, 3, 7, 14, 31 jours acceptés
+  publiee_depuis: 14      # V2: réduit de 31 à 14 jours pour des offres plus fraîches
   max_per_query: 100      # cap pagination par département
 
 filters:
-  min_score: 20
+  min_score: 15           # V2: réduit de 20 à 15 (le scoring est maintenant plus sélectif)
   exclude_keywords:
     - "stage"
     - "stagiaire"
@@ -64,31 +73,45 @@ filters:
     - "apprenti"
 
 scoring:
-  base_score: 20
-  per_skill_match: 8
+  base_score: 10          # V2: réduit de 20 à 10 pour plus de discrimination
+
+  # V2: Scoring pondéré par position (titre vs description)
+  # Note: per_skill_match est maintenant ignoré par le scoring V2 qui utilise
+  # TITLE_MATCH_BONUS=15 et DESC_MATCH_BONUS=5 directement dans le code
+  per_skill_match: 5      # Fallback uniquement
 
   premium_keywords:
-    simulation: 5
+    simulation: 6
     modélisation: 5
-    thermique: 4
-    CFD: 5
+    thermique: 5
+    CFD: 7
     énergie: 4
     Python: 4
-    Abaqus: 6
-    Ansys: 5
-    Fluent: 5
+    Abaqus: 8
+    Ansys: 7
+    Fluent: 7
     mécanique: 3
-    thermomécanique: 5
-    décarbonation: 4
+    thermomécanique: 6
+    décarbonation: 5
     procédés: 3
-    Matlab: 3
-    Metafor: 6
-    "finite element": 5
-    "numerical simulation": 4
-    "heat transfer": 4
-    "digital twin": 5
-    "FEM": 5
-    "FEA": 5
+    Matlab: 4
+    Metafor: 8
+    "finite element": 6
+    "numerical simulation": 5
+    "heat transfer": 5
+    "digital twin": 6
+    "FEM": 6
+    "FEA": 6
+    "éléments finis": 7
+    "calcul de structures": 7
+    "bureau d'études": 5
+    "jumeau numérique": 6
+    "transferts thermiques": 5
+    "non-linéaire": 5
+    "flambage": 5
+    "jeune diplômé": 3
+    "débutant accepté": 3
+    "junior": 2
 
   preferred_locations:
     - paris
@@ -103,6 +126,8 @@ scoring:
     - marseille
     - nantes
     - rennes
+    - nancy
+    - metz
 
   location_bonus: 5
   stage_penalty: -50

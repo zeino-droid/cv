@@ -405,8 +405,39 @@ def generate_documents(job: dict, gen_cv: bool, gen_letter: bool, use_llm: bool,
             f"{job.get('company', 'job')}_{job.get('title', 'cv')}"
         )
         out_dir.mkdir(parents=True, exist_ok=True)
-        letter_path = str(out_dir / "lettre.txt")
-        Path(letter_path).write_text(letter_text, encoding="utf-8")
+
+        # Tenter le rendu PDF via Typst, fallback texte
+        from engine.letter_renderer import LetterRenderer, build_letter_data
+        renderer = LetterRenderer()
+        pdf_out = out_dir / "lettre.pdf"
+        try:
+            # Extraire les paragraphes du corps de la lettre
+            import re as _re
+            raw_paragraphs = [
+                p.strip() for p in _re.split(r"\n\s*\n", letter_text)
+                if p.strip()
+                and not p.strip().startswith("Objet")
+                and not p.strip().startswith("Madame")
+                and "salutations" not in p.lower()
+                and "@" not in p
+                and not _re.match(r"^\+?\d", p.strip())
+                and not _re.match(r"^\d{2}/\d{2}/\d{4}$", p.strip())
+            ]
+            paragraphs = raw_paragraphs if raw_paragraphs else [letter_text]
+            letter_data = build_letter_data(profile, job, paragraphs)
+            pdf_result = renderer.render(letter_data, pdf_out)
+            if pdf_result and pdf_result.exists():
+                letter_path = str(pdf_result)
+            else:
+                letter_path = str(out_dir / "lettre.txt")
+                Path(letter_path).write_text(letter_text, encoding="utf-8")
+        except Exception:
+            letter_path = str(out_dir / "lettre.txt")
+            Path(letter_path).write_text(letter_text, encoding="utf-8")
+        # Toujours sauvegarder le fallback texte en parallèle
+        txt_fallback = out_dir / "lettre.txt"
+        if not txt_fallback.exists():
+            txt_fallback.write_text(letter_text, encoding="utf-8")
 
     if cv_path or letter_path:
         db.save_generation(job["id"], cv_path, letter_path)
@@ -1127,13 +1158,25 @@ def studio_dialog(job_id: str):
                               key=f"dl_cv_dis_{job_id}")
             with v2:
                 if gen_state.get("letter_text"):
-                    st.download_button(
-                        "✉️ Télécharger lettre (.txt)",
-                        data=gen_state["letter_text"].encode("utf-8"),
-                        file_name=f"Lettre_{safe_filename(job.get('company','job'))}.txt",
-                        mime="text/plain", use_container_width=True,
-                        key=f"dl_lt_{job_id}",
-                    )
+                    # Préférer le PDF si disponible, sinon fallback texte
+                    lp = gen_state.get("letter_path", "")
+                    if lp and Path(lp).exists() and lp.endswith(".pdf"):
+                        with open(lp, "rb") as _lf:
+                            st.download_button(
+                                "✉️ Télécharger lettre (.pdf)",
+                                data=_lf.read(),
+                                file_name=f"Lettre_{safe_filename(job.get('company','job'))}.pdf",
+                                mime="application/pdf", use_container_width=True,
+                                key=f"dl_lt_{job_id}",
+                            )
+                    else:
+                        st.download_button(
+                            "✉️ Télécharger lettre (.txt)",
+                            data=gen_state["letter_text"].encode("utf-8"),
+                            file_name=f"Lettre_{safe_filename(job.get('company','job'))}.txt",
+                            mime="text/plain", use_container_width=True,
+                            key=f"dl_lt_{job_id}",
+                        )
                 else:
                     st.button("✉️ Lettre vide", disabled=True,
                               use_container_width=True,
@@ -1755,11 +1798,13 @@ else:
                                   key=f"arch_cv_na_{j['id']}")
                 with a2:
                     if letter_path and Path(letter_path).exists():
+                        lt_ext = Path(letter_path).suffix
+                        lt_mime = "application/pdf" if lt_ext == ".pdf" else "text/plain"
                         with open(letter_path, "rb") as f:
                             st.download_button(
                                 "✉️ Lettre", data=f.read(),
-                                file_name=f"Lettre_{safe_filename(j.get('company',''))}.txt",
-                                mime="text/plain", use_container_width=True,
+                                file_name=f"Lettre_{safe_filename(j.get('company',''))}{lt_ext}",
+                                mime=lt_mime, use_container_width=True,
                                 key=f"arch_lt_{j['id']}",
                             )
                     else:
