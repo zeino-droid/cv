@@ -9,6 +9,8 @@ from typing import Dict, List, Optional
 
 from pypdf import PdfReader
 
+from config.theme import THEME
+
 try:
     import typst
 except ImportError:
@@ -106,6 +108,15 @@ class TypstRenderer(Renderer):
                 "margin-sides": f"{margin_sides:.1f}",
                 "has-photo": "true" if has_photo else "false",
                 "theme": theme,
+                # Centralized theme colours from config/theme.py
+                "sidebar-bg": THEME["sidebar_bg"],
+                "accent-primary": THEME["accent_primary"],
+                "sidebar-text": THEME["sidebar_text"],
+                "sidebar-link": THEME["sidebar_link"],
+                "sidebar-heading": THEME["sidebar_heading"],
+                "sidebar-divider": THEME["sidebar_divider"],
+                "body-text": THEME["body_text"],
+                "meta-text": THEME["meta_text"],
             }
             if has_photo:
                 sys_inputs["photo-path"] = resolved_photo_filename
