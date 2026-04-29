@@ -9,24 +9,29 @@
 #let margin-sides-val   = float(sys.inputs.at("margin-sides",   default: "14.0"))  * 1pt
 #let theme-name         = sys.inputs.at("theme",           default: "premium")
 
+// ─── Couleurs THEME injectées depuis config/theme.py ───
+#let sb-bg      = rgb(sys.inputs.at("sidebar-bg",      default: "#1B3A6B"))
+#let accent-col = rgb(sys.inputs.at("accent-primary",  default: "#2E5FAC"))
+#let sb-text    = rgb(sys.inputs.at("sidebar-text",    default: "#CCDDFF"))
+#let sb-link    = rgb(sys.inputs.at("sidebar-link",    default: "#88BBFF"))
+#let sb-head    = rgb(sys.inputs.at("sidebar-heading", default: "#FFFFFF"))
+#let sb-divider = rgb(sys.inputs.at("sidebar-divider", default: "#3A5FA0"))
+#let body-col   = rgb(sys.inputs.at("body-text",       default: "#333333"))
+#let meta-col   = rgb(sys.inputs.at("meta-text",       default: "#666666"))
+
 // ─── Données JSON ───
 #let cv_data = json(data-path)
 
 #set page(
   paper: "a4",
-  margin: (
-    top: 1.0cm,
-    bottom: 0.9cm,
-    left: 0cm,
-    right: margin-sides-val,
-  ),
+  margin: 0pt,
 )
 
 #set text(
   font: ("Inter", "Helvetica Neue", "Helvetica", "Arial", "sans-serif"),
   size: 9.0pt + font-size-delta,
   lang: "fr",
-  fill: rgb("#334155")
+  fill: body-col
 )
 
 #set par(
@@ -34,12 +39,7 @@
   leading: leading-val,
 )
 
-// ─── Thèmes ───
-// Chaque thème est un dictionnaire de cinq couleurs.
-// Variantes disponibles :
-//   premium  — look sombre et élégant (défaut)
-//   subtle   — tons neutres doux, sobre
-//   ats      — noir/blanc haut-contraste, optimal pour les parseurs ATS
+// ─── Thèmes (conservés pour compatibilité ascendante) ───
 #let themes = (
   premium: (
     primary:       rgb("#1a1a2e"),
@@ -79,22 +79,24 @@
   box(
     inset: (x: 5pt, y: 1.8pt),
     radius: 3pt,
-    fill: light-bg,
-    text(size: 7.5pt + font-size-delta, weight: "medium", fill: primary, text-content)
+    fill: sb-divider,
+    text(size: 7.5pt + font-size-delta, weight: "medium", fill: sb-head, text-content)
   )
 }
 
 #let section-title(title) = {
   v(section-gap-val)
-  text(size: 10.0pt + font-size-delta, weight: "bold", fill: primary, tracking: 1.0pt, upper(title))
-  v(-0.7em)
-  line(length: 100%, stroke: 0.4pt + divider-color)
-  v(0.2em)
+  text(size: 10.0pt + font-size-delta, weight: "bold", fill: accent-col, tracking: 1.0pt, upper(title))
+  v(-0.6em)
+  line(length: 100%, stroke: 1.2pt + accent-col)
+  v(0.3em)
 }
 
 #let sidebar-title(title) = {
   v(0.8em)
-  text(size: 9.0pt + font-size-delta, weight: "bold", fill: primary, tracking: 0.5pt, upper(title))
+  text(size: 9.0pt + font-size-delta, weight: "bold", fill: sb-head, tracking: 0.5pt, upper(title))
+  v(-0.5em)
+  line(length: 100%, stroke: 0.3pt + sb-divider)
   v(0.3em)
 }
 
@@ -104,23 +106,23 @@
     #grid(
       columns: (auto, 1fr, auto),
       gutter: 4pt,
-      text(size: 8.0pt, fill: secondary, "[" + str(index + 1) + "]"),
-      text(size: 9.5pt, weight: "semibold", fill: primary)[#proj.name],
+      text(size: 8.0pt, fill: meta-col, "[" + str(index + 1) + "]"),
+      text(size: 9.5pt, weight: "semibold", fill: body-col)[#proj.name],
       box(
         fill: divider-color,
         inset: (x: 4pt, y: 1.5pt),
         radius: 2pt,
-        text(size: 7.0pt, fill: secondary, weight: "bold")[PROJET]
+        text(size: 7.0pt, fill: meta-col, weight: "bold")[PROJET]
       )
     )
     // Description conditionnelle (si présente)
     #if proj.description != "" and proj.description != none {
       v(0.25em)
-      text(size: 8.5pt, style: "italic", fill: secondary)[#proj.description]
+      text(size: 8.5pt, style: "italic", fill: meta-col)[#proj.description]
     }
     // Keywords toujours affichés, proches du titre
     #v(0.2em)
-    #text(size: 9.0pt, fill: secondary)[#proj.keywords]
+    #text(size: 9.0pt, style: "italic", fill: meta-col)[#proj.keywords]
   ]
   // Ligne de séparation fine après chaque projet
   line(length: 100%, stroke: 0.3pt + divider-color.lighten(40%))
@@ -132,10 +134,10 @@
   columns: (155pt, 1fr),
    // ── COLONNE GAUCHE (SIDEBAR) ──
    rect(
-     fill: light-bg,
+     fill: sb-bg,
      width: 100%,
      height: 100%,
-     inset: (left: 1.0cm, right: 10pt, top: 0.4cm, bottom: 0.5cm),
+     inset: (left: 1.0cm, right: 10pt, top: 1.0cm, bottom: 0.5cm),
      [
        #set align(center)
        // Photo optionnelle : on l'affiche seulement si has-photo == "true".
@@ -160,12 +162,12 @@
              width: 2.9cm,
              height: 2.9cm,
              radius: 50%,
-             fill: primary.lighten(70%),
+             fill: sb-divider,
              stroke: 1.2pt + white,
              align(center + horizon, text(
                size: 22pt,
                weight: "bold",
-               fill: primary,
+               fill: sb-head,
                initials,
              )),
            )
@@ -176,18 +178,18 @@
        #v(0.6em)
 
        #sidebar-title("CONTACT")
-       #set text(size: 8.0pt + font-size-delta, fill: secondary)
-       #text(weight: "bold", fill: primary, "Email") \
+       #set text(size: 8.0pt + font-size-delta, fill: sb-text)
+       #text(weight: "bold", fill: sb-head, "Email") \
        #cv_data.identity.email \
        #v(0.15em)
-       #text(weight: "bold", fill: primary, "Téléphone") \
+       #text(weight: "bold", fill: sb-head, "Téléphone") \
        #cv_data.identity.phone \
        #v(0.15em)
-       #text(weight: "bold", fill: primary, "LinkedIn") \
+       #text(weight: "bold", fill: sb-head, "LinkedIn") \
        #if cv_data.identity.linkedin != none { cv_data.identity.linkedin } else { "zein-elajamy" }
 
        #sidebar-title("MOBILITÉ")
-       #set text(size: 8.0pt + font-size-delta, fill: secondary)
+       #set text(size: 8.0pt + font-size-delta, fill: sb-text)
        #text("Mobilité nationale") \
        #v(0.15em)
 
@@ -210,9 +212,9 @@
           sidebar-title("LANGUES")
           if cv_data.keys().contains("languages") {
             for l in cv_data.languages {
-              text(size: 8.0pt + font-size-delta, weight: "bold", fill: primary, l.name)
+              text(size: 8.0pt + font-size-delta, weight: "bold", fill: sb-head, l.name)
               v(-0.6em)
-              text(size: 8.0pt + font-size-delta, fill: secondary, l.level)
+              text(size: 8.0pt + font-size-delta, fill: sb-text, l.level)
               v(0.15em)
             }
           }
@@ -221,7 +223,7 @@
         #{
           if cv_data.keys().contains("hobbies") and cv_data.hobbies.len() > 0 {
             sidebar-title("LOISIRS")
-            set text(size: 8.0pt + font-size-delta, fill: secondary)
+            set text(size: 8.0pt + font-size-delta, fill: sb-text)
             for hobby in cv_data.hobbies {
               text(hobby)
               v(0.1em)
@@ -237,14 +239,16 @@
   pad(
     left: 15pt,
     top: 1.8cm,
+    right: margin-sides-val,
+    bottom: 0.9cm,
     [
-      #text(size: 22pt + font-size-delta, weight: "black", fill: primary, tracking: -0.5pt, upper(cv_data.identity.name))
+      #text(size: 22pt + font-size-delta, weight: "black", fill: body-col, tracking: -0.5pt, upper(cv_data.identity.name))
       #v(-0.5em)
-      #text(size: 10.5pt + font-size-delta, weight: "bold", fill: secondary, cv_data.headline)
+      #text(size: 10.5pt + font-size-delta, weight: "bold", fill: meta-col, cv_data.headline)
 
       #v(0.5em)
       #section-title("RÉSUMÉ")
-      #text(size: 9.8pt + font-size-delta, fill: secondary, weight: "medium", cv_data.summary)
+      #text(size: 9.8pt + font-size-delta, fill: meta-col, weight: "medium", cv_data.summary)
 
       #v(2.2em)
 
@@ -255,12 +259,12 @@
               let same_company = i > 0 and exp.company == cv_data.experiences.at(i - 1).company
               grid(
                 columns: (1fr, auto),
-                text(size: 10.2pt + font-size-delta, weight: "bold", fill: primary, exp.position),
-                text(size: 9.5pt + font-size-delta, weight: "medium", fill: secondary, exp.start_date + " — " + exp.end_date)
+                text(size: 10.2pt + font-size-delta, weight: "bold", fill: body-col, exp.position),
+                text(size: 9.5pt + font-size-delta, style: "italic", fill: meta-col, exp.start_date + " — " + exp.end_date)
               )
               v(-0.4em)
               if not same_company {
-                text(size: 9.8pt + font-size-delta, weight: "bold", fill: primary, exp.company)
+                text(size: 9.8pt + font-size-delta, weight: "bold", fill: body-col, exp.company)
                 v(0.1em)
               } else {
                 v(0.5em)
@@ -270,8 +274,8 @@
                   for ach in exp.achievements {
                     grid(
                       columns: (7pt, 1fr),
-                      text(size: 9.5pt + font-size-delta, fill: primary, "•"),
-                      text(size: 9.8pt + font-size-delta, fill: secondary, ach)
+                      text(size: 9.5pt + font-size-delta, fill: accent-col, "•"),
+                      text(size: 9.8pt + font-size-delta, fill: meta-col, ach)
                     )
                     v(0.12em)
                   }
@@ -296,18 +300,18 @@
             for edu in cv_data.education {
               grid(
                 columns: (1fr, auto),
-                text(size: 10.2pt + font-size-delta, weight: "bold", fill: primary, edu.degree),
-                text(size: 9.5pt + font-size-delta, weight: "medium", fill: secondary, edu.year)
+                text(size: 10.2pt + font-size-delta, weight: "bold", fill: body-col, edu.degree),
+                text(size: 9.5pt + font-size-delta, style: "italic", fill: meta-col, edu.year)
               )
               v(-0.45em)
-              text(size: 9.8pt + font-size-delta, weight: "medium", fill: primary, edu.school)
+              text(size: 9.8pt + font-size-delta, weight: "medium", fill: body-col, edu.school)
               if edu.keys().contains("specialization") and edu.specialization != none and edu.specialization != "" {
                   v(-0.3em)
-                  text(size: 9.5pt + font-size-delta, weight: "semibold", fill: secondary.lighten(10%), edu.specialization)
+                  text(size: 9.5pt + font-size-delta, weight: "semibold", fill: meta-col, edu.specialization)
               }
               if edu.keys().contains("details") and edu.details != "" {
                   v(-0.3em)
-                  text(size: 9.2pt + font-size-delta, fill: secondary, edu.details)
+                  text(size: 9.2pt + font-size-delta, fill: meta-col, edu.details)
               }
               if edu.keys().contains("modules") and edu.modules != () and edu.modules != [] {
                   let mods = edu.modules
@@ -323,7 +327,7 @@
                   }
                   if all_mods.len() > 0 {
                     v(-0.2em)
-                    set text(size: 9.5pt + font-size-delta, fill: secondary.lighten(10%))
+                    set text(size: 9.5pt + font-size-delta, fill: meta-col)
                     for mod in all_mods.slice(0, 6) {
                       text("· " + mod)
                       v(0.05em)
