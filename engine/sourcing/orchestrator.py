@@ -343,11 +343,23 @@ def scan_jobs(
 
     report(0.70, f"🔄 Déduplication ({len(raw)} brut)…")
     unique = deduplicate_smart(raw)
-    report(0.74, f"✅ {len(unique)} offres uniques")
+    
+    # [HR FILTER] Nettoyage strict des titres indésirables (Stagiaire, Alternant, Freelance)
+    def _is_garbage(job_dict: Dict) -> bool:
+        title = str(job_dict.get("title", "")).lower()
+        forbidden = ["stage", "stagiaire", "alternance", "alternant", "apprenti", "apprentissage", "freelance", "indépendant", "10 ans", "15 ans"]
+        return any(f in title for f in forbidden)
+        
+    filtered_unique = [j for j in unique if not _is_garbage(j)]
+    dropped = len(unique) - len(filtered_unique)
+    if dropped > 0:
+        report(0.72, f"🗑️ Filtre RH : {dropped} offres poubelles rejetées")
+    
+    report(0.74, f"✅ {len(filtered_unique)} offres pertinentes uniques")
 
     # 5. Scoring heuristique
     report(0.78, "⭐ Scoring heuristique…")
-    scored = [score_job(j, profile, config) for j in unique]
+    scored = [score_job(j, profile, config) for j in filtered_unique]
 
     # 6. Re-rank IA (top 25)
     if use_llm_rerank and has_gemini() and scored and not stopped():

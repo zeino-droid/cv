@@ -64,6 +64,12 @@ def save_final_candidate_version(
         generate_documents_fn: Callable équivalent à ``Dashboard.generate_documents``.
         safe_filename_fn: Callable équivalent à ``Dashboard.safe_filename``.
     """
+    from engine.schemas import CVGenState
+    try:
+        CVGenState.model_validate(gen_state)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"GenState struct errors: {e}")
     result = generate_documents_fn(
         job, gen_cv=True, gen_letter=False, use_llm=False,
         section_overrides=gen_state.get("section_overrides") or {},
@@ -129,13 +135,34 @@ def save_final_candidate_version(
             txt_fallback.write_text(gen_state["letter_text"], encoding="utf-8")
 
     final_cv_data = gen_state.get("cv_data") or {}
+    
+    # [KARPATHY DATA FLYWHEEL] Log the human preference data!
+    try:
+        from engine.data_engine import data_engine
+        raw_llm_proposal = gen_state.get("section_proposal", {})
+        if raw_llm_proposal and final_cv_data:
+            data_engine.log_user_correction(job, raw_llm_proposal, final_cv_data)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Data engine tracking failed: {e}")
+
+    # [KARPATHY AUTO EVAL] Score the final output against the job description
+    try:
+        from engine.evaluator import AutoEval
+        eval_metrics = AutoEval.evaluate_cv_fit(final_cv_data, job)
+        notes = f"Validée finale par l'utilisateur. Recall Score: {eval_metrics['score']}%. "
+        if eval_metrics['missing_keywords']:
+            notes += f"Mots clés manquants: {', '.join(eval_metrics['missing_keywords'])}"
+    except Exception as e:
+        notes = "Validée finale par l'utilisateur"
+
     db.save_resume_version(
         job_id=job_id,
         headline=final_cv_data.get("headline", ""),
         summary=final_cv_data.get("summary", ""),
         cv_path=gen_state.get("cv_path", ""),
         is_final=True,
-        notes="Validée finale par l'utilisateur",
+        notes=notes,
     )
     if gen_state.get("letter_text"):
         db.save_cover_letter_version(

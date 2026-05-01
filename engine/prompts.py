@@ -127,6 +127,7 @@ def build_generation_prompt(job_offer: Dict, candidate_context: CandidateContext
             "Chaque bullet raconte une action concrète et son impact — pas un descriptif de poste générique.",
             "Le résumé vend le candidat en 3 phrases : profil → adéquation au poste → valeur ajoutée unique.",
             "Ton : professionnel, direct, technique. Pas de superlatifs vides ni de formulations bateaux.",
+            "HR RULE : Focus sur les résultats quantifiables (metrics, %, euros, temps gagné). Un recruteur technique cherche des preuves, pas des descriptions de tâches.",
             "INTERDIT d'utiliser les mots : 'Apprenti', 'Étudiant', 'Élève'. Présente un expert opérationnel.",
             "Utilise EXCLUSIVEMENT les données fournies dans candidate_context. Rien d'inventé, rien de supposé.",
             "Toutes les sorties doivent être en Français.",
@@ -323,4 +324,16 @@ def validate_llm_output_constraints(cv_data: Dict, content_config: Optional[Dict
 
 def post_process_llm_output(raw_output: Dict, content_config: Optional[Dict] = None) -> Dict:
     """Valide les contraintes sans remplacement automatique de mots."""
+    from pydantic import ValidationError
+    from engine.schemas import LLMOutput
+    try:
+        LLMOutput.model_validate(raw_output)
+    except ValidationError as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Erreur de validation Pydantic de la sortie LLM : {e}")
+        # On ne bloque pas brutalement pour laisser la logique fallback de cv_generator.py jouer,
+        # mais la validation Pydantic lèvera une exception qui sera catchée par cv_generator.py (try/except fallback).
+        raise ValueError(f"Sortie LLM invalide selon le schéma strict : {e}")
+        
     return validate_llm_output_constraints(raw_output, content_config=content_config)

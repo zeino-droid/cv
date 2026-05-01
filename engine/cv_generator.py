@@ -6,10 +6,14 @@ Architecture modulaire avec pools séparés pour garantir la présence des proje
 import asyncio
 import copy
 import json
+import logging
 import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
+
+# Initialize logger
+logger = logging.getLogger(__name__)
 
 from engine import matching, prompts
 
@@ -208,19 +212,16 @@ class PersonalCVGenerator:
             self.llm = None
             self.llm_name = "Heuristique uniquement"
 
-        self._print_status()
+        self._log_status()
 
-    def _print_status(self):
-        print(f"\n   {'=' * 40}")
-        print(f"   🧠 CERVEAU V5 — PROJETS + ONE-PAGE")
-        print(f"   {'=' * 40}")
+    def _log_status(self):
+        logger.info(f"🧠 CERVEAU V5 — PROJETS + ONE-PAGE")
         name = self.master_profile.get("personal_info", {}).get("name", "Inconnu")
-        print(f"   👤 Profil: {name}")
-        print(f"   🤖 LLM:    {self.llm_name}")
-        print(
-            f"   📄 Typst:  {'✅ Actif' if self.renderers['pdf'].available else '❌ Manquant'}"
+        logger.info(f"👤 Profil: {name}")
+        logger.info(f"🤖 LLM:    {self.llm_name}")
+        logger.info(
+            f"📄 Typst:  {'✅ Actif' if self.renderers['pdf'].available else '❌ Manquant'}"
         )
-        print(f"   {'=' * 40}")
 
     _CV_SCHEMA: Dict[str, Any] = {
         "identity": {"_required": True, "_fields": ["name", "email", "phone"]},
@@ -236,20 +237,21 @@ class PersonalCVGenerator:
 
     def _validate_cv_data(self, cv_data: Dict) -> List[str]:
         """
-        Vérifie les clés critiques avant le rendu Typst.
+        Vérifie les clés critiques avant le rendu Typst via Pydantic.
         Retourne la liste des erreurs — vide = OK.
         """
-        errors = []
-        for section, rules in self._CV_SCHEMA.items():
-            if rules["_required"] and section not in cv_data:
-                errors.append(f"❌ Section obligatoire manquante : '{section}'")
-                continue
-            if section not in cv_data:
-                continue
-            for field in rules.get("_fields", []):
-                if field not in (cv_data[section] or {}):
-                    errors.append(f"⚠️  Champ manquant : '{section}.{field}'")
-        return errors
+        from pydantic import ValidationError
+        from engine.schemas import CVData
+
+        try:
+            CVData.model_validate(cv_data)
+            return []
+        except ValidationError as e:
+            errors = []
+            for err in e.errors():
+                loc = ".".join([str(x) for x in err["loc"]])
+                errors.append(f"❌ Erreur de structure : {loc} - {err['msg']}")
+            return errors
 
     def _get_profile_project_ids(
         self, profile_id: str, all_experiences: List[Dict]
@@ -427,7 +429,7 @@ class PersonalCVGenerator:
                 key=lambda x: _parse_period(x.get("period", "")), reverse=True
             )
             ranked_content["projects"] = fallback_projects[: FILL_BUDGET["projects"]]
-            print(
+            logger.warning(
                 f"      ⚠️ Fallback Projet(s) utilisé(s) : {len(ranked_content['projects'])}"
             )
 
@@ -466,7 +468,7 @@ class PersonalCVGenerator:
         profile_id, match_score = matching.select_best_profile(
             job_data, self.master_profile
         )
-        print(f"      → Profil cible : {profile_id.upper()} (Score: {match_score})")
+        logger.info(f"Profil cible sélectionné : {profile_id.upper()} (Score: {match_score})")
 
         # 2. Classement et Pools
         all_exps = self.master_profile.get(
@@ -492,8 +494,8 @@ class PersonalCVGenerator:
 
         for config in SHRINK_CONFIGS:
             attempt = config["attempt"]
-            print(
-                f"      → Tentative {attempt} "
+            logger.info(
+                f"Tentative {attempt} "
                 f"({config['max_pro_exp']} Pro, {config['max_projects']} Proj, Font: {config['font_size']})"
             )
 
@@ -557,7 +559,7 @@ class PersonalCVGenerator:
                         max_bullets=config["max_bullets"],
                     )
                 except Exception as e:
-                    print(f"      ⚠️ Erreur LLM: {e}. Fallback.")
+                    logger.warning(f"Erreur LLM: {e}. Fallback aux données par défaut.", exc_info=True)
                     cv_data = self._assemble_fallback_data(
                         candidate_context,
                         job_data,
@@ -610,9 +612,9 @@ class PersonalCVGenerator:
 
             validation_errors = self._validate_cv_data(cv_data)
             if validation_errors:
-                print(f"      ⚠️  CV invalide (tentative {attempt}) :")
+                logger.warning(f"CV invalide (tentative {attempt}) :")
                 for err in validation_errors:
-                    print(f"         {err}")
+                    logger.warning(f"  - {err}")
                 if any("❌" in e for e in validation_errors):
                     best_result = {
                         "cv_data": cv_data,
@@ -636,7 +638,7 @@ class PersonalCVGenerator:
 
             if pdf_path:
                 pages = pdf_renderer.get_page_count(pdf_path)
-                print(f"      → Pages: {pages}")
+                logger.info(f"Rendu Typst terminé. Pages détectées : {pages}")
                 res = {
                     "pdf_path": str(pdf_path),
                     "page_count": pages,

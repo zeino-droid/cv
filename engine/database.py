@@ -43,7 +43,8 @@ class JobDatabase:
         self._init_db()
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
+        # timeout=20 added to prevent "database is locked" errors during rapid successive UI clicks
+        conn = sqlite3.connect(str(self.db_path), check_same_thread=False, timeout=20.0)
         conn.row_factory = sqlite3.Row
         try:
             pragma_result = conn.execute("PRAGMA journal_mode=WAL;").fetchone()

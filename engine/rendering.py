@@ -143,7 +143,7 @@ class TypstRenderer(Renderer):
         try:
             # Utilise pdfinfo de poppler-utils si disponible
             result = subprocess.run(
-                ["pdfinfo", str(pdf_path)], capture_output=True, text=True
+                ["pdfinfo", str(pdf_path)], capture_output=True, text=True, timeout=5
             )
             for line in result.stdout.splitlines():
                 if line.startswith("Pages:"):
