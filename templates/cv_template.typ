@@ -22,6 +22,11 @@
 // ─── Données JSON ───
 #let cv_data = json(data-path)
 
+#set document(
+  title: "CV " + cv_data.identity.name + " - " + cv_data.headline,
+  author: cv_data.identity.name,
+)
+
 #set page(
   paper: "a4",
   margin: 0pt,

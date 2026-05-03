@@ -37,6 +37,11 @@
 #let accent    = theme.at("accent")
 #let light-line = theme.at("light-line")
 
+#set document(
+  title: "Lettre de Motivation - " + letter.sender.name,
+  author: letter.sender.name,
+)
+
 // ─── Page ───
 #set page(
   paper: "a4",

@@ -539,14 +539,15 @@ def _parse_list_json(raw: str, max_items: int, max_item_chars: int) -> List[str]
     cleaned = re.sub(r"```json\s*|\s*```", "", raw).strip()
     # Essai JSON
     try:
+        from engine.schemas import LLMListOutput
         obj = json.loads(cleaned)
-        if isinstance(obj, dict) and "items" in obj:
-            items = obj["items"]
-        elif isinstance(obj, list):
-            items = obj
-        else:
-            items = []
-    except (json.JSONDecodeError, ValueError):
+        if isinstance(obj, list):
+            obj = {"items": obj}
+        parsed = LLMListOutput.model_validate(obj)
+        items = parsed.items
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Erreur Pydantic dans _parse_list_json ({e}). Fallback sur split textuel.")
         # Fallback : split par ligne, retire bullets
         items = []
         for line in cleaned.split("\n"):

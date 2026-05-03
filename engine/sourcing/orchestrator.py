@@ -341,9 +341,27 @@ def scan_jobs(
             "summary": "0 offre trouvée.",
         }
 
-    report(0.70, f"🔄 Déduplication ({len(raw)} brut)…")
+    report(0.65, f"🔄 Déduplication ({len(raw)} brut)…")
     unique = deduplicate_smart(raw)
-    
+
+    # [OPTIMIZATION] Retirer les offres déjà traitées en base de données pour économiser le quota LLM
+    try:
+        from engine.database import JobDatabase
+        db = JobDatabase()
+        with db._connect() as conn:
+            rows = conn.execute("SELECT id FROM jobs WHERE status IN ('applied', 'rejected', 'ignored', 'sent', 'interview', 'offer')").fetchall()
+            processed_ids = {r["id"] for r in rows}
+        
+        # Filtre sur l'ID brut ou le hash généré
+        unique = [
+            j for j in unique 
+            if j.get("id") not in processed_ids 
+            and f"JOB-{abs(hash(j.get('title', '') + j.get('company', '')))}" not in processed_ids
+        ]
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Impossible de filtrer les offres existantes: {e}")
+
     # [HR FILTER] Nettoyage strict des titres indésirables (Stagiaire, Alternant, Freelance)
     def _is_garbage(job_dict: Dict) -> bool:
         title = str(job_dict.get("title", "")).lower()

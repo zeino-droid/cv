@@ -86,6 +86,9 @@ class LLMCVData(BaseModel):
 class LLMOutput(BaseModel):
     cv: LLMCVData
 
+class LLMListOutput(BaseModel):
+    items: List[str]
+
 class CVGenState(BaseModel):
     cv_path: Optional[str] = None
     letter_path: Optional[str] = None
