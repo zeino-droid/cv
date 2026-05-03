@@ -792,8 +792,23 @@ def _section_block(
                     else:
                         overrides[section_key] = proposal
                 proposals.pop(prop_key, None)
+                
+                # [UX OPTIMIZATION] Auto-recompile the PDF immediately
+                with st.spinner("Recompilation automatique..."):
+                    try:
+                        result = generate_documents(
+                            job, gen_cv=True, gen_letter=False, use_llm=False,
+                            section_overrides=gen_state.get("section_overrides") or {},
+                            photo_path=st.session_state.get("photo_path"),
+                        )
+                        gen_state["cv_path"] = result.get("cv_path", "")
+                        cv_res = result.get("cv_result") or {}
+                        if cv_res.get("cv_data"):
+                            gen_state["cv_data"] = cv_res["cv_data"]
+                    except Exception as exc:
+                        st.error(f"Erreur de recompilation : {exc}")
+
                 st.session_state[state_key] = gen_state
-                st.success("Édition enregistrée. Clique sur 🔄 Recompiler pour mettre à jour le PDF.")
                 st.rerun()
         with can:
             if st.button("❌ Annuler",
@@ -1130,6 +1145,22 @@ def studio_dialog(job_id: str):
                                  key=f"clear_overrides_{job_id}"):
                         gen_state["section_overrides"] = {}
                         gen_state.pop("section_proposal", None)
+                        
+                        # [UX OPTIMIZATION] Auto-recompile to reset PDF to original LLM generation
+                        with st.spinner("Restauration du CV original..."):
+                            try:
+                                result = generate_documents(
+                                    job, gen_cv=True, gen_letter=False, use_llm=False,
+                                    section_overrides={},
+                                    photo_path=st.session_state.get("photo_path"),
+                                )
+                                gen_state["cv_path"] = result.get("cv_path", "")
+                                cv_res = result.get("cv_result") or {}
+                                if cv_res.get("cv_data"):
+                                    gen_state["cv_data"] = cv_res["cv_data"]
+                            except Exception as exc:
+                                st.error(f"Erreur de restauration : {exc}")
+
                         st.session_state[state_key] = gen_state
                         st.rerun()
 
@@ -1313,27 +1344,16 @@ with tab_auto:
     )
     s1, s2, s3 = st.columns(3)
     with s1:
-        if ft_ok:
-            st.success("🇫🇷 **France Travail** · prêt")
-        else:
-            st.warning(
-                "🇫🇷 **France Travail** · clés manquantes\n\n"
-                "Inscription gratuite (5 min) sur https://francetravail.io/, puis ajoute "
-                "`FT_CLIENT_ID` et `FT_CLIENT_SECRET` dans Secrets."
-            )
+        if not ft_ok:
+            st.warning("🇫🇷 **France Travail**\nClés manquantes (`FT_CLIENT_ID`, `FT_CLIENT_SECRET`)")
+        use_ft = st.toggle("🇫🇷 Activer France Travail", value=ft_ok, disabled=not ft_ok, key="tg_ft")
     with s2:
-        if adz_ok:
-            st.success("🌍 **Adzuna** · prêt")
-        else:
-            st.warning(
-                "🌍 **Adzuna** · clés manquantes\n\n"
-                "Inscription gratuite (1000 req/mois) sur https://developer.adzuna.com/, puis "
-                "ajoute `ADZUNA_APP_ID` et `ADZUNA_APP_KEY`."
-            )
+        if not adz_ok:
+            st.warning("🌍 **Adzuna**\nClés manquantes (`ADZUNA_APP_ID`, `ADZUNA_APP_KEY`)")
+        use_adz = st.toggle("🌍 Activer Adzuna", value=adz_ok, disabled=not adz_ok, key="tg_adz")
     with s3:
-        st.success(
-            f"🎯 **Companies Watcher** · {len(_targets.get('companies', []))} employeurs surveillés"
-        )
+        use_cw = st.toggle(f"🎯 Activer Companies Watcher", value=True, key="tg_cw")
+        st.caption(f"{len(_targets.get('companies', []))} employeurs surveillés")
 
     st.divider()
 
@@ -1440,6 +1460,9 @@ with tab_auto:
                         use_llm_expansion=use_expansion,
                         use_llm_rerank=use_rerank,
                         use_llm_skills=use_skills,
+                        enable_france_travail=use_ft,
+                        enable_adzuna=use_adz,
+                        enable_companies_watcher=use_cw,
                         progress_callback=_cb,
                         should_stop=stop_event.is_set,
                     )
