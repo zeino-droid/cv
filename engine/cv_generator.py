@@ -160,6 +160,28 @@ SHRINK_CONFIGS = [
         "section_gap": 6,
         "margin_sides": 12,
     },
+    {
+        "attempt": 5,
+        "call_llm": False,
+        "max_pro_exp": 2,
+        "max_projects": 1,
+        "max_bullets": 1,
+        "font_size": 8.8,
+        "leading": 0.52,
+        "section_gap": 5,
+        "margin_sides": 10,
+    },
+    {
+        "attempt": 6,
+        "call_llm": False,
+        "max_pro_exp": 1,
+        "max_projects": 1,
+        "max_bullets": 1,
+        "font_size": 8.5,
+        "leading": 0.50,
+        "section_gap": 4,
+        "margin_sides": 8,
+    },
 ]
 
 SCORE_PROFILE_WITH_KW = 4
@@ -601,6 +623,30 @@ class PersonalCVGenerator:
                     max_bullets=config["max_bullets"],
                 )
                 cached_cv_data = copy.deepcopy(cv_data)
+
+            # Hard-truncation logic for extreme shrink attempts
+            if config["attempt"] >= 5 and "cv" in cv_data:
+                # Fallback returns {"cv": {...}}, whereas LLM response assembled could be flat depending on data
+                pass
+            
+            # Since the structure is flat (cv_data['summary'] directly) after assemble
+            if config["attempt"] >= 5:
+                # Truncate summary
+                summary = cv_data.get("summary", "")
+                if isinstance(summary, str) and len(summary) > 250:
+                    cv_data["summary"] = summary[:247].rsplit(" ", 1)[0] + "..."
+                
+                # Truncate bullets
+                for exp in cv_data.get("experiences", []):
+                    exp["achievements"] = [
+                        ach[:110].rsplit(" ", 1)[0] + "..." if isinstance(ach, str) and len(ach) > 110 else ach
+                        for ach in exp.get("achievements", [])
+                    ]
+                
+                # Remove education modules to save vertical space
+                for edu in cv_data.get("education", []):
+                    if "modules" in edu:
+                        edu["modules"] = {}
 
             cv_data = self._apply_text_overrides(
                 cv_data,
