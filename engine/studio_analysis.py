@@ -5,6 +5,7 @@ Aucune dépendance lourde : pur Python + HTML/CSS pour la heatmap.
 """
 
 from __future__ import annotations
+
 from typing import Iterable
 
 
@@ -326,3 +327,54 @@ async def analyze_keyword_gap(job_description: str, profile: dict, llm=None) -> 
         "matched": sorted(list(set(matched))),
         "missing": sorted(list(set(missing))),
     }
+
+
+def render_skill_cloud(profile: dict, job: dict) -> str:
+    """
+    Génère une visualisation en "cloud" des compétences.
+    Affiche les skills du profil vs l'offre avec codes couleurs.
+    """
+    matrix = build_skill_matrix(profile, job)
+    
+    # Heatmap comme visualisation principale
+    heatmap = render_heatmap_html(matrix)
+    
+    # Stats
+    matched_count = len(matrix.get("matched", []))
+    missing_count = len(matrix.get("missing", []))
+    bonus_count = len(matrix.get("bonus", []))
+    total_job = matrix.get("total_job", 1) or 1
+    score = matrix.get("score", 0)
+    
+    # Conteneur global
+    html = f"""
+    <div style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%); 
+                border-radius: 12px; padding: 20px; border: 1px solid rgba(255, 255, 255, 0.1);">
+        
+        <div style="margin-bottom: 16px;">
+            <h3 style="margin: 0 0 8px 0; font-size: 14px; color: #fff; font-weight: 600;">📊 Skill Matrix Analysis</h3>
+            <div style="display: flex; gap: 12px; font-size: 12px;">
+                <span style="background: rgba(34, 197, 94, 0.2); padding: 4px 8px; border-radius: 4px; color: #22c55e;">
+                    ✓ {matched_count} matched
+                </span>
+                <span style="background: rgba(239, 68, 68, 0.2); padding: 4px 8px; border-radius: 4px; color: #ef4444;">
+                    ✗ {missing_count} missing
+                </span>
+                <span style="background: rgba(168, 85, 247, 0.2); padding: 4px 8px; border-radius: 4px; color: #a855f7;">
+                    ⭐ {bonus_count} bonus
+                </span>
+                <span style="margin-left: auto; background: rgba(59, 130, 246, 0.2); padding: 4px 8px; border-radius: 4px; color: #3b82f6;">
+                    Score: {score}%
+                </span>
+            </div>
+        </div>
+        
+        {heatmap}
+        
+        <div style="margin-top: 12px; font-size: 11px; color: #a1a1aa; text-align: center;">
+            Analyse basée sur {matched_count}/{total_job} compétences détectées
+        </div>
+    </div>
+    """
+    
+    return html
