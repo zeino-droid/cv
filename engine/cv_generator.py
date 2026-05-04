@@ -122,6 +122,7 @@ SHRINK_CONFIGS = [
         "max_pro_exp": 4,
         "max_projects": 2,
         "max_bullets": 2,
+        "max_education": 2,
         "font_size": 10.4,
         "leading": 0.65,
         "section_gap": 16,
@@ -133,6 +134,7 @@ SHRINK_CONFIGS = [
         "max_pro_exp": 3,
         "max_projects": 2,
         "max_bullets": 2,
+        "max_education": 2,
         "font_size": 9.8,
         "leading": 0.58,
         "section_gap": 14,
@@ -144,6 +146,7 @@ SHRINK_CONFIGS = [
         "max_pro_exp": 3,
         "max_projects": 1,
         "max_bullets": 1,
+        "max_education": 2,
         "font_size": 9.2,
         "leading": 0.55,
         "section_gap": 10,
@@ -155,6 +158,7 @@ SHRINK_CONFIGS = [
         "max_pro_exp": 2,
         "max_projects": 1,
         "max_bullets": 2,
+        "max_education": 1,
         "font_size": 9.2,
         "leading": 0.55,
         "section_gap": 6,
@@ -166,6 +170,7 @@ SHRINK_CONFIGS = [
         "max_pro_exp": 2,
         "max_projects": 1,
         "max_bullets": 1,
+        "max_education": 1,
         "font_size": 8.8,
         "leading": 0.52,
         "section_gap": 5,
@@ -177,6 +182,7 @@ SHRINK_CONFIGS = [
         "max_pro_exp": 1,
         "max_projects": 1,
         "max_bullets": 1,
+        "max_education": 1,
         "font_size": 8.5,
         "leading": 0.50,
         "section_gap": 4,
@@ -597,6 +603,7 @@ class PersonalCVGenerator:
                         cached_llm_result,
                         candidate_context,
                         max_bullets=config["max_bullets"],
+                        max_education=config["max_education"],
                     )
                 except Exception as e:
                     logger.warning(f"Erreur LLM: {e}. Fallback aux données par défaut.", exc_info=True)
@@ -612,6 +619,7 @@ class PersonalCVGenerator:
                     cached_llm_result,
                     candidate_context,
                     max_bullets=config["max_bullets"],
+                    max_education=config["max_education"],
                 )
             else:
                 # IMPORTANT: Toujours réassembler le fallback car le 'candidate_context' 
@@ -620,6 +628,7 @@ class PersonalCVGenerator:
                     candidate_context,
                     job_data,
                     max_bullets=config["max_bullets"],
+                    max_education=config["max_education"],
                 )
 
             # Hard-truncation logic for extreme shrink attempts
@@ -824,8 +833,13 @@ class PersonalCVGenerator:
         return data
 
     def _assemble_final_data(
-        self, llm_output: Dict, context: Dict, max_bullets: Optional[int] = None
+        self,
+        llm_output: Dict,
+        context: Dict,
+        max_bullets: Optional[int] = None,
+        max_education: Optional[int] = None,
     ) -> Dict:
+        effective_max_edu = max_education if max_education is not None else 2
         effective_max_bullets = (
             max_bullets if max_bullets is not None else FILL_BUDGET["max_bullets_pro"]
         )
@@ -982,7 +996,7 @@ class PersonalCVGenerator:
                     else {},
                 }
                 for e in context["education"]
-            ][:2],
+            ][:effective_max_edu],
             "languages": [
                 {"name": l["language"], "level": l["level"]}
                 for l in context["personal_info"].get("languages", [])
@@ -991,7 +1005,11 @@ class PersonalCVGenerator:
         }
 
     def _assemble_fallback_data(
-        self, context: Dict, job: Dict, max_bullets: Optional[int] = None
+        self,
+        context: Dict,
+        job: Dict,
+        max_bullets: Optional[int] = None,
+        max_education: Optional[int] = None,
     ) -> Dict:
         """Fallback intelligent : adapte headline et summary au poste visé.
 
@@ -1027,7 +1045,9 @@ class PersonalCVGenerator:
                 "summary": {"value": targeted_summary},
             }
         }
-        return self._assemble_final_data(fake_llm, context, max_bullets=max_bullets)
+        return self._assemble_final_data(
+            fake_llm, context, max_bullets=max_bullets, max_education=max_education
+        )
 
     def _normalize_job(self, job: Dict) -> Dict:
         return {
