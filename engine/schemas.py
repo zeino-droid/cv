@@ -33,7 +33,7 @@ class Education(BaseModel):
     year: str
     specialization: Optional[str] = None
     details: Optional[str] = None
-    modules: Optional[List[str]] = Field(default_factory=list)
+    modules: Optional[Union[List[str], Dict[str, List[str]]]] = Field(default_factory=list)
 
 class Language(BaseModel):
     name: str
