@@ -8,6 +8,18 @@
 #let section-gap-val    = float(sys.inputs.at("section-gap",    default: "20.0"))  * 1pt
 #let margin-sides-val   = float(sys.inputs.at("margin-sides",   default: "14.0"))  * 1pt
 #let theme-name         = sys.inputs.at("theme",           default: "premium")
+#let profile-id         = sys.inputs.at("profile-id",      default: "simulation_rd")
+
+// ─── Mapping des "Impact Symbols" (Dynamic Authority) ───
+#let impact-symbols-map = (
+  simulation_rd: ($sigma$, $epsilon$, $Delta$),
+  energie_cfd:   ($nabla$, $rho$, $phi$),
+  energie_enr:   ($eta$, $P$, $Phi$),
+  calcul_digital:($sum$, $integral$, $infinity$),
+  bureau_etudes: ($tau$, $M$, $F$),
+)
+
+#let current-symbols = impact-symbols-map.at(profile-id, default: ($diamond$, $star$, $bullet$))
 
 // ─── Couleurs THEME injectées depuis config/theme.py ───
 #let sb-bg      = rgb(sys.inputs.at("sidebar-bg",      default: "#1B3A6B"))
@@ -91,8 +103,12 @@
 
 #let section-title(title) = {
   v(section-gap-val)
-  text(size: 10.0pt + font-size-delta, weight: "bold", fill: accent-col, tracking: 1.0pt, upper(title))
-  v(-0.6em)
+  grid(
+    columns: (1fr, auto),
+    text(size: 10.0pt + font-size-delta, weight: "bold", fill: accent-col, tracking: 1.0pt, upper(title)),
+    text(size: 12.0pt, fill: accent-col.lighten(50%), current-symbols.at(0))
+  )
+  v(-0.7em)
   line(length: 100%, stroke: 1.2pt + accent-col)
   v(0.3em)
 }
@@ -109,9 +125,10 @@
   block(spacing: 2.0pt, breakable: false)[
     // En-tête compacte avec numéro
     #grid(
-      columns: (auto, 1fr, auto),
+      columns: (auto, auto, 1fr, auto),
       gutter: 4pt,
       text(size: 8.0pt, fill: meta-col, "[" + str(index + 1) + "]"),
+      text(size: 9.0pt, fill: accent-col.lighten(30%), current-symbols.at(1)),
       text(size: 9.5pt, weight: "semibold", fill: body-col)[#proj.name],
       box(
         fill: divider-color,
@@ -250,7 +267,11 @@
     [
       #text(size: 22pt + font-size-delta, weight: "black", fill: body-col, tracking: -0.5pt, upper(cv_data.identity.name))
       #v(-0.5em)
-      #text(size: 10.5pt + font-size-delta, weight: "bold", fill: meta-col, cv_data.headline)
+      #grid(
+        columns: (1fr, auto),
+        text(size: 10.5pt + font-size-delta, weight: "bold", fill: meta-col, cv_data.headline),
+        text(size: 14.0pt, fill: accent-col.lighten(40%), current-symbols.at(2))
+      )
 
       #v(0.5em)
       #section-title("RÉSUMÉ")

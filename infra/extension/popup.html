@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      width: 300px;
+      padding: 16px;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #09090b;
+      color: #ededed;
+    }
+    h2 {
+      font-size: 1.2rem;
+      margin-top: 0;
+      color: #8b5cf6;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn {
+      width: 100%;
+      padding: 10px;
+      background-color: #8b5cf6;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    .btn:hover {
+      background-color: #7c3aed;
+    }
+    #status {
+      margin-top: 12px;
+      font-size: 0.9rem;
+      text-align: center;
+    }
+    .loader {
+      display: none;
+      border: 3px solid #333;
+      border-top: 3px solid #8b5cf6;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      animation: spin 1s linear infinite;
+      margin: 10px auto;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <h2>🎯 Job Copilot</h2>
+  <button id="clipBtn" class="btn">Send to Copilot</button>
+  <div id="loader" class="loader"></div>
+  <div id="status"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -98,6 +98,10 @@ class JobDatabase:
                 "ai_reason": "TEXT",
                 "extracted_skills": "TEXT",
                 "posted_date": "TEXT",
+                "generation_model": "TEXT",
+                "generation_latency": "REAL",
+                "ghost_benefits": "TEXT",
+                "hiring_manager_title": "TEXT",
             }
             for col, col_type in new_cols.items():
                 if col not in columns:
@@ -216,7 +220,7 @@ class JobDatabase:
 
     def _row_to_dict(self, row: sqlite3.Row) -> Dict:
         d = dict(row)
-        for field in ("matched_skills", "required_skills", "extracted_skills"):
+        for field in ("matched_skills", "required_skills", "extracted_skills", "ghost_benefits"):
             raw = d.get(field)
             if raw:
                 try:
@@ -298,8 +302,8 @@ class JobDatabase:
                            (id, title, company, location, description, url, source,
                             fit_score, matched_skills, required_skills, status,
                             sourcing_date, ai_score, ai_reason, extracted_skills, posted_date,
-                            created_at, updated_at)
-                           VALUES (?,?,?,?,?,?,?,?,?,?,'new',?,?,?,?,?,datetime('now'),datetime('now'))""",
+                            hiring_manager_title, created_at, updated_at)
+                           VALUES (?,?,?,?,?,?,?,?,?,?,'new',?,?,?,?,?,?,datetime('now'),datetime('now'))""",
                         (
                             job_id,
                             job.get("title", ""),
@@ -316,6 +320,7 @@ class JobDatabase:
                             ai_reason,
                             es_json,
                             posted_date,
+                            job.get("hiring_manager_title"),
                         ),
                     )
                     # Ajouter à l'index pour les prochaines itérations
@@ -336,6 +341,7 @@ class JobDatabase:
                                ai_reason        = COALESCE(NULLIF(?, ''), ai_reason),
                                extracted_skills = CASE WHEN ?='[]' THEN extracted_skills ELSE ? END,
                                posted_date      = COALESCE(NULLIF(?, ''), posted_date),
+                               hiring_manager_title = COALESCE(NULLIF(?, ''), hiring_manager_title),
                                updated_at       = datetime('now')
                            WHERE id = ?""",
                         (
@@ -348,6 +354,7 @@ class JobDatabase:
                             ai_reason or "",
                             es_json, es_json,
                             posted_date or "",
+                            job.get("hiring_manager_title") or "",
                             job_id,
                         ),
                     )
@@ -375,7 +382,7 @@ class JobDatabase:
             conn.commit()
             return cur.rowcount > 0
 
-    def mark_as_sent(self, job_id: str, via: str, edited_headline: str = None, edited_summary: str = None, vault_path: str = None) -> bool:
+    def mark_as_sent(self, job_id: str, via: str, edited_headline: str = None, edited_summary: str = None, vault_path: str = None, model: str = None) -> bool:
         """Marque une offre comme envoyée avec les métadonnées de candidature."""
         now = datetime.now().strftime("%Y-%m-%d %H:%M")
         with self._connect() as conn:
@@ -388,24 +395,27 @@ class JobDatabase:
                    final_headline = ?,
                    final_summary = ?,
                    vault_path = ?,
+                   generation_model = COALESCE(?, generation_model),
                    updated_at = datetime('now')
                    WHERE id = ?""",
-                (via, now, now, edited_headline, edited_summary, vault_path, job_id)
+                (via, now, now, edited_headline, edited_summary, vault_path, model, job_id)
             )
             conn.commit()
             return cur.rowcount > 0
 
-    def save_generation(self, job_id: str, cv_path: str, letter_path: str) -> None:
-        """Sauvegarde les chemins des documents générés."""
+    def save_generation(self, job_id: str, cv_path: str, letter_path: str, model: str = None, latency: float = None) -> None:
+        """Sauvegarde les chemins des documents générés, le modèle et la latence."""
         with self._connect() as conn:
             conn.execute(
                 """UPDATE jobs SET
-                       cv_path     = ?,
-                       letter_path = ?,
-                       status      = CASE WHEN status = 'new' THEN 'generated' ELSE status END,
-                       updated_at  = datetime('now')
+                       cv_path            = ?,
+                       letter_path        = ?,
+                       generation_model   = COALESCE(?, generation_model),
+                       generation_latency = COALESCE(?, generation_latency),
+                       status             = CASE WHEN status = 'new' THEN 'generated' ELSE status END,
+                       updated_at         = datetime('now')
                    WHERE id = ?""",
-                (cv_path, letter_path, job_id),
+                (cv_path, letter_path, model, latency, job_id),
             )
             conn.commit()
 

@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Job Copilot Clipper",
+  "version": "1.0",
+  "description": "Send job listings directly to your Job Copilot backend.",
+  "permissions": ["activeTab", "scripting"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon.png",
+      "48": "icon.png",
+      "128": "icon.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.linkedin.com/*", "*://*.francetravail.fr/*", "*://*.pole-emploi.fr/*"],
+      "js": ["content.js"]
+    }
+  ],
+  "host_permissions": ["http://localhost:8000/*"]
+}

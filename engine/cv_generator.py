@@ -289,11 +289,11 @@ class PersonalCVGenerator:
         profile_def = self.master_profile.get("profiles", {}).get(profile_id, {})
         priority_ids = set(profile_def.get("priority_experiences", []))
         by_id = {exp.get("id"): exp for exp in all_experiences if exp.get("id")}
-        return {
-            exp_id
-            for exp_id in priority_ids
-            if exp_id in by_id and by_id[exp_id].get("type") == "academic_project"
-        }
+        project_ids = set()
+        for exp_id in priority_ids:
+            if exp_id in by_id and by_id[exp_id].get("type") in ["academic_project", "specialized_mission"]:
+                project_ids.add(exp_id)
+        return project_ids
 
     def _is_project_experience(self, exp: Dict, profile_project_ids: Set[str]) -> bool:
         """Détermine si une entrée doit être traitée comme projet académique."""
@@ -305,9 +305,11 @@ class PersonalCVGenerator:
             "projet",
             "projets",
             "academic_project",
+            "specialized_mission",
+            "specialized_missions",
         }
         return (
-            exp.get("type") == "academic_project"
+            exp.get("type") in ["academic_project", "specialized_mission"]
             or exp_id in profile_project_ids
             or any(t in project_tag_markers for t in tags)
         )
@@ -487,6 +489,8 @@ class PersonalCVGenerator:
         summary_override: Optional[str] = None,
         section_overrides: Optional[Dict[str, Any]] = None,
         photo_path: Optional[str] = None,
+        persona: str = "Industrial",
+        progress_callback: Optional[callable] = None,
     ) -> Dict:
         return await self.generate_one_page_cv(
             job,
@@ -494,6 +498,8 @@ class PersonalCVGenerator:
             summary_override=summary_override,
             section_overrides=section_overrides,
             photo_path=photo_path,
+            persona=persona,
+            progress_callback=progress_callback,
         )
 
     async def generate_one_page_cv(
@@ -503,8 +509,13 @@ class PersonalCVGenerator:
         summary_override: Optional[str] = None,
         section_overrides: Optional[Dict[str, Any]] = None,
         photo_path: Optional[str] = None,
+        persona: str = "Industrial",
+        progress_callback: Optional[callable] = None,
     ) -> Dict:
         """Génère un CV avec Shrink Loop et séparation des pools Pro/Projets."""
+        if progress_callback:
+            progress_callback("Initialisation du moteur...", 0.1)
+            
         job_data = self._normalize_job(job)
 
         job_keywords = _extract_keywords(job_data.get("description", ""))
@@ -539,10 +550,10 @@ class PersonalCVGenerator:
 
         for config in SHRINK_CONFIGS:
             attempt = config["attempt"]
-            logger.info(
-                f"Tentative {attempt} "
-                f"({config['max_pro_exp']} Pro, {config['max_projects']} Proj, Font: {config['font_size']})"
-            )
+            msg = f"Tentative {attempt} : Font {config['font_size']}pt, {config['max_pro_exp']} Exp..."
+            logger.info(msg)
+            if progress_callback:
+                progress_callback(msg, 0.2 + (attempt * 0.12))
 
             current_pro = ranked_content["pro_experiences"][: config["max_pro_exp"]]
             current_proj = ranked_content["projects"][: config["max_projects"]]
@@ -588,10 +599,18 @@ class PersonalCVGenerator:
                     candidate_context,
                     profile_id,
                     content_config=prompt_content_cfg,
+                    persona=persona,
                 )
+                import time as _time_lib
+                start_t = _time_lib.time()
                 response_str = await self.llm.generate(
                     json.dumps(prompt_dict, ensure_ascii=False)
                 )
+                llm_latency = _time_lib.time() - start_t
+                logger.info(f"LLM Latency: {llm_latency:.2f}s")
+                
+                # Identify if local model (Ollama or MLX)
+                is_local = "Ollama" in self.llm_name or "MLX" in self.llm_name
                 try:
                     clean_json = re.sub(r"```json\s*|\s*```", "", response_str).strip()
                     llm_output = json.loads(clean_json)
@@ -696,14 +715,24 @@ class PersonalCVGenerator:
             # Rendu PDF
             pdf_renderer = self.renderers["pdf"]
             font_delta = config["font_size"] - BASE_FONT_SIZE
+
+            # ATS Metadata Injection
+            ats_metadata = {
+                "title": f"CV - {job_data.get('title', 'Candidat')}",
+                "subject": f"Candidature pour {job_data.get('company', 'l\'entreprise')}",
+                "keywords": candidate_context.get("matched_job_keywords", [])[:12]
+            }
+
             pdf_path = pdf_renderer.render(
                 cv_data,
                 output_base,
+                metadata=ats_metadata,
                 font_size_delta=font_delta,
                 leading=config["leading"],
                 section_gap=config["section_gap"],
                 margin_sides=config["margin_sides"],
                 photo_path=photo_path,
+                profile_id=profile_id,
             )
 
             if pdf_path:
@@ -716,18 +745,27 @@ class PersonalCVGenerator:
                     "fill_report": fill_report,
                 }
                 if pages == 1:
-                    self._render_additional_formats(cv_data, output_base, res)
+                    res["llm_name"] = self.llm_name
+                    if should_call_llm:
+                        res["llm_latency"] = llm_latency
+                        res["is_local"] = is_local
+                    self._render_additional_formats(cv_data, output_base, res, metadata=ats_metadata)
                     return res
                 best_result = res
             else:
                 fallback_result = {"cv_data": cv_data, "fill_report": fill_report}
-                self._render_additional_formats(cv_data, output_base, fallback_result)
+                self._render_additional_formats(cv_data, output_base, fallback_result, metadata=ats_metadata)
                 best_result = fallback_result
 
-        return best_result or {"error": "Échec"}
+        if best_result:
+            best_result["llm_name"] = self.llm_name
+            if 'llm_latency' in locals():
+                best_result["llm_latency"] = llm_latency
+                best_result["is_local"] = is_local
+        return best_result or {"error": "Échec", "llm_name": self.llm_name}
 
     def _render_additional_formats(
-        self, cv_data: Dict, output_base: Path, result: Dict
+        self, cv_data: Dict, output_base: Path, result: Dict, metadata: Optional[Dict] = None
     ) -> None:
         """
         Rend les formats alternatifs Markdown/LaTeX pour un même contenu CV.
@@ -744,7 +782,7 @@ class PersonalCVGenerator:
             renderer = self.renderers.get(fmt)
             if renderer is None:
                 continue
-            rendered_path = renderer.render(cv_data, output_base)
+            rendered_path = renderer.render(cv_data, output_base, metadata=metadata)
             if rendered_path:
                 result[f"{fmt}_path"] = str(rendered_path)
 

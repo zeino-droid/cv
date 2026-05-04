@@ -41,6 +41,7 @@ def save_final_candidate_version(
     job: dict,
     gen_state: dict,
     photo_path: str | None,
+    persona: str = "Industrial",
     *,
     db,
     root: Path,
@@ -59,6 +60,7 @@ def save_final_candidate_version(
         job: Dict de l'offre (title, company, …).
         gen_state: État courant de génération (modifié en place).
         photo_path: Chemin absolu de la photo de profil, ou None.
+        persona: Persona utilisé pour la génération (Research, Industrial, Startup).
         db: Instance de :class:`engine.database.JobDatabase`.
         root: Répertoire racine du projet (pour les chemins ``vault/``).
         generate_documents_fn: Callable équivalent à ``Dashboard.generate_documents``.
@@ -74,11 +76,14 @@ def save_final_candidate_version(
         job, gen_cv=True, gen_letter=False, use_llm=False,
         section_overrides=gen_state.get("section_overrides") or {},
         photo_path=photo_path,
+        persona=persona,
     )
     gen_state["cv_path"] = result.get("cv_path", "") or gen_state.get("cv_path", "")
     cv_res = result.get("cv_result") or {}
     if cv_res.get("cv_data"):
         gen_state["cv_data"] = cv_res["cv_data"]
+    if result.get("llm_name"):
+        gen_state["llm_name"] = result["llm_name"]
 
     if gen_state.get("letter_text"):
         out_dir = root / "vault" / safe_filename_fn(
@@ -193,4 +198,5 @@ def mark_application_as_sent(job_id: str, gen_state: dict, *, db) -> None:
         edited_headline=final_cv_data.get("headline", ""),
         edited_summary=final_cv_data.get("summary", ""),
         vault_path=gen_state.get("cv_path") or gen_state.get("letter_path"),
+        model=gen_state.get("llm_name"),
     )

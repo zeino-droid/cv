@@ -6,6 +6,7 @@ Refonte SPA : Smart Match → Studio (Modale) → Archives.
 
 import asyncio
 import atexit
+import base64
 import json
 import logging
 import os
@@ -26,8 +27,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from engine.database import STATUS_EMOJI, JobDatabase
+from engine.history import ProfileHistory
+from engine.ripple_engine import RippleEngine
 
 _logger = logging.getLogger(__name__)
+
+GOLDEN_THRESHOLD = 85
 
 ASYNC_EXECUTOR = ThreadPoolExecutor(max_workers=1)
 atexit.register(lambda: ASYNC_EXECUTOR.shutdown(wait=False, cancel_futures=True))
@@ -63,6 +68,45 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+# ─── PERSONA SETUP ─────────────────────────────────────────────
+if "selected_persona" not in st.session_state:
+    st.session_state["selected_persona"] = "Industrial"
+
+def get_persona_colors(persona: str):
+    """Retourne la palette de couleurs selon la persona sélectionnée."""
+    if persona == "Research":
+        return {
+            "brand": "#8b5cf6", # Deep Violet
+            "brand-secondary": "#a78bfa",
+            "glow": "rgba(139, 92, 246, 0.25)",
+            "glow-subtle": "rgba(139, 92, 246, 0.1)",
+            "gradient-text": "linear-gradient(135deg, #ffffff 0%, #a78bfa 50%, #8b5cf6 100%)",
+            "bg-radial-1": "rgba(139, 92, 246, 0.08)",
+            "bg-radial-2": "rgba(167, 139, 250, 0.05)"
+        }
+    elif persona == "Startup":
+        return {
+            "brand": "#f59e0b", # Amber/Orange
+            "brand-secondary": "#fbbf24",
+            "glow": "rgba(245, 158, 11, 0.25)",
+            "glow-subtle": "rgba(245, 158, 11, 0.1)",
+            "gradient-text": "linear-gradient(135deg, #ffffff 0%, #fbbf24 50%, #f59e0b 100%)",
+            "bg-radial-1": "rgba(245, 158, 11, 0.08)",
+            "bg-radial-2": "rgba(251, 191, 36, 0.05)"
+        }
+    else: # Industrial
+        return {
+            "brand": "#3b82f6", # Steel Blue
+            "brand-secondary": "#60a5fa",
+            "glow": "rgba(59, 130, 246, 0.25)",
+            "glow-subtle": "rgba(59, 130, 246, 0.1)",
+            "gradient-text": "linear-gradient(135deg, #ffffff 0%, #60a5fa 50%, #3b82f6 100%)",
+            "bg-radial-1": "rgba(59, 130, 246, 0.08)",
+            "bg-radial-2": "rgba(96, 165, 250, 0.05)"
+        }
+
+persona_colors = get_persona_colors(st.session_state["selected_persona"])
+
 # ─── CSS PREMIUM (DARK / APPLE / NIKE) ───────────────────────────
 st.markdown(
     """
@@ -74,17 +118,77 @@ st.markdown(
             --brand-glow: rgba(139, 92, 246, 0.25);
             --brand-glow-subtle: rgba(139, 92, 246, 0.1);
             --bg: #09090b;
-            --card-bg: rgba(24, 24, 27, 0.6);
+            --card-bg: rgba(24, 24, 27, 0.4);
+            --glass-bg: rgba(24, 24, 27, 0.2);
             --border: rgba(255, 255, 255, 0.08);
             --text-main: #ededed;
             --text-muted: #a1a1aa;
-            --radius: 16px;
-            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --radius: 20px;
+            --transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
         }
-        .main { font-family: 'Outfit', sans-serif; }
+        
+        .main { 
+            font-family: 'Outfit', sans-serif; 
+            background-color: var(--bg);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(139, 92, 246, 0.05) 0px, transparent 50%),
+                radial-gradient(at 100% 0%, rgba(59, 130, 246, 0.05) 0px, transparent 50%);
+        }
+        
         [data-testid="stHeader"] { background: transparent; }
 
-        /* Correction de la couleur des phrases avec background (inline code) */
+        /* Glassmorphism Core */
+        .glass-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        /* Pulse Animation for Shrink-Loop */
+        @keyframes pulse-ring {
+            0% { transform: scale(.33); }
+            80%, 100% { opacity: 0; }
+        }
+        @keyframes pulse-dot {
+            0% { transform: scale(.8); }
+            50% { transform: scale(1); }
+            100% { transform: scale(.8); }
+        }
+        .pulse-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            background: rgba(139, 92, 246, 0.1);
+            border-radius: 12px;
+            border: 1px solid rgba(139, 92, 246, 0.2);
+            margin-bottom: 16px;
+        }
+        .pulse-dot {
+            width: 12px;
+            height: 12px;
+            background-color: var(--brand);
+            border-radius: 50%;
+            position: relative;
+            animation: pulse-dot 1.5s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite;
+        }
+        .pulse-dot::before {
+            content: '';
+            position: absolute;
+            width: 300%;
+            height: 300%;
+            top: -100%;
+            left: -100%;
+            border-radius: 45px;
+            background-color: var(--brand);
+            animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+        }
+
         [data-testid="stMarkdownContainer"] code {
             color: var(--brand) !important;
             background-color: rgba(255, 255, 255, 0.05) !important;
@@ -92,7 +196,6 @@ st.markdown(
             border-radius: 4px !important;
         }
 
-        /* Correction de la couleur pour les textes surlignés (<mark>) */
         mark {
             background-color: rgba(139, 92, 246, 0.3) !important;
             color: var(--text-main) !important;
@@ -100,173 +203,228 @@ st.markdown(
             padding: 0 4px;
         }
 
-        /* Fix expander summary text */
         [data-testid="stExpander"] summary p {
             color: var(--text-main) !important;
             font-weight: 600 !important;
         }
 
-        /* Cache la sidebar (SPA) */
         [data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"] { display: none !important; }
         section[data-testid="stSidebar"] { width: 0 !important; }
+        
         h1, h2, h3, h4 {
             font-family: 'Outfit', sans-serif !important;
             font-weight: 800 !important;
             letter-spacing: -0.02em !important;
         }
 
-        .hero-container { padding: 32px 0 24px 0; }
         .hero-h1 {
-            font-size: 56px !important;
-            background: linear-gradient(135deg, #ffffff 0%, var(--brand) 50%, var(--brand-secondary) 100%);
+            font-size: 64px !important;
+            background: linear-gradient(135deg, #ffffff 0%, #a78bfa 50%, #60a5fa 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             margin-bottom: 12px; line-height: 1.1;
             font-family: 'Outfit', sans-serif !important; font-weight: 800;
             animation: fadeInUp 0.8s ease-out;
         }
-        .hero-h2 {
-            font-size: 18px !important; color: var(--text-muted);
-            font-weight: 300 !important; max-width: 720px;
-            font-family: 'Outfit', sans-serif !important;
-            animation: fadeInUp 0.8s ease-out 0.15s both;
-        }
-
+        
         @keyframes fadeInUp {
-            from { opacity: 0; transform: translateY(16px); }
+            from { opacity: 0; transform: translateY(20px); }
             to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes pulseGlow {
-            0%, 100% { box-shadow: 0 0 0 0 var(--brand-glow); }
-            50%      { box-shadow: 0 0 18px 4px var(--brand-glow); }
         }
 
         .section-card {
             background: var(--card-bg);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
             border: 1px solid var(--border);
             border-radius: var(--radius);
-            padding: 28px;
+            padding: 32px;
             margin-bottom: 24px;
-            animation: fadeInUp 0.5s ease-out both;
+            transition: var(--transition);
+        }
+        .section-card:hover {
+            border-color: rgba(139, 92, 246, 0.3);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.4);
         }
 
-        .section-title {
-            font-size: 0.78rem; text-transform: uppercase;
-            letter-spacing: 0.14em; color: var(--brand);
-            font-weight: 700; margin-bottom: 6px;
+        /* Compare View Highlights */
+        .diff-added {
+            background-color: rgba(139, 92, 246, 0.2);
+            color: #d8b4fe !important;
+            border-bottom: 2px solid var(--brand);
+            padding: 0 2px;
         }
-        .section-h2 {
-            font-size: 32px !important; color: white !important;
-            font-weight: 800 !important; margin-bottom: 22px;
-            font-family: 'Outfit', sans-serif !important;
+
+        /* Bulk Actions Bar */
+        .bulk-actions-bar {
+            background: rgba(139, 92, 246, 0.08);
+            backdrop-filter: blur(10px);
+            border: 1px dashed var(--brand);
+            border-radius: 16px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 4px 20px rgba(139, 92, 246, 0.1);
         }
 
         /* KPI metric cards */
         [data-testid="stMetric"] {
-            background: linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%);
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(10px);
             border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 16px 20px;
+            border-radius: 20px;
+            padding: 20px;
             transition: var(--transition);
         }
         [data-testid="stMetric"]:hover {
             border-color: var(--brand);
-            transform: translateY(-2px);
-            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-        }
-        [data-testid="stMetricValue"] {
-            font-size: 2.2rem !important;
-            font-weight: 800 !important;
-            background: linear-gradient(135deg, var(--brand), var(--brand-secondary));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .row-card {
-            background: rgba(255, 255, 255, 0.02);
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            padding: 14px 18px;
-            margin-bottom: 10px;
-            transition: var(--transition);
-        }
-        .row-card:hover {
-            border-color: var(--brand);
+            transform: translateY(-4px);
             background: rgba(255, 255, 255, 0.05);
-            transform: translateX(4px);
-            box-shadow: -4px 0 0 0 var(--brand);
         }
-        .row-title { font-weight: 700; color: white !important; font-size: 1rem; }
-        .row-meta { color: var(--text-muted); font-size: 0.85rem; margin-top: 2px; }
-
-        .score-pill {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 999px;
-            font-weight: 700;
-            font-size: 0.8rem;
-            transition: var(--transition);
-        }
-        .score-high { background: linear-gradient(135deg, rgba(16,185,129,0.15), rgba(16,185,129,0.05)); color: #10b981; border: 1px solid rgba(16,185,129,0.3); }
-        .score-mid  { background: linear-gradient(135deg, rgba(245,158,11,0.15), rgba(245,158,11,0.05)); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); }
-        .score-low  { background: linear-gradient(135deg, rgba(239,68,68,0.15), rgba(239,68,68,0.05)); color: #ef4444; border: 1px solid rgba(239,68,68,0.3); }
 
         div.stButton > button {
-            background: var(--text-main) !important;
-            color: var(--bg) !important;
-            border-radius: 12px !important;
+            background: linear-gradient(135deg, var(--brand) 0%, var(--brand-secondary) 100%) !important;
+            color: white !important;
+            border-radius: 14px !important;
             font-weight: 700 !important;
-            padding: 10px 18px !important;
+            padding: 12px 24px !important;
             border: none !important;
             transition: var(--transition) !important;
             text-transform: uppercase;
-            letter-spacing: 0.04em;
+            letter-spacing: 0.05em;
+            box-shadow: 0 4px 15px var(--brand-glow);
         }
         div.stButton > button:hover {
-            background: var(--brand) !important;
-            color: #ffffff !important;
-            transform: scale(1.02);
-            box-shadow: 0 0 20px var(--brand-glow);
-        }
-        div.stButton > button[kind="primary"] {
-            animation: pulseGlow 3s ease-in-out infinite;
+            transform: scale(1.03);
+            box-shadow: 0 8px 25px var(--brand-glow);
         }
 
-        /* Forms & Inputs Customization */
-        .stTextInput input, .stTextArea textarea { 
-            border-radius: 12px !important; 
-            background-color: var(--card-bg) !important;
-            color: var(--text-main) !important;
-            border: 1px solid var(--border) !important;
+        /* Custom Tabs */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 8px;
+            background-color: transparent;
+        }
+        .stTabs [data-baseweb="tab"] {
+            background-color: rgba(255,255,255,0.03);
+            border-radius: 12px 12px 0 0;
+            padding: 10px 20px;
+            border: 1px solid var(--border);
+            border-bottom: none;
+        }
+        .stTabs [data-baseweb="tab--active"] {
+            background-color: var(--brand-glow-subtle);
+            border-top: 2px solid var(--brand);
+        }
+
+        /* Application Pipeline */
+        .pipeline-container {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin: 10px 0;
+            font-family: 'Outfit', sans-serif;
+        }
+        .pipeline-step {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border);
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            transition: var(--transition);
+            white-space: nowrap;
+        }
+        .pipeline-step.active {
+            background: var(--brand-glow-subtle);
+            border-color: var(--brand);
+            color: var(--text-main);
+            box-shadow: 0 0 15px var(--brand-glow-subtle);
+        }
+        .pipeline-arrow {
+            color: var(--text-muted);
+            opacity: 0.4;
+            font-size: 0.8rem;
+        }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg); }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--brand); }
+
+        /* Ghost Preview Box */
+        .ghost-preview {
+            background: rgba(139, 92, 246, 0.05);
+            border: 1px dashed rgba(139, 92, 246, 0.3);
+            border-radius: 12px;
+            padding: 16px;
+            margin-top: 10px;
+            animation: fadeIn 0.5s ease-out;
+        }
+        .ghost-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--brand);
+            font-weight: 800;
+            margin-bottom: 4px;
+        }
+        .ghost-text {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            font-style: italic;
+            line-height: 1.4;
         }
         
-        .stSelectbox div[data-baseweb="select"] > div {
-            background-color: var(--card-bg) !important;
-            color: var(--text-main) !important;
-            border: 1px solid var(--border) !important;
-            border-radius: 12px !important;
+        /* Ripple Search Styles */
+        .ripple-card {
+            background: rgba(59, 130, 246, 0.05);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            border-radius: 16px;
+            padding: 16px;
+            margin-top: 12px;
+            animation: slideIn 0.4s ease-out;
         }
-
-        /* Tabs styling */
-        .stTabs [data-baseweb="tab"] p {
-            font-family: 'Outfit', sans-serif !important;
-            font-weight: 600 !important;
-            letter-spacing: 0.02em;
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
         }
-
-        /* Fix markdown tables */
-        th { border-bottom: 1px solid var(--border) !important; }
-        td { border-bottom: 1px solid rgba(255,255,255,0.04) !important; }
-
-        #MainMenu { visibility: hidden; }
-        footer { visibility: hidden; }
-
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: var(--bg); }
-        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+        .ripple-title {
+            font-size: 0.8rem;
+            font-weight: 800;
+            color: #60a5fa;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .competitor-link {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 12px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.85rem;
+            color: var(--text-main);
+            text-decoration: none;
+            margin-right: 8px;
+            margin-bottom: 8px;
+            transition: var(--transition);
+        }
+        .competitor-link:hover {
+            border-color: #60a5fa;
+            background: rgba(59, 130, 246, 0.1);
+            transform: translateY(-2px);
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
     </style>
     """,
     unsafe_allow_html=True,
@@ -296,6 +454,33 @@ def score_class(score: int) -> str:
     if score >= 40:
         return "score-mid"
     return "score-low"
+
+
+def render_quality_badge(model_name: str, latency: float = None) -> str:
+    """Affiche un badge stylisé pour le modèle LLM utilisé et sa latence."""
+    if not model_name:
+        return ""
+    
+    # Choix de l'icône selon le modèle
+    emoji = "💎" if "Gemini" in model_name else ("🦙" if "Ollama" in model_name else "🤖")
+    
+    # Détection si local
+    is_local = "Ollama" in model_name or "MLX" in model_name
+    
+    badge_html = f"""
+    <div style='display:inline-flex; align-items:center; gap:8px; background:var(--glass-bg); 
+                border:1px solid var(--border); border-radius:12px; padding:4px 10px; margin-bottom:12px;'>
+        <span style='font-size:0.8rem; font-weight:600; color:var(--brand);'>{emoji} {model_name}</span>
+    """
+    
+    if latency and is_local:
+        badge_html += f"""
+        <span style='width:1px; height:12px; background:var(--border);'></span>
+        <span style='font-size:0.75rem; color:var(--text-muted);'>⏱️ {latency:.1f}s</span>
+        """
+    
+    badge_html += "</div>"
+    return badge_html
 
 
 def smart_keywords_from_profile(profile: dict, max_kw: int = 8) -> list[str]:
@@ -340,12 +525,92 @@ def safe_filename(value: str, max_len: int = 60) -> str:
     return cleaned.replace(" ", "_")[:max_len] or "file"
 
 
+def render_pdf_viewer(pdf_path: str, height: int = 1000):
+    """
+    Rendu d'un PDF via un <iframe> en base64.
+    Offre une expérience plus fluide que le rendu d'images (zoom, sélection, etc.).
+    """
+    try:
+        with open(pdf_path, "rb") as f:
+            base64_pdf = base64.b64encode(f.read()).decode('utf-8')
+        
+        # On utilise un conteneur HTML avec un peu de style pour l'intégration premium
+        pdf_display = f'''
+            <div style="border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: white;">
+                <iframe src="data:application/pdf;base64,{base64_pdf}#view=FitH" 
+                        width="100%" height="{height}" 
+                        type="application/pdf"
+                        style="border:none;">
+                </iframe>
+            </div>
+        '''
+        st.markdown(pdf_display, unsafe_allow_html=True)
+    except Exception as e:
+        st.error(f"Erreur d'affichage PDF : {e}")
+
+
+def render_status_pipeline(job: dict) -> str:
+    """Génère le HTML pour la barre de progression visuelle de la candidature."""
+    has_cv = bool(job.get("cv_path"))
+    has_letter = bool(job.get("letter_path"))
+    status = job.get("status", "new")
+    is_applied = status in ("sent", "applied", "interview", "offer", "rejected")
+    
+    steps = [
+        {"label": "🔍 Matched", "active": True},
+        {"label": "📄 CV Ready", "active": has_cv},
+        {"label": "✉️ Letter Ready", "active": has_letter},
+        {"label": "🚀 Applied", "active": is_applied},
+    ]
+    
+    html = '<div class="pipeline-container">'
+    for i, step in enumerate(steps):
+        active_class = "active" if step["active"] else ""
+        html += f'<div class="pipeline-step {active_class}">{step["label"]}</div>'
+        if i < len(steps) - 1:
+            html += '<div class="pipeline-arrow">→</div>'
+    html += '</div>'
+    return html
+
+
+def render_ripple_results(competitors: list[dict]) -> str:
+    """Génère le HTML pour les résultats de la recherche Ripple."""
+    if not competitors:
+        return ""
+    
+    links_html = ""
+    for comp in competitors:
+        name = comp.get("name", "Entreprise")
+        url = comp.get("url", "#")
+        sector = comp.get("sector", "")
+        links_html += f"""
+        <a href="{url}" target="_blank" class="competitor-link" title="{sector}">
+            🏢 {name}
+        </a>
+        """
+    
+    html = f"""
+    <div class="ripple-card">
+        <div class="ripple-title">🗺️ Ripple Search : Concurrents R&D</div>
+        <div style="display: flex; flex-wrap: wrap;">
+            {links_html}
+        </div>
+        <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px; opacity: 0.7;">
+            * Liens générés par IA vers les pages carrières probables.
+        </div>
+    </div>
+    """
+    return html
+
+
 # ─── GÉNÉRATION (CV + LETTRE) ────────────────────────────────────
 def generate_documents(job: dict, gen_cv: bool, gen_letter: bool, use_llm: bool,
                        headline_override: str | None = None,
                        summary_override: str | None = None,
                        section_overrides: dict | None = None,
-                       photo_path: str | None = None) -> dict:
+                       photo_path: str | None = None,
+                       persona: str = "Industrial",
+                       progress_callback: callable | None = None) -> dict:
     """Lance la génération CV + lettre via les modules existants.
 
     `section_overrides` permet de réinjecter des éditions ciblées par section
@@ -376,6 +641,8 @@ def generate_documents(job: dict, gen_cv: bool, gen_letter: bool, use_llm: bool,
                 summary_override=summary_override or None,
                 section_overrides=section_overrides or None,
                 photo_path=photo_path or None,
+                persona=persona,
+                progress_callback=progress_callback,
             ),
             context="CV generation",
         )
@@ -440,7 +707,9 @@ def generate_documents(job: dict, gen_cv: bool, gen_letter: bool, use_llm: bool,
             txt_fallback.write_text(letter_text, encoding="utf-8")
 
     if cv_path or letter_path:
-        db.save_generation(job["id"], cv_path, letter_path)
+        model_name = cv_result.get("llm_name") if gen_cv else None
+        latency = cv_result.get("llm_latency") if gen_cv else None
+        db.save_generation(job["id"], cv_path, letter_path, model=model_name, latency=latency)
 
     if gen_cv and cv_path:
         try:
@@ -471,6 +740,7 @@ def generate_documents(job: dict, gen_cv: bool, gen_letter: bool, use_llm: bool,
         "cv_path": cv_path,
         "letter_text": letter_text,
         "letter_path": letter_path,
+        "llm_name": cv_result.get("llm_name") if gen_cv else None,
     }
 
 
@@ -489,6 +759,7 @@ def save_final_candidate_version(
     job: dict,
     gen_state: dict,
     photo_path: str | None = None,
+    persona: str = "Industrial",
 ) -> dict:
     """Recompile le CV, persiste la lettre et archive les versions finales.
 
@@ -496,7 +767,7 @@ def save_final_candidate_version(
     injectant les dépendances du module (``db``, ``ROOT``, …).
     """
     return _svc_save_final(
-        job_id, job, gen_state, photo_path,
+        job_id, job, gen_state, photo_path, persona,
         db=db,
         root=ROOT,
         generate_documents_fn=generate_documents,
@@ -800,6 +1071,7 @@ def _section_block(
                             job, gen_cv=True, gen_letter=False, use_llm=False,
                             section_overrides=gen_state.get("section_overrides") or {},
                             photo_path=st.session_state.get("photo_path"),
+                            persona=st.session_state.get("selected_persona", "Industrial"),
                         )
                         gen_state["cv_path"] = result.get("cv_path", "")
                         cv_res = result.get("cv_result") or {}
@@ -977,7 +1249,7 @@ def studio_dialog(job_id: str):
         unsafe_allow_html=True,
     )
     st.markdown(
-        f"<div style='margin:6px 0 12px 0;'>"
+        f"<div style='margin:6px 0 12px 0; display:flex; align-items:center; gap:12px;'>"
         f"<span class='score-pill {score_class(score)}'>{score}% Fit</span> "
         f"<span class='score-pill' style='background:var(--brand-glow-subtle);"
         f"color:var(--brand);border:1px solid var(--brand-glow);'>"
@@ -985,21 +1257,36 @@ def studio_dialog(job_id: str):
         f"</div>",
         unsafe_allow_html=True,
     )
+    st.markdown(render_status_pipeline(job), unsafe_allow_html=True)
 
     # Initialise les clés gen_state obligatoires (lettre heuristique + overrides)
     _init_gen_state(gen_state, profile, job)
     st.session_state[state_key] = gen_state
 
-    # ── 2 ONGLETS ───────────────────────────────────────────────
-    tab_analyse, tab_studio = st.tabs(
-        ["🔬 Analyse", "🎬 Studio CV + Lettre"]
+    # ── 4 ONGLETS ───────────────────────────────────────────────
+    tab_analyse, tab_studio, tab_compare, tab_skills = st.tabs(
+        ["🔬 Analyse", "🎬 Studio CV + Lettre", "🌗 Compare View", "☁️ Skill Cloud"]
     )
 
     # === ONGLET 1 : ANALYSE =====================================
     with tab_analyse:
-        from engine.studio_analysis import build_skill_matrix, render_heatmap_html
+        from engine.studio_analysis import build_skill_matrix, render_heatmap_html, render_radar_chart
         matrix = build_skill_matrix(profile, job)
-        st.components.v1.html(render_heatmap_html(matrix), height=520, scrolling=True)
+        
+        # Skill Heatmap & Radar Chart Side by Side
+        acol1, acol2 = st.columns([3, 2])
+        with acol1:
+            st.components.v1.html(render_heatmap_html(matrix), height=520, scrolling=True)
+        with acol2:
+            st.markdown("<div style='text-align:center;color:var(--brand);font-weight:700;font-size:0.85rem;margin-bottom:10px;'>📊 AUTHORITY COVERAGE</div>", unsafe_allow_html=True)
+            st.components.v1.html(render_radar_chart(matrix), height=320)
+            
+            # Authority / Skill Floor Check
+            unproven = [s for s in matrix["matched"] if s not in matrix.get("proofs", {})]
+            if unproven:
+                st.warning(f"⚠️ **Skill Floor Warning** : {len(unproven)} compétences matchées n'ont pas de preuve explicite dans tes expériences ({', '.join(unproven[:3])}).")
+            else:
+                st.success("✅ **Authority Engine** : 100% des compétences matchées sont prouvées par tes expériences.")
 
         if matrix["missing"]:
             top = ", ".join(matrix["missing"][:3])
@@ -1053,33 +1340,109 @@ def studio_dialog(job_id: str):
                 unsafe_allow_html=True,
             )
             st.markdown("&nbsp;")
-            if st.button("🚀 Générer le CV + Lettre avec Gemini",
-                         type="primary", use_container_width=True,
-                         key=f"btn_studio_gen_{job_id}"):
-                with st.spinner("Gemini rédige ton CV et ta lettre..."):
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("🚀 Générer CV + Lettre (Single)",
+                             type="primary", use_container_width=True,
+                             key=f"btn_studio_gen_{job_id}"):
+                    
+                    status_placeholder = st.empty()
+                    progress_bar = st.progress(0)
+                    
+                    def update_progress(msg, progress):
+                        with status_placeholder.container():
+                            st.markdown(
+                                f"""
+                                <div class="pulse-container">
+                                    <div class="pulse-dot"></div>
+                                    <div style="color:var(--brand); font-weight:700; font-size:0.9rem;">{msg}</div>
+                                </div>
+                                """, 
+                                unsafe_allow_html=True
+                            )
+                        progress_bar.progress(progress)
+
                     try:
                         result = generate_documents(
                             job, gen_cv=True, gen_letter=True, use_llm=True,
                             section_overrides=gen_state.get("section_overrides") or {},
                             photo_path=st.session_state.get("photo_path"),
+                            persona=st.session_state.get("selected_persona", "Industrial"),
+                            progress_callback=update_progress,
                         )
                         gen_state.update(result)
                         if result.get("letter_text"):
                             gen_state["letter_text"] = result["letter_text"]
-                        # Stocker cv_data complet pour l'éditeur section-par-section
                         cv_res = result.get("cv_result") or {}
                         if cv_res.get("cv_data"):
                             gen_state["cv_data"] = cv_res["cv_data"]
                         gen_state["studio_initialized"] = True
                         st.session_state[state_key] = gen_state
-                        st.success("✅ Génération terminée. Aperçu PDF disponible ci-dessous.")
+                        
+                        update_progress("✅ Génération terminée !", 1.0)
+                        _time.sleep(0.5)
                         st.rerun()
                     except Exception as exc:
                         st.error(f"❌ Erreur Gemini : {exc}")
-                        st.caption("Vérifie que la clé `GEMINI_API_KEY` est bien configurée.")
+            
+            with c2:
+                if st.button("🌓 Generate Both (Persona Duel)",
+                             use_container_width=True,
+                             key=f"btn_studio_duel_{job_id}",
+                             help="Génère deux versions : Industrielle et Recherche. Tu choisiras la meilleure ensuite."):
+                    
+                    status_placeholder = st.empty()
+                    progress_bar = st.progress(0)
+                    
+                    def update_progress(msg, progress):
+                        with status_placeholder.container():
+                            st.markdown(
+                                f"<div class='pulse-container'><div class='pulse-dot'></div>"
+                                f"<div style='color:var(--brand); font-weight:700; font-size:0.9rem;'>{msg}</div></div>", 
+                                unsafe_allow_html=True
+                            )
+                        progress_bar.progress(progress)
+
+                    try:
+                        # 1. Industrial Version
+                        update_progress("⚙️ Génération version Industrielle...", 0.1)
+                        res_ind = generate_documents(
+                            job, gen_cv=True, gen_letter=True, use_llm=True,
+                            persona="Industrial", progress_callback=lambda m, p: update_progress(f"⚙️ Ind: {m}", 0.1 + p*0.4)
+                        )
+                        
+                        # 2. Research Version
+                        update_progress("🔬 Génération version Recherche...", 0.5)
+                        res_res = generate_documents(
+                            job, gen_cv=True, gen_letter=False, use_llm=True, # Letter only once or for Ind
+                            persona="Research", progress_callback=lambda m, p: update_progress(f"🔬 Res: {m}", 0.5 + p*0.4)
+                        )
+                        
+                        gen_state["duel_industrial"] = res_ind
+                        gen_state["duel_research"] = res_res
+                        gen_state["is_duel_mode"] = True
+                        gen_state["studio_initialized"] = True
+                        
+                        # Set a default so Studio doesn't crash if they switch tabs before picking
+                        gen_state.update(res_ind)
+                        
+                        st.session_state[state_key] = gen_state
+                        update_progress("✅ Duel prêt !", 1.0)
+                        _time.sleep(0.5)
+                        st.rerun()
+                    except Exception as exc:
+                        st.error(f"❌ Erreur Duel : {exc}")
 
         # ─── PHASE 2 : aperçu PDF + édition + copilote ─────────
         else:
+            # 🤖 Quality Badge
+            badge_html = render_quality_badge(
+                gen_state.get("llm_name") or job.get("generation_model"),
+                gen_state.get("llm_latency") or job.get("generation_latency")
+            )
+            if badge_html:
+                st.markdown(badge_html, unsafe_allow_html=True)
+
             preview_col, edit_col = st.columns([1, 1], gap="medium")
 
             # ───── COLONNE GAUCHE : APERÇU PDF ─────────────────
@@ -1087,25 +1450,19 @@ def studio_dialog(job_id: str):
                 st.markdown("##### 📄 Aperçu PDF live")
                 cv_preview = gen_state.get("cv_path") or ""
                 if cv_preview and Path(cv_preview).exists() and cv_preview.endswith(".pdf"):
-                    try:
-                        import pypdfium2 as _pdfium
-                        pdf_doc = _pdfium.PdfDocument(cv_preview)
-                        for i, page in enumerate(pdf_doc):
-                            pil_img = page.render(scale=2.0).to_pil()
-                            st.image(pil_img, use_container_width=True,
-                                     caption=f"Page {i+1}")
-                            page.close()
-                        pdf_doc.close()
-                    except Exception as exc:
-                        st.error(f"Erreur rendu PDF : {exc}")
-                        with open(cv_preview, "rb") as f:
-                            st.download_button(
-                                "📄 Télécharger le PDF",
-                                data=f.read(),
-                                file_name=Path(cv_preview).name,
-                                mime="application/pdf",
-                                key=f"dl_fb_{job_id}",
-                            )
+                    # Nouvelle méthode : Iframe PDF pour une interaction complète
+                    render_pdf_viewer(cv_preview, height=950)
+                    
+                    # Fallback discret si l'utilisateur préfère le téléchargement
+                    with open(cv_preview, "rb") as f:
+                        st.download_button(
+                            "💾 Télécharger cette version",
+                            data=f.read(),
+                            file_name=Path(cv_preview).name,
+                            mime="application/pdf",
+                            key=f"dl_preview_{job_id}",
+                            use_container_width=True,
+                        )
                 else:
                     st.warning(
                         "PDF non disponible. Le moteur Typst n'a pas pu générer le rendu. "
@@ -1222,6 +1579,7 @@ def studio_dialog(job_id: str):
                             job=job,
                             gen_state=gen_state,
                             photo_path=st.session_state.get("photo_path"),
+                            persona=st.session_state.get("selected_persona", "Industrial"),
                         )
                         st.session_state[state_key] = gen_state
                         st.success("⭐ Version finale archivée.")
@@ -1279,6 +1637,59 @@ def studio_dialog(job_id: str):
                             unsafe_allow_html=True,
                         )
 
+    # === ONGLET 3 : COMPARE VIEW (Persona Duel) =================
+    with tab_compare:
+        if not gen_state.get("duel_industrial") and not gen_state.get("duel_research"):
+            st.info("Le mode Duel n'est pas activé. Clique sur '🌓 Generate Both (Persona Duel)' dans l'onglet Studio pour comparer deux versions.")
+        else:
+            st.markdown("#### 🌓 Persona Duel : Industrial vs Research")
+            st.caption("Fais défiler les deux versions et clique sur celle que tu souhaites conserver.")
+            
+            # Retrieve data for both
+            ind = gen_state.get("duel_industrial") or {}
+            res = gen_state.get("duel_research") or {}
+            
+            p_ind = ind.get("cv_path")
+            p_res = res.get("cv_path")
+            
+            duel_col1, duel_col2 = st.columns(2)
+            
+            with duel_col1:
+                st.markdown("##### ⚙️ Version Industrielle")
+                if p_ind and Path(p_ind).exists():
+                    render_pdf_viewer(p_ind, height=800)
+                    if st.button("🏆 Keep Industrial", key=f"keep_ind_{job_id}", type="primary", use_container_width=True):
+                        gen_state.update(ind)
+                        gen_state["selected_persona"] = "Industrial"
+                        gen_state["is_duel_mode"] = False
+                        st.session_state[state_key] = gen_state
+                        st.success("✅ Version Industrielle conservée !")
+                        st.rerun()
+                else:
+                    st.warning("Version Industrielle non disponible.")
+                    
+            with duel_col2:
+                st.markdown("##### 🔬 Version Recherche")
+                if p_res and Path(p_res).exists():
+                    render_pdf_viewer(p_res, height=800)
+                    if st.button("🏆 Keep Research", key=f"keep_res_{job_id}", type="primary", use_container_width=True):
+                        gen_state.update(res)
+                        gen_state["selected_persona"] = "Research"
+                        gen_state["is_duel_mode"] = False
+                        st.session_state[state_key] = gen_state
+                        st.success("✅ Version Recherche conservée !")
+                        st.rerun()
+                else:
+                    st.warning("Version Recherche non disponible.")
+
+    # === ONGLET 4 : SKILL CLOUD =================================
+    with tab_skills:
+        from engine.studio_analysis import render_skill_cloud
+        st.markdown("#### ☁️ Skill Cloud Analysis")
+        st.caption("Visualisation sémantique des compétences de l'offre vs ton profil.")
+        st.components.v1.html(render_skill_cloud(profile, job), height=500)
+
+
 
 # ─── HERO ────────────────────────────────────────────────────────
 stats = db.get_stats()
@@ -1294,6 +1705,50 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# 🧬 Persona Toggle (Instant Reframing)
+# We use a columns layout for the toggle to keep it clean
+c_persona, c_empty = st.columns([1, 1])
+with c_persona:
+    persona_options = {
+        "🔬 Research": "Research",
+        "⚙️ Industrial": "Industrial",
+        "🚀 Startup": "Startup"
+    }
+    
+    # Segmented Control avec icônes
+    selected_label = st.segmented_control(
+        "**Persona de Candidature (Instant Reframing)**",
+        options=list(persona_options.keys()),
+        default=next(k for k, v in persona_options.items() if v == st.session_state["selected_persona"]),
+        help="Change le 'vibe' et le vocabulaire du CV généré par l'IA.",
+        key="persona_toggle_segmented"
+    )
+    
+    # Mise à jour immédiate si changement
+    if selected_label:
+        new_persona = persona_options[selected_label]
+        if new_persona != st.session_state["selected_persona"]:
+            st.session_state["selected_persona"] = new_persona
+            st.rerun()
+    
+    # 👻 "Ghost Preview" (The Narrative Sneak Peek)
+    persona_goals = {
+        "Research": "Focusing on FEA methodology, peer-reviewed accuracy, and academic rigor.",
+        "Industrial": "Focusing on production standards, industrial efficiency, and technical robustness.",
+        "Startup": "Focusing on fast prototyping, Python versatility, and R&D agility."
+    }
+    current_goal = persona_goals.get(st.session_state["selected_persona"], "")
+    
+    st.markdown(
+        f"""
+        <div class="ghost-preview">
+            <div class="ghost-label">🎯 Narrative Goal</div>
+            <div class="ghost-text">{current_goal}</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
 # KPIs
 k1, k2, k3, k4 = st.columns(4)
 k1.metric("Offres", stats["total"])
@@ -1301,6 +1756,70 @@ k2.metric("Envoyées", stats["sent"])
 k3.metric("Entretiens", stats["interviews"])
 k4.metric("Offres reçues", stats["offers"])
 
+# 📈 PERFORMANCE ANALYTICS
+with st.expander("📈 Voir l'Analyse de Performance (Conversion Funnel)", expanded=False):
+    from engine.analytics import AnalyticsEngine
+    analytics = AnalyticsEngine(db)
+    
+    funnel = analytics.get_funnel_stats()
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.markdown(f"### {funnel['response_rate']}%")
+        st.caption("Taux de réponse (Entretiens / Envois)")
+        st.progress(funnel['response_rate'] / 100 if funnel['response_rate'] <= 100 else 1.0)
+    with col2:
+        st.markdown(f"### {funnel['offer_rate']}%")
+        st.caption("Taux de succès (Offres / Entretiens)")
+        st.progress(funnel['offer_rate'] / 100 if funnel['offer_rate'] <= 100 else 1.0)
+    with col3:
+        if st.button("📥 Exporter tracker.csv", use_container_width=True):
+            csv_path = analytics.export_to_csv()
+            st.success(f"✅ Tracker exporté : {csv_path}")
+            with open(csv_path, "rb") as f:
+                st.download_button("⬇️ Télécharger le CSV", f, file_name="tracker.csv", mime="text/csv", key="dl_tracker_csv")
+
+    st.divider()
+    
+    perf_col1, perf_col2 = st.columns(2)
+    
+    with perf_col1:
+        st.markdown("#### 🎯 Performance par Headline")
+        headline_perf = analytics.get_headline_performance()
+        if not headline_perf.empty:
+            st.dataframe(
+                headline_perf,
+                column_config={
+                    "headline_clean": "Accroche",
+                    "sent": "Envois",
+                    "interviews": "🎤",
+                    "offers": "🎉",
+                    "response_rate": st.column_config.ProgressColumn("Réponse", format="%f%%", min_value=0, max_value=100)
+                },
+                hide_index=True,
+                use_container_width=True
+            )
+        else:
+            st.info("Pas assez de données pour l'analyse des accroches.")
+
+    with perf_col2:
+        st.markdown("#### 🤖 Performance par Modèle IA")
+        model_perf = analytics.get_model_performance()
+        if not model_perf.empty:
+            st.dataframe(
+                model_perf,
+                column_config={
+                    "generation_model": "Modèle",
+                    "sent": "Envois",
+                    "interviews": "🎤",
+                    "offers": "🎉",
+                    "response_rate": st.column_config.ProgressColumn("Réponse", format="%f%%", min_value=0, max_value=100)
+                },
+                hide_index=True,
+                use_container_width=True
+            )
+        else:
+            st.info("Pas assez de données pour l'analyse des modèles.")
 
 # ═══════════════════════════════════════════════════════════════
 # SECTION 0 — RECHERCHE AUTOMATIQUE & AJOUT MANUEL
@@ -1431,6 +1950,10 @@ with tab_auto:
     # ── Pattern asynchrone (ThreadPoolExecutor + stop_event) ─────
     if "search_state" not in st.session_state:
         st.session_state["search_state"] = "idle"
+    if "bulk_selected" not in st.session_state:
+        st.session_state["bulk_selected"] = set()
+    if "bulk_selected_arch" not in st.session_state:
+        st.session_state["bulk_selected_arch"] = set()
     search_state = st.session_state["search_state"]
 
     if search_state == "idle":
@@ -1553,6 +2076,47 @@ with tab_manual:
         "Tu as repéré une offre intéressante hors scraping ? "
         "Ajoute-la ici et elle rejoindra le pipeline pour génération CV/lettre + suivi."
     )
+    # --- ANALYSE INSTANTANÉE (KEYWORD GAP) ---
+    m_desc = st.text_area(
+        "Description / annonce complète", height=220,
+        placeholder="Colle ici la description complète de l'offre — l'analyse sémantique s'affichera instantanément.",
+        key="manual_job_desc"
+    )
+
+    if m_desc.strip():
+        with st.expander("🔍 **Analyse Flash : Keyword Gap**", expanded=True):
+            from engine.studio_analysis import analyze_keyword_gap
+            from engine.cv_generator import PersonalCVGenerator
+            
+            # Initialisation légère du moteur (cache-friendly)
+            @st.cache_resource
+            def get_fast_generator():
+                return PersonalCVGenerator()
+            
+            gen = get_fast_generator()
+            profile = load_profile()
+            
+            with st.spinner("Analyse des compétences..."):
+                gap = run_coroutine_sync(analyze_keyword_gap(m_desc, profile, llm=gen.llm))
+            
+            c1, c2 = st.columns(2)
+            with c1:
+                st.markdown("##### ✅ Found")
+                if gap["matched"]:
+                    for s in gap["matched"]:
+                        st.markdown(f"- <span style='color:#10b981;font-weight:600;'>{s.capitalize()}</span>", unsafe_allow_html=True)
+                else:
+                    st.caption("Aucun match direct détecté.")
+            with c2:
+                st.markdown("##### ⚠️ Missing")
+                if gap["missing"]:
+                    for s in gap["missing"]:
+                        st.markdown(f"- <span style='color:#ef4444;font-weight:600;'>{s.capitalize()}</span>", unsafe_allow_html=True)
+                else:
+                    st.success("Toutes les compétences clés semblent couvertes !")
+            
+            st.info("💡 **Conseil :** Si des compétences critiques sont 'Missing', ajoute-les à ton profil (Section ④) avant de générer le CV.")
+
     with st.form("manual_add_form", clear_on_submit=True):
         m1, m2 = st.columns(2)
         with m1:
@@ -1563,11 +2127,6 @@ with tab_manual:
             m_url = st.text_input("URL de l'offre", placeholder="https://...")
             m_source = st.text_input("Source", value="manual")
             m_score = st.slider("Score initial estimé", 0, 100, 70, step=5)
-
-        m_desc = st.text_area(
-            "Description / annonce complète", height=180,
-            placeholder="Colle ici la description complète de l'offre — elle sera utilisée pour générer le CV et la lettre.",
-        )
 
         submitted = st.form_submit_button(
             "➕ Ajouter au pipeline et préparer", type="primary",
@@ -1650,6 +2209,7 @@ with f4:
 cb1, cb2 = st.columns([2, 3])
 with cb1:
     only_open = st.checkbox("Uniquement les offres non traitées", value=True)
+    turbo_mode = st.toggle("⚡ Turbo Mode (Bulk Actions)", value=False, key="turbo_match")
 with cb2:
     selected_sources = st.multiselect(
         "🔗 Sources",
@@ -1712,6 +2272,50 @@ else:
     )
 
     st.markdown("#### 🎬 Préparer une candidature")
+    
+    if turbo_mode:
+        st.markdown("<div class='bulk-actions-bar'>", unsafe_allow_html=True)
+        tcol1, tcol2, tcol3 = st.columns([1.2, 1, 2.5])
+        with tcol1:
+            if st.button("✅ Select All (Top 5)", use_container_width=True, key="bulk_sel_all"):
+                st.session_state["bulk_selected"] = {j["id"] for j in smart_jobs[:5]}
+                st.rerun()
+        with tcol2:
+            if st.button("❌ Clear All", use_container_width=True, key="bulk_clear_all"):
+                st.session_state["bulk_selected"] = set()
+                st.rerun()
+        with tcol3:
+            selected_count = len(st.session_state["bulk_selected"])
+            btn_label = f"🚀 Bulk Generate ({selected_count}/5)"
+            if st.button(btn_label, type="primary", use_container_width=True, 
+                         disabled=selected_count == 0 or selected_count > 5,
+                         key="bulk_gen_run"):
+                # Logic for bulk generation
+                progress_text = "Génération en masse..."
+                my_bar = st.progress(0, text=progress_text)
+                selected_ids = list(st.session_state["bulk_selected"])
+                for i, jid in enumerate(selected_ids):
+                    target_job = next((job for job in smart_jobs if job["id"] == jid), None)
+                    if target_job:
+                        my_bar.progress((i + 1) / len(selected_ids), text=f"Génération {i+1}/{len(selected_ids)} : {target_job.get('title','')}")
+                        try:
+                            generate_documents(
+                                target_job, 
+                                gen_cv=True, 
+                                gen_letter=True, 
+                                use_llm=True,
+                                persona=st.session_state.get("selected_persona", "Industrial"),
+                                photo_path=st.session_state.get("photo_path")
+                            )
+                            db.update_status(jid, "generated", target_job.get("notes", ""))
+                        except Exception as e:
+                            st.error(f"Erreur pour {target_job.get('title','')}: {e}")
+                my_bar.empty()
+                st.session_state["bulk_selected"] = set()
+                st.success(f"✅ {len(selected_ids)} candidatures générées avec succès !")
+                st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
     st.caption("Une ligne = une offre. Clique pour ouvrir le Studio.")
 
     for j in smart_jobs[:15]:
@@ -1726,33 +2330,65 @@ else:
             f"<div class='row-meta' style='margin-top:4px;font-style:italic;opacity:0.85;'>💬 {ai_reason}</div>"
             if ai_reason else ""
         )
-        c_info, c_btn, c_del = st.columns([5, 1.2, 0.8])
+        if turbo_mode:
+            c_sel, c_info, c_del = st.columns([0.6, 5.4, 0.8])
+            with c_sel:
+                is_selected = j["id"] in st.session_state["bulk_selected"]
+                if st.checkbox("", value=is_selected, key=f"chk_bulk_{j['id']}", label_visibility="collapsed"):
+                    st.session_state["bulk_selected"].add(j["id"])
+                else:
+                    st.session_state["bulk_selected"].discard(j["id"])
+        else:
+            c_info, c_btn, c_del = st.columns([5, 1.2, 0.8])
+        
         with c_info:
-            # IMPORTANT : on rend le HTML sur une seule ligne sans indentation,
-            # sinon le parseur markdown de Streamlit interprète tout bloc HTML
-            # indenté de 4+ espaces comme un code block et l'affiche en brut.
+            is_ghost = "👻 " if "Ghost-Sourced" in (j.get("notes") or "") else ""
             row_html = (
                 "<div class='row-card'>"
                 "<div style='display:flex;justify-content:space-between;align-items:center;gap:12px;'>"
                 "<div style='flex:1;'>"
-                f"<div class='row-title'>{j.get('title','')}</div>"
+                f"<div class='row-title'>{is_ghost}{j.get('title','')}</div>"
                 "<div class='row-meta'>"
                 f"{j.get('company','?')} — {j.get('location','?')}"
                 f" &nbsp;·&nbsp; 📅 <b>{sourcing}</b>"
                 f"{ai_badge}"
                 "</div>"
+                # --- GHOST BENEFITS (Remote/Salary) ---
+                f"{render_ghost_badges(j)}"
                 f"{ai_line}"
+                f"{render_status_pipeline(j)}"
                 "</div>"
                 f"<span class='score-pill {score_class(score)}'>{score}%</span>"
                 "</div>"
                 "</div>"
             )
             st.markdown(row_html, unsafe_allow_html=True)
-        with c_btn:
-            if st.button("Préparer la candidature", key=f"prep_{j['id']}",
-                         use_container_width=True):
-                st.session_state["studio_open_for"] = j["id"]
-                st.rerun()
+            
+            # 🗺️ Ripple Search (Golden Jobs)
+            if score >= GOLDEN_THRESHOLD:
+                r_key = f"ripple_{j['id']}"
+                if r_key not in st.session_state:
+                    st.session_state[r_key] = None
+                
+                if st.session_state[r_key]:
+                    st.markdown(render_ripple_results(st.session_state[r_key]), unsafe_allow_html=True)
+                else:
+                    if st.button("🗺️ Search Competitors", key=f"btn_ripple_{j['id']}", 
+                                 help="Find top 5 competitors in this sector and their career pages"):
+                        with st.spinner("Analyzing industrial sector and ripples..."):
+                            engine = RippleEngine()
+                            results = run_coroutine_sync(
+                                engine.identify_competitors(j.get("company", ""), j.get("title", "")),
+                                context="ripple_search"
+                            )
+                            st.session_state[r_key] = results
+                        st.rerun()
+        if not turbo_mode:
+            with c_btn:
+                if st.button("Préparer la candidature", key=f"prep_{j['id']}",
+                             use_container_width=True):
+                    st.session_state["studio_open_for"] = j["id"]
+                    st.rerun()
         with c_del:
             if st.button("🗑️", key=f"del_{j['id']}",
                          use_container_width=True, help="Supprimer définitivement"):
@@ -1777,15 +2413,71 @@ st.markdown("<div class='section-card'>", unsafe_allow_html=True)
 st.markdown("<div class='section-title'>③ ARCHIVES</div>", unsafe_allow_html=True)
 st.markdown("<div class='section-h2'>Candidatures envoyées</div>", unsafe_allow_html=True)
 
+turbo_archive = st.toggle("⚡ Turbo Mode (Bulk Actions)", value=False, key="turbo_arch")
+
 sent_jobs = db.get_jobs(status="sent", limit=200)
 
 if not sent_jobs:
     st.info("Aucune candidature envoyée pour le moment. Prépare et envoie ta première via le Studio ci-dessus.")
 else:
     st.caption(f"{len(sent_jobs)} candidature(s) envoyée(s)")
+    
+    if turbo_archive:
+        st.markdown("<div class='bulk-actions-bar'>", unsafe_allow_html=True)
+        tcol1, tcol2, tcol3 = st.columns([1.2, 1, 2.5])
+        with tcol1:
+            if st.button("✅ Select All (Top 5)", use_container_width=True, key="bulk_sel_all_arch"):
+                st.session_state["bulk_selected_arch"] = {j["id"] for j in sent_jobs[:5]}
+                st.rerun()
+        with tcol2:
+            if st.button("❌ Clear All", use_container_width=True, key="bulk_clear_all_arch"):
+                st.session_state["bulk_selected_arch"] = set()
+                st.rerun()
+        with tcol3:
+            selected_count = len(st.session_state["bulk_selected_arch"])
+            btn_label = f"🚀 Bulk Generate ({selected_count}/5)"
+            if st.button(btn_label, type="primary", use_container_width=True, 
+                         disabled=selected_count == 0 or selected_count > 5,
+                         key="bulk_gen_run_arch"):
+                progress_text = "Génération en masse..."
+                my_bar = st.progress(0, text=progress_text)
+                selected_ids = list(st.session_state["bulk_selected_arch"])
+                for i, jid in enumerate(selected_ids):
+                    target_job = next((job for job in sent_jobs if job["id"] == jid), None)
+                    if target_job:
+                        my_bar.progress((i + 1) / len(selected_ids), text=f"Génération {i+1}/{len(selected_ids)} : {target_job.get('title','')}")
+                        try:
+                            generate_documents(
+                                target_job, 
+                                gen_cv=True, 
+                                gen_letter=True, 
+                                use_llm=True,
+                                persona=st.session_state.get("selected_persona", "Industrial"),
+                                photo_path=st.session_state.get("photo_path")
+                            )
+                        except Exception as e:
+                            st.error(f"Erreur pour {target_job.get('title','')}: {e}")
+                my_bar.empty()
+                st.session_state["bulk_selected_arch"] = set()
+                st.success(f"✅ {len(selected_ids)} candidatures régénérées avec succès !")
+                st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
     for j in sent_jobs:
         with st.container():
-            top, actions = st.columns([4, 2.5])
+            if turbo_archive:
+                c_sel, c_top, c_actions = st.columns([0.6, 3.4, 2.5])
+                with c_sel:
+                    is_selected = j["id"] in st.session_state["bulk_selected_arch"]
+                    if st.checkbox("", value=is_selected, key=f"chk_arch_{j['id']}", label_visibility="collapsed"):
+                        st.session_state["bulk_selected_arch"].add(j["id"])
+                    else:
+                        st.session_state["bulk_selected_arch"].discard(j["id"])
+                top = c_top
+                actions = c_actions
+            else:
+                top, actions = st.columns([4, 2.5])
+            
             with top:
                 sourcing = (j.get("sourcing_date") or "")[:10] or "—"
                 sent_at = j.get("sent_at") or j.get("applied_date") or "—"
@@ -1867,6 +2559,7 @@ st.caption(
 )
 
 PROFILE_PATH = ROOT / "profiles" / "master_profile.json"
+history_manager = ProfileHistory(PROFILE_PATH)
 
 
 def _load_profile() -> dict:
@@ -1879,10 +2572,7 @@ def _load_profile() -> dict:
 
 
 def _save_profile(data: dict) -> None:
-    PROFILE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    PROFILE_PATH.write_text(
-        json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    history_manager.save_with_history(data)
 
 
 prof = _load_profile()
@@ -1915,9 +2605,9 @@ with col_info:
 
 st.divider()
 
-p_tab1, p_tab2, p_tab3, p_tab4, p_tab5 = st.tabs([
+p_tab1, p_tab2, p_tab3, p_tab4, p_tab5, p_tab6 = st.tabs([
     "👤 Identité", "🎓 Formation", "💼 Expériences",
-    "🛠️ Compétences", "📦 JSON brut",
+    "🛠️ Compétences", "📦 JSON brut", "🛡️ Historique",
 ])
 
 # ─── IDENTITÉ ───────────────────────────────────────────────────
@@ -2211,6 +2901,29 @@ with p_tab5:
             mime="application/json",
             use_container_width=True,
         )
+
+# ─── HISTORIQUE ────────────────────────────────────────────────
+with p_tab6:
+    st.caption("🛡️ Career Versioning : Sauvegardes automatiques et snapshots Git.")
+    snapshots = history_manager.list_snapshots()
+    if not snapshots:
+        st.info("Aucun historique pour le moment. Modifie ton profil pour créer un snapshot.")
+    else:
+        for snap in snapshots[:15]: # Show last 15
+            with st.container():
+                sc1, sc2 = st.columns([3, 1])
+                with sc1:
+                    st.markdown(f"📄 `{snap.name}`")
+                    st.caption(f"Date : {datetime.fromtimestamp(snap.stat().st_mtime).strftime('%Y-%m-%d %H:%M:%S')}")
+                with sc2:
+                    if st.button("Restaurer", key=f"restore_{snap.name}"):
+                        try:
+                            content = json.loads(snap.read_text(encoding="utf-8"))
+                            _save_profile(content)
+                            st.success(f"✅ Profil restauré depuis {snap.name}")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Erreur de restauration : {e}")
 
 st.markdown("</div>", unsafe_allow_html=True)
 

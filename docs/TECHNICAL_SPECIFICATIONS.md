@@ -1,102 +1,103 @@
-# 📑 Spécifications Techniques — Job Copilot (Cerveau V5)
+# 📑 Spécifications Techniques — Job Copilot (Cerveau V5.3)
 
-Ce document définit l'architecture logicielle, les algorithmes de décision et le pipeline de rendu du projet **Job Copilot**. L'objectif est de transformer un profil brut en un document d'ingénierie optimisé, prêt pour les systèmes ATS (Applicant Tracking Systems).
+Ce document définit l'architecture logicielle, les algorithmes de décision et le pipeline de rendu du projet **Job Copilot**, mis à jour avec les avancées de **Mai 2026**.
 
 ---
 
 ## 🏗 Architecture Système
 
-Le système repose sur une architecture **Event-Driven & Asynchrone**. Le dashboard Streamlit communique avec un moteur de calcul via un `ThreadRunner` pour garantir une interface fluide sans blocage durant les appels LLM.
+Le système repose sur une architecture **Event-Driven & Asynchrone**. Le dashboard Streamlit communique avec un moteur de calcul via un `ThreadRunner`.
 
-### Flux de Données Global
+### Flux de Données Global (Sémantique)
 
 ```mermaid
 sequenceDiagram
     participant User as 👤 Utilisateur
-    participant UI as 🖥 Dashboard (Streamlit)
-    participant Engine as ⚙️ Matching Engine
+    participant UI as 🖥 Dashboard
+    participant Engine as ⚙️ Matching Engine (TF-IDF)
     participant LLM as 🤖 Gemini/Ollama
     participant Renderer as 📄 Typst Renderer
 
     User->>UI: Coller l'offre d'emploi
-    UI->>Engine: Lancer l'analyse (Async)
-    Engine->>Engine: Extraction des mots-clés ATS
-    Engine->>Engine: Scoring STAR-K des expériences
+    UI->>Engine: Analyse sémantique locale
+    Engine->>Engine: TF-IDF Cosine Similarity vs Expériences
+    Engine->>Engine: Extraction Substring (Multi-word Keywords)
     Engine->>LLM: Prompt Contextuel (JSON Schema)
     LLM-->>Engine: Contenu CV optimisé
-    loop Shrink-Loop (1-4)
+    loop Shrink-Loop (1-6)
         Engine->>Renderer: Génération PDF
-        Renderer-->>Engine: Validation Layout (Overflow?)
+        Renderer-->>Engine: Validation Layout (Overflow Detection)
     end
-    Engine-->>UI: Artefacts prêts (PDF, MD, TEX)
-    UI->>User: Affichage & Téléchargement
+    Engine-->>UI: Artefacts prêts (PDF, MD)
 ```
 
 ---
 
 ## 🧠 Le Moteur de Décision (Matching Engine)
 
-### 1. Méthodologie STAR-K
-Le projet utilise une extension du framework STAR (Situation, Task, Action, Result) en y ajoutant la dimension **Keywords (K)**. 
-- **S**ituation : Contexte du projet.
-- **T**ask : Problématique technique rencontrée.
-- **A**ction : Méthodes d'ingénierie déployées (Python, CFD, FEA).
-- **R**esult : Impact quantifié (ex: -15% de consommation).
-- **K**eywords : Tags pour le matching sémantique.
+### 1. Sélection du Profil (Heuristique)
+Le système sélectionne le profil le plus pertinent (ex: `simulation_rd`, `data_science`) en fonction de l'occurrence des **mots-clés cibles** dans l'offre.
+- **Fallback** : En l'absence de match clair, le profil par défaut (`simulation_rd`) est utilisé.
 
-### 2. Algorithme de Scoring Sémantique
-Le calcul de pertinence ($S$) d'une expérience pour une offre donnée suit la logique suivante :
-$$S = (W_{profile} \times 0.4) + (W_{keywords} \times 0.6) - P_{obsolescence}$$
+### 2. Scoring Hybride des Expériences
+Le classement des expériences professionnelles et projets académiques utilise un **Double Score** pour maximiser la pertinence :
+- **Score Heuristique ($S_{tags}$)** : Basé sur les `profiles_tags` (ex: `all`, `simulation_rd`) et le match direct des mots-clés `K`.
+- **Score Sémantique ($S_{tfidf}$)** : Calculé via `LocalExperienceMatcher` utilisant `scikit-learn`. Une matrice TF-IDF est construite sur le corpus des expériences + la description de l'offre.
+- **Formule Combinée** : $Score = S_{tags} + (S_{tfidf} \times 10)$. Ceci permet de départager sémantiquement des expériences ayant des tags identiques.
 
-Où :
-- $W_{profile}$ : Match avec le domaine cible (Energie, Simulation, etc.).
-- $W_{keywords}$ : Fréquence des mots-clés de l'offre dans les tags STAR-K.
-- $P_{obsolescence}$ : Pénalité linéaire pour les expériences de plus de 5 ans.
+### 3. Sélection des Skills en 3 Couches (3-Layer Logic)
+La sélection des 12 compétences (Hard Skills) suit une hiérarchie stricte pour garantir un équilibre entre expertise et polyvalence :
+- **Layer 1 : Signature (Top-Down)** : Compétences directement liées aux mots-clés du profil sélectionné.
+- **Layer 2 : Transversales (Whitelist)** : Compétences outils indispensables (Git, Linux, Python, Matlab) via une liste de marqueurs.
+- **Layer 3 : Contextuelles (Bottom-Up)** : Pool de compétences trié par niveau (Avancé > Débutant) avec un **boost de pertinence** si la compétence apparaît dans les expériences sélectionnées pour le CV.
+
+### 4. Extraction de Mots-clés Avancée
+- **Substring Matching** : Le moteur cherche des **locutions techniques complexes** ("Ansys Workbench", "Calcul statique linéaire") par recherche de sous-chaînes exactes pour éviter de rater les compétences critiques ATS.
 
 ---
 
-## 🔄 L'Algorithme "Shrink-Loop" (Innovation)
+## 🔄 L'Algorithme "Shrink-Loop" (Reinforced)
 
-Garantir un **CV d'une seule page** sans perte de contenu majeur est un défi technique résolu par une boucle de rétroaction sur le layout.
+Garantir un **CV d'une seule page** est désormais un contrat de résultat sur 6 tentatives.
 
-> [!TIP]
-> **Le Concept :** Au lieu de couper le texte, on ajuste la densité informationnelle et la micro-typographie.
-
-| Niveau | Taille Police | Marges | Max Bullets | Stratégie |
+| Niveau | Police | Leading | Section Gap | Stratégie Contenu |
 | :--- | :--- | :--- | :--- | :--- |
-| **Normal** | 10pt | 1.5cm | 5 | Contenu exhaustif, aéré. |
-| **Compact** | 9.5pt | 1.2cm | 4 | Suppression des adjectifs superflus. |
-| **Dense** | 9pt | 1.0cm | 3 | Fusion de lignes, réduction interligne. |
-| **Critical** | 8.5pt | 0.8cm | 3 | Formatage ultra-compact (Last Resort). |
+| **1-2** | 10.4-9.8pt | 0.65-0.58 | 16-14pt | Contenu standard, réduction douce. |
+| **3-4** | 9.2pt | 0.55 | 10-6pt | Réduction du nombre d'expériences et de projets. |
+| **5-6 (Extreme)** | 8.8-8.5pt | 0.52-0.50 | 5-4pt | **Culling** : Suppression des modules éducation, 1 seule puce par exp. |
+
+> [!IMPORTANT]
+> **Zéro Troncature Sauvage** : Le système préfère supprimer un élément complet (une puce, un projet) ou réduire la police plutôt que de couper une phrase au milieu. La cohérence sémantique est prioritaire.
 
 ---
 
-## 🤖 Pipeline LLM (Intelligence Artificielle)
+## 🤖 Pipeline LLM & Axe Qualité
 
-### Stratégie de Prompting
-Le système utilise un **"Massive System Prompt"** qui force le LLM à agir comme un recruteur expert en ingénierie.
-- **Contraintes de ton** : Professionnel, factuel, orienté résultats.
-- **Interdiction de Hallucination** : Le LLM ne peut utiliser *que* les données du `master_profile.json`.
-- **Validation** : Utilisation de `Pydantic` (ou validation JSON stricte) pour s'assurer que la sortie est compatible avec le moteur de rendu.
+### Stratégie "Senior Pivot"
+Le système impose des contraintes éditoriales strictes pour transformer le profil, agissant à deux niveaux :
 
----
+#### A. Diagnostic & Transformation (Ground Truth)
+Avant la génération, les données sources sont nettoyées via des outils dédiés :
+- **`scripts/audit_seniority.py`** : Scan récursif du `master_profile.json` pour détecter les marqueurs "étudiants" (regex word boundaries pour PFE, Stage, S7-S9, TP).
+- **`scripts/seniorize_profile.py`** : Script de transformation automatique qui professionnelise le contenu :
+    - Remplace `academic_project` par `specialized_mission`.
+    - Mappe les IDs (ex: `AM_PFE` → `AM_RD_PILOT`).
+    - Épure les références aux semestres académiques.
 
-## 🎨 Rendering Engine (La Puissance de Typst)
-
-Le projet abandonne LaTeX au profit de **Typst**, un nouveau système de rendu typographique écrit en Rust.
-- **Vitesse** : Rendu < 100ms (contre plusieurs secondes pour pdflatex).
-- **Flexibilité** : Syntaxe programmable pour injecter dynamiquement des couleurs et des icônes selon le profil.
-- **Format de sortie** : PDF haute définition, Markdown pour le web, et code source Typst pour retouches fines.
+#### B. Contraintes Éditoriales LLM
+- **Anti-Student Language** : Interdiction formelle des termes "étudiant", "élève", "apprentissage" dans le prompt.
+- **Action-Oriented** : Utilisation systématique de verbes d'action au participe passé (Conçu, Modélisé, Optimisé).
+- **Keyword Weaving** : Injection forcée des mots-clés détectés par le moteur TF-IDF dans le corps du résumé et des expériences.
 
 ---
 
 ## 🛠 Stack Technique & Dépendances
 
 - **Langage** : Python 3.11+
-- **Frontend** : Streamlit (Premium Custom CSS)
-- **Base de données** : SQLite (Gestion persistante du pipeline de candidatures)
-- **IA** : Gemini Flash 1.5 (API), Ollama/MLX pour le support local.
-- **Rendu** : Typst CLI & Library.
+- **Data Science** : Scikit-learn (TF-IDF Vectorization, Cosine Similarity)
+- **Frontend** : Streamlit (Custom Premium CSS)
+- **Rendu** : Typst CLI (Rendu ultra-rapide en Rust)
+- **IA** : Gemini Flash 1.5 (API), MLX/Ollama pour support local.
 
 ---
-*Ce document fait partie de l'écosystème **Job Copilot** — Version 5.2 (Avril 2026)*
+*Ce document fait partie de l'écosystème **Job Copilot** — Version 5.3 (Mai 2026)*

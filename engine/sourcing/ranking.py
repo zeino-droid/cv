@@ -42,6 +42,74 @@ SKILL_ALIASES: Dict[str, List[str]] = {
 }
 
 
+def generate_hyper_query(profile: Dict, active_key: str) -> str:
+    """
+    Génère une 'Hyper-Query' Booléenne basée sur le profil actif.
+    Innovation : Inverse le match-first en ciblant uniquement les 90%+ matches.
+    Ex: ("Abaqus" AND "Python" AND "Thermomécanique") OR ("FEA" AND "R&D" AND "ENSEM")
+    """
+    prof_def = (profile.get("profiles") or {}).get(active_key) or {}
+    target_keywords = prof_def.get("target_keywords", [])
+    
+    if not target_keywords:
+        return ""
+
+    # Bloc 1 : Top 3 keywords techniques (très strict)
+    # On utilise des guillemets pour les expressions
+    tech_block = target_keywords[:3]
+    tech_str = " AND ".join(f'"{kw}"' for kw in tech_block)
+    
+    # Bloc 2 : Alternative avec synonymes et contexte
+    # On récupère des alias si possible
+    alt_elements = []
+    
+    # Chercher des synonymes pour le premier mot-clé
+    first_kw = target_keywords[0].lower()
+    for canonical, aliases in SKILL_ALIASES.items():
+        if first_kw == canonical or first_kw in aliases:
+            # Prendre un alias différent s'il existe
+            candidates = [canonical] + aliases
+            other = [c for c in candidates if c.lower() != first_kw]
+            if other:
+                alt_elements.append(other[0].upper())
+            break
+    
+    if not alt_elements:
+        alt_elements.append(target_keywords[0])
+
+    # Ajouter des marqueurs de qualité / contexte (R&D, ENSEM, Ingénieur)
+    alt_elements.append("R&D")
+    alt_elements.append("ENSEM")
+    
+    alt_str = " AND ".join(f'"{kw}"' for kw in alt_elements)
+    
+    return f"({tech_str}) OR ({alt_str})"
+
+
+def match_hyper_query(query: str, haystack: str) -> bool:
+    """
+    Évalue si un texte (haystack) matche une Hyper-Query booléenne.
+    Supporte AND, OR, parenthèses et guillemets simples.
+    """
+    haystack = haystack.lower()
+    
+    # 1. Gérer le OR au niveau racine
+    if " OR " in query:
+        # On splitte intelligemment en ignorant les OR à l'intérieur des parenthèses
+        # Pour faire simple ici, on splitte par " ) OR ( " ou " OR "
+        parts = re.split(r"\s+OR\s+(?![^\(]*\))", query)
+        return any(match_hyper_query(p.strip("() "), haystack) for p in parts)
+    
+    # 2. Gérer le AND
+    if " AND " in query:
+        parts = re.split(r"\s+AND\s+(?![^\(]*\))", query)
+        return all(match_hyper_query(p.strip("()\" "), haystack) for p in parts)
+    
+    # 3. Terme simple
+    term = query.strip("()\" ").lower()
+    return term in haystack
+
+
 # ──────────────────────────────────────────────────────────────────
 #  GEMINI HELPERS
 # ──────────────────────────────────────────────────────────────────
@@ -498,4 +566,101 @@ Offre — {job.get('title','')} @ {job.get('company','')}
             job["extracted_skills"] = skills[:10]
         except Exception:
             continue
+    return jobs
+
+
+# ──────────────────────────────────────────────────────────────────
+#  GHOST PARSING — Hidden Benefits & Salary (Gemini)
+# ──────────────────────────────────────────────────────────────────
+
+def llm_ghost_parse(jobs: List[Dict], top_n: int = 15) -> List[Dict]:
+    """
+    Scans job descriptions for 'Hidden Benefits' (Remote, Salary, Perks) 
+    that are often missed by standard search filters.
+    """
+    if not jobs:
+        return jobs
+    
+    # Process only top N jobs to save tokens/time
+    candidates = sorted(jobs, key=lambda j: j.get("fit_score", 0), reverse=True)[:top_n]
+    
+    for job in candidates:
+        desc = (job.get("description") or "").strip()
+        if len(desc) < 100:
+            continue
+            
+        prompt = f"""Tu es un expert en recrutement. Analyse cette offre d'emploi pour extraire les "Avantages Cachés".
+RECHERCHE PRÉCISE :
+1. Télétravail (Remote) : Full remote ? Hybride (combien de jours ?) ? Pas de remote ?
+2. Salaire : Fourchette citée ? "Selon profil" ? Primes (intéressement, participation, variable) ?
+3. Avantages (Perks) : Tickets resto, mutuelle, RTT, voiture de fonction, etc.
+
+Réponds UNIQUEMENT un JSON strict :
+{{
+  "remote": "ex: 2j/semaine",
+  "salary": "ex: 50-60k + Intéressement",
+  "perks": ["Ticket Resto", "RTT"]
+}}
+
+Offre — {job.get('title','')} @ {job.get('company','')}
+{desc[:2000]}"""
+
+        raw = _gemini_call(prompt, max_tokens=300)
+        if not raw:
+            continue
+            
+        cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw.strip(), flags=re.MULTILINE)
+        try:
+            data = json.loads(cleaned)
+            # Store results in a dedicated field
+            job["ghost_benefits"] = {
+                "remote": data.get("remote", "").strip(),
+                "salary": data.get("salary", "").strip(),
+                "perks": [p.strip() for p in data.get("perks", []) if isinstance(p, str) and p.strip()]
+            }
+        except Exception:
+            continue
+            
+    return jobs
+
+
+# ──────────────────────────────────────────────────────────────────
+#  IDENTIFICATION DU HIRING MANAGER (Innovation Phase 4)
+# ──────────────────────────────────────────────────────────────────
+
+def llm_identify_hiring_lead(jobs: List[Dict], top_n: int = 15) -> List[Dict]:
+    """Identifie le titre du manager le plus probable pour les meilleures offres."""
+    if not jobs:
+        return jobs
+    candidates = sorted(jobs, key=lambda j: j.get("fit_score", 0), reverse=True)[:top_n]
+    
+    for job in candidates:
+        desc = (job.get("description") or "").strip()
+        title = job.get("title", "")
+        company = job.get("company", "")
+        
+        if not desc or len(desc) < 100:
+            continue
+            
+        prompt = f"""Tu es un expert en recrutement en France. Pour l'offre d'emploi suivante, identifie le titre du manager direct (N+1) ou du responsable de département le plus probable qui recruterait pour ce poste.
+Sois précis et utilise des titres courants en France (ex: "Responsable Bureau d'Études", "Chef de groupe Simulation", "CTO", "Directeur R&D", "Responsable de Service Calcul", "Lead Engineer").
+
+Offre : {title} chez {company}
+Description (extrait) : {desc[:1200]}
+
+Réponds UNIQUEMENT un JSON strict : {{"hiring_manager_title": "..."}}.
+"""
+        raw = _gemini_call(prompt, max_tokens=100)
+        if not raw:
+            continue
+            
+        cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw.strip(), flags=re.MULTILINE)
+        try:
+            data = json.loads(cleaned)
+            title_found = data.get("hiring_manager_title", "").strip()
+            if title_found and len(title_found) > 3:
+                job["hiring_manager_title"] = title_found
+        except Exception:
+            continue
+            
     return jobs

@@ -249,14 +249,55 @@ def filter_skills_by_profile(profile_id: str, profile_index: dict, selected_expe
         budget=FILL_BUDGET["skills"],
     )
 
+    # --- SKILL FLOOR LOGIC ---
+    # Ensure every hard skill listed is backed by at least one "Action Bullet" (keyword) in selected experiences.
+    # This creates an "Evidence-Based CV".
+    
+    proven_skills = []
+    skill_proofs = {} # Map skill_name -> experience_id or "academic"
+    
+    for skill in selected:
+        skill_name_low = str(skill.get("name", "")).lower()
+        proof_found = False
+        
+        # Check in selected experiences
+        for exp in selected_experiences:
+            exp_keywords = {str(k).lower() for k in exp.get("K", [])}
+            if any(skill_name_low in kw or kw in skill_name_low for kw in exp_keywords):
+                proven_skills.append(skill)
+                skill_proofs[skill.get("name")] = {
+                    "type": "experience",
+                    "id": exp.get("id"),
+                    "title": exp.get("title"),
+                    "company": exp.get("company")
+                }
+                proof_found = True
+                break
+        
+        if not proof_found:
+            # Fallback check in academic foundations or context field
+            if skill.get("context"):
+                proven_skills.append(skill)
+                skill_proofs[skill.get("name")] = {
+                    "type": "context",
+                    "text": skill.get("context")
+                }
+            else:
+                # If truly unproven, we exclude it from the final list to respect the "Skill Floor"
+                pass
+
+    # Re-limit to budget after filtering
+    final_hard_skills = proven_skills[: FILL_BUDGET["skills"]]
+
     filtered_skills = {
-        "hard_skills": selected,
+        "hard_skills": final_hard_skills,
+        "skill_proofs": skill_proofs,
         "domain_knowledge": taxonomy.get("domain_knowledge", []),
         "soft_skills": taxonomy.get("soft_skills", []),
         "fill_layers": {
             "layer_1_signature": len(layer_1),
             "layer_2_transversal": len(layer_2),
-            "skills_total": len(selected),
+            "skills_total": len(final_hard_skills),
         },
     }
 

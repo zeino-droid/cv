@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from pypdf import PdfReader
+from pypdf import PdfReader, PdfWriter
 
 from config.theme import THEME
 
@@ -23,7 +23,13 @@ TYPST_TEMPLATE_PATH = Path("templates/cv_template.typ")
 class Renderer:
     """Base class for CV renderers"""
 
-    def render(self, cv_data: Dict, output_path: Path, **kwargs) -> Optional[Path]:
+    def render(
+        self,
+        cv_data: Dict,
+        output_path: Path,
+        metadata: Optional[Dict] = None,
+        **kwargs
+    ) -> Optional[Path]:
         raise NotImplementedError
 
 
@@ -41,6 +47,7 @@ class TypstRenderer(Renderer):
         self,
         cv_data: Dict,
         output_path: Path,
+        metadata: Optional[Dict] = None,
         font_size_delta: float = 0.0,
         leading: float = 0.65,
         section_gap: float = 20.0,
@@ -108,6 +115,7 @@ class TypstRenderer(Renderer):
                 "margin-sides": f"{margin_sides:.1f}",
                 "has-photo": "true" if has_photo else "false",
                 "theme": theme,
+                "profile-id": kwargs.get("profile_id", "simulation_rd"),
                 # Centralized theme colours from config/theme.py
                 "sidebar-bg": THEME["sidebar_bg"],
                 "accent-primary": THEME["accent_primary"],
@@ -127,6 +135,35 @@ class TypstRenderer(Renderer):
                 root=root_abs,
                 sys_inputs=sys_inputs,
             )
+
+            # --- ATS Metadata Injection ---
+            if metadata and pdf_path.exists():
+                try:
+                    reader = PdfReader(str(pdf_path))
+                    writer = PdfWriter()
+                    writer.append_pages_from_reader(reader)
+                    
+                    # Mapping standard fields
+                    # metadata keys expected: title, subject, keywords
+                    pdf_metadata = {}
+                    if metadata.get("title"):
+                        pdf_metadata["/Title"] = metadata["title"]
+                    if metadata.get("subject"):
+                        pdf_metadata["/Subject"] = metadata["subject"]
+                    if metadata.get("keywords"):
+                        # Ensure keywords is a string or comma-separated list
+                        kw = metadata["keywords"]
+                        if isinstance(kw, list):
+                            kw = ", ".join(kw)
+                        pdf_metadata["/Keywords"] = kw
+                    
+                    writer.add_metadata(pdf_metadata)
+                    with open(pdf_path, "wb") as f:
+                        writer.write(f)
+                    # logger.info(f"   ✅ Metadata injectées (ATS Optimized)")
+                except Exception as meta_err:
+                    print(f"   ⚠️  Erreur injection metadata: {meta_err}")
+
             return pdf_path
         except Exception as e:
             # On tente de remonter l'erreur pour le debug dashboard
@@ -163,7 +200,13 @@ class TypstRenderer(Renderer):
 class MarkdownRenderer(Renderer):
     """Rend le CV en Markdown"""
 
-    def render(self, cv_data: Dict, output_path: Path, **kwargs) -> Optional[Path]:
+    def render(
+        self,
+        cv_data: Dict,
+        output_path: Path,
+        metadata: Optional[Dict] = None,
+        **kwargs
+    ) -> Optional[Path]:
         identity = cv_data["identity"]
         output_path.parent.mkdir(parents=True, exist_ok=True)
         md = f"# {identity['name']}\n\n**{cv_data.get('headline', '')}**\n\n"
@@ -211,7 +254,13 @@ class MarkdownRenderer(Renderer):
 class LatexRenderer(Renderer):
     """Rend le CV en LaTeX (ModernCV)"""
 
-    def render(self, cv_data: Dict, output_path: Path, **kwargs) -> Optional[Path]:
+    def render(
+        self,
+        cv_data: Dict,
+        output_path: Path,
+        metadata: Optional[Dict] = None,
+        **kwargs
+    ) -> Optional[Path]:
         # Escape helper
         def esc(t):
             conv = {

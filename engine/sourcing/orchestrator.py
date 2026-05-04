@@ -19,9 +19,11 @@ from engine.sourcing import adzuna, companies_watcher, france_travail
 from engine.sourcing.ranking import (
     deduplicate_smart,
     expand_keywords_with_llm,
+    generate_hyper_query,
     has_gemini,
     llm_extract_skills,
     llm_rerank_top,
+    llm_ghost_parse,
     score_job,
 )
 
@@ -179,6 +181,13 @@ def scan_jobs(
         report(0.03, "🧠 Expansion sémantique des mots-clés (Gemini)…")
         keywords = expand_keywords_with_llm(keywords, profile, max_extra_per_keyword=2)
 
+    # 1.5 Innovation : Reverse Match-First (Hyper-Query)
+    hyper_query = ""
+    if target_profile:
+        hyper_query = generate_hyper_query(profile, target_profile)
+        if hyper_query:
+            report(0.04, f"🚀 Hyper-Query : {hyper_query}")
+
     if stopped():
         return {"jobs": [], "by_source": {}, "warnings": ["Annulé par l'utilisateur."],
                 "summary": "Annulé."}
@@ -263,10 +272,10 @@ def scan_jobs(
         def cb(_p, msg):
             bus.update(1, _p, msg)
         bus.update(1, 0.05, "🌍 Adzuna · démarrage")
-        # Limite à 6 mots-clés max pour Adzuna (quota 1000/mois)
-        adzuna_keywords = keywords[:6] if keywords else ["ingénieur simulation"]
+        # Innovation : Utiliser l'Hyper-Query si disponible, sinon les mots-clés classiques
+        adzuna_queries = [hyper_query] if hyper_query else (keywords[:6] if keywords else ["ingénieur simulation"])
         results = adzuna.search(
-            keywords=adzuna_keywords,
+            keywords=adzuna_queries,
             locations=None,  # national, on filtre côté config si besoin
             max_days_old=publiee_depuis,
             results_per_query=50,
@@ -389,7 +398,12 @@ def scan_jobs(
         report(0.92, "🔍 Extraction des compétences clés (Gemini)…")
         scored = llm_extract_skills(scored, top_n=15)
 
-    # 8. Filtre min_score + fallback top-25
+    # 8. "Ghost" Parsing (Hidden Benefits - Remote/Salary)
+    if has_gemini() and scored and not stopped():
+        report(0.96, "👻 Analyse des avantages cachés (Remote/Salaire)…")
+        scored = llm_ghost_parse(scored, top_n=15)
+
+    # 9. Filtre min_score + fallback top-25
     min_score = int((config.get("filters") or {}).get("min_score", 20))
     qualified = [j for j in scored if j.get("fit_score", 0) >= min_score]
     if not qualified and scored:

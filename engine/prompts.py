@@ -81,7 +81,26 @@ def build_candidate_context(profile_id: str, profile_index: Dict, filtered_exper
     return context
 
 
-def build_generation_prompt(job_offer: Dict, candidate_context: CandidateContext, profile_id: str, content_config: Optional[Dict] = None) -> Dict:
+PERSONA_CONFIG = {
+    "Research": {
+        "mission_prefix": "Tu es un Chercheur Senior en R&D.",
+        "tone": "scientifique, rigoureux, axé sur l'innovation et la méthodologie.",
+        "focus": "Mets l'accent sur la démarche scientifique, les publications (si présentes), les brevets et la résolution de problèmes complexes.",
+    },
+    "Industrial": {
+        "mission_prefix": "Tu es un Ingénieur d'Affaires / Responsable de Production Senior.",
+        "tone": "pragmatique, axé sur l'efficacité, les normes et la livraison.",
+        "focus": "Mets l'accent sur les process industriels, la conformité, la sécurité, l'optimisation des coûts et les résultats opérationnels concrets.",
+    },
+    "Startup": {
+        "mission_prefix": "Tu es un CTO / Head of Engineering en startup à forte croissance.",
+        "tone": "dynamique, polyvalent, axé sur la vitesse et l'impact.",
+        "focus": "Mets l'accent sur l'agilité, la capacité à construire de zéro (0 to 1), la scalabilité et l'impact direct sur le produit.",
+    },
+}
+
+
+def build_generation_prompt(job_offer: Dict, candidate_context: CandidateContext, profile_id: str, content_config: Optional[Dict] = None, persona: str = "Industrial", seniority_level: float = 0.5) -> Dict:
     """Génère un prompt structuré : mission narrative → brief éditorial → gardes-fous.
 
     Action 1 — Le LLM reçoit d'abord la mission (quoi + pourquoi), puis les
@@ -90,6 +109,9 @@ def build_generation_prompt(job_offer: Dict, candidate_context: CandidateContext
     redondantes avec les guidelines.
     """
     content_cfg = {**DEFAULT_CONTENT_CONFIG, **(content_config or {})}
+    
+    # Configuration du persona
+    p_cfg = PERSONA_CONFIG.get(persona, PERSONA_CONFIG["Industrial"])
 
     # Extraction du nom candidat pour personnaliser la mission
     candidate_name = candidate_context.get("personal_info", {}).get("name", "le candidat")
@@ -109,7 +131,7 @@ def build_generation_prompt(job_offer: Dict, candidate_context: CandidateContext
         # BLOC 1 — LA MISSION (le LLM comprend QUOI faire et POURQUOI)
         # ═══════════════════════════════════════════════════════════
         "mission": (
-            f"Tu es un chasseur de têtes senior en ingénierie R&D. "
+            f"{p_cfg['mission_prefix']} "
             f"Ton client, {candidate_name}, vise le poste de {job_title} chez {company}. "
             f"Rédige un CV d'une page qui raconte son parcours comme une progression "
             f"logique vers ce poste. Chaque section doit servir le même fil narratif : "
@@ -120,6 +142,7 @@ def build_generation_prompt(job_offer: Dict, candidate_context: CandidateContext
         # BLOC 2 — LE BRIEF ÉDITORIAL (comment écrire)
         # ═══════════════════════════════════════════════════════════
         "editorial_brief": [
+            f"ADOPTE LE PERSONA '{persona}' : Ton {p_cfg['tone']} {p_cfg['focus']}",
             "Construis un RÉCIT de carrière, pas un formulaire. Le lecteur doit voir la trajectoire.",
             f"Mots-clés matchés entre le profil et l'offre : [{matched_kw_str}]. Intègre-les naturellement.",
             f"Domaines métier du candidat : [{domain_str}]. Utilise-les pour ancrer la crédibilité." if domain_str else "",
@@ -127,6 +150,20 @@ def build_generation_prompt(job_offer: Dict, candidate_context: CandidateContext
             "Chaque bullet raconte une action concrète et son impact — pas un descriptif de poste générique.",
             "Le résumé vend le candidat en 3 phrases : profil → adéquation au poste → valeur ajoutée unique.",
             "Ton : professionnel, direct, technique. Pas de superlatifs vides ni de formulations bateaux.",
+            # Seniority Pivot logic
+            (
+                f"LEVEL OF AUTHORITY: {seniority_level * 100:.0f}%. "
+                + (
+                    "Utilise des verbes d'action de SÉNIORITÉ / ARCHITECTE (ex: Orchestré, Piloté, Conçu, Optimisé, Expertisé, Structuré) "
+                    "pour projeter une forte autorité technique et leadership."
+                    if seniority_level > 0.7 else
+                    "Utilise des verbes d'action de LEADERSHIP (ex: Piloté, Géré, Coordonné, Amélioré) "
+                    "pour projeter une capacité de gestion et d'optimisation."
+                    if seniority_level > 0.4 else
+                    "Utilise des verbes d'action OPÉRATIONNELS (ex: Réalisé, Développé, Exécuté, Testé) "
+                    "pour projeter une efficacité technique directe et concrète."
+                )
+            ),
             "HR RULE : Focus sur les résultats quantifiables (metrics, %, euros, temps gagné). Un recruteur technique cherche des preuves, pas des descriptions de tâches.",
             "INTERDIT d'utiliser les mots : 'Apprenti', 'Étudiant', 'Élève', 'Élève-Ingénieur', 'en apprentissage'. Remplace systématiquement par 'Ingénieur'. Le headline NE DOIT JAMAIS commencer par 'Élève-Ingénieur'. Présente un expert opérationnel, pas un étudiant.",
             "Utilise EXCLUSIVEMENT les données fournies dans candidate_context. Rien d'inventé, rien de supposé.",
@@ -177,6 +214,25 @@ def build_generation_prompt(job_offer: Dict, candidate_context: CandidateContext
     prompt_dict["editorial_brief"] = [b for b in prompt_dict["editorial_brief"] if b]
 
     return prompt_dict
+
+
+def build_skill_extraction_prompt(job_description: str) -> str:
+    """Génère un prompt pour extraire les compétences techniques d'une offre d'emploi."""
+    return f"""Tu es un expert en recrutement technique et en analyse d'offres d'emploi.
+
+EXTRAIS UNIQUEMENT les compétences techniques (hard skills), outils, logiciels et domaines d'expertise mentionnés dans l'offre ci-dessous.
+
+RÈGLES :
+- Retourne une liste simple de termes (ex: Python, Abaqus, CFD, Gestion de projet).
+- Sois précis (ex: "Ansys Fluent" au lieu de juste "Logiciel").
+- N'inclus PAS de soft skills génériques (ex: "Autonomie", "Rigueur").
+- Réponds UNIQUEMENT avec la liste des compétences séparées par des virgules.
+
+DESCRIPTION DU POSTE :
+{job_description[:3000]}
+
+COMPÉTENCES EXTRAITES :
+"""
 
 
 # ============================================
