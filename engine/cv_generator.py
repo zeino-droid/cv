@@ -639,6 +639,13 @@ class PersonalCVGenerator:
                 for edu in cv_data.get("education", []):
                     if "modules" in edu:
                         edu["modules"] = {}
+                
+                # On limite le nombre de skills pour éviter que la colonne de gauche (sidebar)
+                # ne déborde et pousse les loisirs en dehors de la page.
+                max_skills = 8 if config["attempt"] == 5 else 6
+                grouped_skills = cv_data.get("grouped_skills", {})
+                for group, skills in grouped_skills.items():
+                    grouped_skills[group] = skills[:max_skills]
 
             cv_data = self._apply_text_overrides(
                 cv_data,
