@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 logger = logging.getLogger(__name__)
 
 from engine import matching, prompts
+from engine.cv_matcher import LocalExperienceMatcher
 
 # Imports locaux
 from engine.engines import GeminiEngine, MLXEngine, OllamaEngine
@@ -305,26 +306,42 @@ class PersonalCVGenerator:
         return SCORE_OUT_OF_SCOPE
 
     def rank_experiences_for_profile(
-        self, all_experiences: List[Dict], profile_id: str, job_keywords: List[str]
+        self, all_experiences: List[Dict], profile_id: str, job_keywords: List[str], job_description: str = ""
     ) -> Dict:
-        """3 passes : score → tri → backfill jusqu'au budget cible."""
+        """3 passes : score → tri → backfill jusqu'au budget cible.
+        V5+ : Combine scoring heuristique (tags) + TF-IDF sémantique (LocalExperienceMatcher)
+        """
         pro_scored = []
         project_scored = []
         job_kw_set = {str(k).lower() for k in job_keywords}
         profile_project_ids = self._get_profile_project_ids(profile_id, all_experiences)
 
+        # Calcul des scores sémantiques TF-IDF
+        matcher = LocalExperienceMatcher()
+        tfidf_scores = matcher.score_experiences_dict(all_experiences, job_description)
+
+        job_haystack = job_description.lower()
+
         for index, exp in enumerate(all_experiences):
             is_project = self._is_project_experience(exp, profile_project_ids)
             exp_keywords = {str(k).lower() for k in exp.get("K", [])}
-            keyword_overlap = len(exp_keywords & job_kw_set)
-            score = self.score_experience(exp, profile_id, job_kw_set)
+            # Un keyword de l'expérience matche si on le trouve dans la description
+            keyword_overlap = sum(1 for kw in exp_keywords if kw in job_haystack)
+            heuristic_score = self.score_experience(exp, profile_id, exp_keywords)
+            
             entry_id = exp.get("id", f"exp_{index}")
             exp_data = exp if exp.get("id") else {**exp, "id": entry_id}
+            
+            # Combinaison : Heuristique dominante (10-100) + TF-IDF normalisé (0-10, pour départager)
+            tfidf = tfidf_scores.get(entry_id, 0.0)
+            combined_score = heuristic_score + (tfidf * 10.0)
+
             entry = {
                 "id": entry_id,
                 "data": exp_data,
-                "score": score,
+                "score": combined_score,
                 "keyword_overlap": keyword_overlap,
+                "tfidf_score": tfidf,
             }
             if is_project:
                 project_scored.append(entry)
@@ -475,7 +492,7 @@ class PersonalCVGenerator:
             "experience_stark"
         ) or self.master_profile.get("experiences", [])
         ranked_content = self.rank_experiences_for_profile(
-            all_exps, profile_id, job_keywords
+            all_exps, profile_id, job_keywords, job_data.get("description", "")
         )
         ranked_content = self.enforce_project_guarantee(
             ranked_content, all_exps, profile_id
@@ -518,9 +535,10 @@ class PersonalCVGenerator:
                 k.lower() for k in
                 self.master_profile.get("profiles", {}).get(profile_id, {}).get("target_keywords", [])
             }
-            candidate_context["matched_job_keywords"] = sorted(
-                set(job_keywords) & profile_target_kw
-            )
+            job_haystack = f"{job_data.get('title', '')} {job_data.get('description', '')}".lower()
+            candidate_context["matched_job_keywords"] = sorted([
+                kw for kw in profile_target_kw if kw in job_haystack
+            ])
             prompt_content_cfg = {
                 "max_pro_exp": config["max_pro_exp"],
                 "min_pro_exp": FILL_BUDGET["pro_minimum"],
