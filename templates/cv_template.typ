@@ -191,7 +191,8 @@
        #cv_data.identity.phone \
        #v(0.15em)
        #text(weight: "bold", fill: sb-head, "LinkedIn") \
-       #if cv_data.identity.linkedin != none { cv_data.identity.linkedin } else { "zein-elajamy" }
+       #let linkedin = cv_data.identity.at("linkedin", default: none)
+       #if linkedin != none { linkedin } else { "zein-elajamy" }
 
        #sidebar-title("MOBILITÉ")
        #set text(size: 8.0pt + font-size-delta, fill: sb-text)
@@ -320,12 +321,12 @@
               }
               if edu.keys().contains("modules") and edu.modules != () and edu.modules != [] {
                   let mods = edu.modules
-                  let all_mods = if type(mods) == "dictionary" {
+                  let all_mods = if type(mods) == dictionary {
                     // Flatten S5_S6, S7_S8, S9 arrays
                     let arr = ()
                     for v in mods.values() { arr += v }
                     arr
-                  } else if type(mods) == "array" {
+                  } else if type(mods) == array {
                     mods
                   } else {
                     ()
@@ -333,7 +334,7 @@
                   if all_mods.len() > 0 {
                     v(-0.2em)
                     set text(size: 9.5pt + font-size-delta, fill: meta-col)
-                    for mod in all_mods.slice(0, 6) {
+                    for mod in all_mods.slice(0, calc.min(all_mods.len(), 6)) {
                       text("· " + mod)
                       v(0.05em)
                     }

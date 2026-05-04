@@ -932,7 +932,41 @@ class PersonalCVGenerator:
     def _assemble_fallback_data(
         self, context: Dict, job: Dict, max_bullets: Optional[int] = None
     ) -> Dict:
-        return self._assemble_final_data({"cv": {}}, context, max_bullets=max_bullets)
+        """Fallback intelligent : adapte headline et summary au poste visé.
+
+        Quand le LLM est indisponible (quota, crash, JSON malformé), ce
+        fallback garantit que le CV reste ciblé sur l'offre plutôt que
+        d'afficher les données brutes du profil.
+        """
+        job_title = job.get("title", "Ingénieur")
+        company = job.get("company", "")
+        candidate_name = context.get("personal_info", {}).get("name", "le candidat")
+        profile_headline = context.get("target_profile", {}).get("headline", "")
+
+        # --- Headline ciblé ---
+        # On injecte le titre du poste dans le headline du profil
+        targeted_headline = f"{profile_headline} | Candidature : {job_title}"
+        if len(targeted_headline) > 100:
+            targeted_headline = profile_headline  # fallback au headline profil (désormais propre)
+
+        # --- Summary ciblé ---
+        base_summary = context.get("target_profile", {}).get("summary", "")
+        if company:
+            targeted_summary = (
+                f"{base_summary} "
+                f"Candidature ciblée pour le poste de {job_title} chez {company}."
+            )
+        else:
+            targeted_summary = base_summary
+
+        # On injecte ces overrides dans un faux output LLM
+        fake_llm = {
+            "cv": {
+                "headline": {"value": targeted_headline},
+                "summary": {"value": targeted_summary},
+            }
+        }
+        return self._assemble_final_data(fake_llm, context, max_bullets=max_bullets)
 
     def _normalize_job(self, job: Dict) -> Dict:
         return {

@@ -12,8 +12,8 @@
       "hidden": true,
       "inject_in_prompt": false
     },
-    "headline_default": "Élève-Ingénieur ENSEM — Énergie, Mécanique & Simulation Numérique | Apprentissage R&D Industrielle",
-    "summary_default": "Élève-ingénieur généraliste à l'ENSEM (Énergie & Systèmes), en apprentissage chez ArcelorMittal R&D depuis 3 ans. Formation pluridisciplinaire couvrant la mécanique des solides et des fluides, les transferts thermiques, l'électricité de puissance et les systèmes énergétiques. Expérience terrain en simulation numérique (Abaqus, Metafor) appliquée à la stabilité des structures, en modélisation thermique de procédés industriels et en automatisation de post-traitements de données par Python. Habitué à présenter des résultats techniques devant des experts R&D et à rédiger des rapports formels.",
+    "headline_default": "Ingénieur Généraliste ENSEM — Énergie, Mécanique & Simulation Numérique | R&D Industrielle",
+    "summary_default": "Ingénieur généraliste ENSEM (Énergie & Systèmes), formé en alternance chez ArcelorMittal R&D pendant 3 ans. Formation pluridisciplinaire couvrant la mécanique des solides et des fluides, les transferts thermiques, l'électricité de puissance et les systèmes énergétiques. Expérience terrain en simulation numérique (Abaqus, Metafor) appliquée à la stabilité des structures, en modélisation thermique de procédés industriels et en automatisation de post-traitements de données par Python. Habitué à présenter des résultats techniques devant des experts R&D et à rédiger des rapports formels.",
     "languages": [
       {"language": "Anglais", "level": "C1", "certification": "TOEIC 860/990"},
       {"language": "Français", "level": "Courant"},
@@ -231,28 +231,28 @@
 
   "profiles": {
     "simulation_rd": {
-      "headline": "Élève-Ingénieur ENSEM — Simulation Numérique & Calcul de Structures | Apprentissage R&D ArcelorMittal",
-      "target_keywords": ["Abaqus", "Metafor", "Éléments Finis", "Non-linéaire", "Flambage", "Calcul structure", "Composites", "Science des matériaux", "Maillage", "Validation numérique"],
+      "headline": "Ingénieur Simulation Numérique & Calcul de Structures | R&D Industrielle",
+      "target_keywords": ["Abaqus", "Metafor", "Ansys", "Ansys Workbench", "Éléments Finis", "FEA", "Non-linéaire", "Flambage", "Calcul structure", "Calculs statiques", "Calculs dynamiques", "Composites", "Science des matériaux", "Maillage", "Validation numérique", "RDM", "Dimensionnement"],
       "priority_experiences": ["AM_PFE", "ENSEM_PROJ_COMPOSITES", "AM_A1", "IJL_STAGE"]
     },
     "energie_cfd": {
-      "headline": "Élève-Ingénieur ENSEM — Énergie & CFD | Modélisation Thermique & Décarbonation Industrielle",
-      "target_keywords": ["CFD", "Ansys Fluent", "k-omega SST", "Décarbonation", "Audit Énergétique", "Bilan thermique", "Jumeau Numérique", "Transferts thermiques"],
+      "headline": "Ingénieur Énergie & CFD — Modélisation Thermique & Décarbonation Industrielle",
+      "target_keywords": ["CFD", "Ansys Fluent", "Ansys", "k-omega SST", "Décarbonation", "Audit Énergétique", "Bilan thermique", "Jumeau Numérique", "Transferts thermiques", "Thermique industrielle"],
       "priority_experiences": ["AM_A2", "AM_A1", "ENSEM_PROJ_FLUENT", "AM_PFE"]
     },
     "energie_enr": {
-      "headline": "Élève-Ingénieur ENSEM — Énergies Renouvelables & Systèmes Énergétiques | PV · Éolien · Hydraulique",
-      "target_keywords": ["ENR", "Photovoltaïque", "Éolien", "Hydraulique", "Smart Grid", "MPPT", "Automatique", "Dimensionnement énergétique"],
+      "headline": "Ingénieur Énergies Renouvelables & Systèmes Énergétiques | PV · Éolien · Hydraulique",
+      "target_keywords": ["ENR", "Photovoltaïque", "Éolien", "Hydraulique", "Smart Grid", "MPPT", "Automatique", "Dimensionnement énergétique", "Dimensionnement"],
       "priority_experiences": ["ENSEM_TP_SOLAR", "ENSEM_TP_WIND", "ENSEM_TP_HYDRO", "AM_A2"]
     },
     "calcul_digital": {
-      "headline": "Élève-Ingénieur ENSEM — Calcul Scientifique & Automatisation | Python · Simulation · Données Industrielles",
-      "target_keywords": ["Python", "Simulation", "Jumeau numérique", "Automatisation", "Data Visualization", "Plotly", "Git", "Calcul scientifique"],
+      "headline": "Ingénieur Calcul Scientifique & Automatisation | Python · Simulation · Données Industrielles",
+      "target_keywords": ["Python", "Simulation", "Jumeau numérique", "Automatisation", "Data Visualization", "Plotly", "Git", "Calcul scientifique", "Traitement de données"],
       "priority_experiences": ["AM_A2", "AM_A1", "AM_PFE", "ENSEM_PROJ_FLUENT"]
     },
     "bureau_etudes": {
-      "headline": "Élève-Ingénieur ENSEM — Bureau d'Études Calcul & Thermique | Dimensionnement & Simulation Numérique",
-      "target_keywords": ["Calcul structure", "Éléments finis", "Tenue mécanique", "Transferts thermiques", "Notes de calcul", "Abaqus", "Dimensionnement", "RDM", "Rapport technique"],
+      "headline": "Ingénieur Bureau d'Études — Dimensionnement, Calcul FEA & Simulation Numérique",
+      "target_keywords": ["Calcul structure", "Éléments finis", "FEA", "Tenue mécanique", "Transferts thermiques", "Notes de calcul", "Dossiers justificatifs", "Documentation technique", "Abaqus", "Ansys", "Ansys Workbench", "Ansys APDL", "Workbench", "Dimensionnement", "RDM", "Rapport technique", "Calculs statiques", "Calculs dynamiques", "Normes FEM", "Norme 13001", "QCD", "Ponts roulants", "Levage", "Manutention", "Nucléaire", "Défense"],
       "priority_experiences": ["AM_PFE", "ENSEM_PROJ_COMPOSITES", "AM_A1", "ENSEM_PROJ_FLUENT"]
     }
   },
