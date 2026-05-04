@@ -605,7 +605,6 @@ class PersonalCVGenerator:
                         job_data,
                         max_bullets=config["max_bullets"],
                     )
-                cached_cv_data = copy.deepcopy(cv_data)
             elif cached_llm_result is not None:
                 # Re-assemblage intelligent à partir de la sortie LLM déjà validée
                 # mais avec les nouvelles contraintes de troncature (max_bullets)
@@ -614,15 +613,14 @@ class PersonalCVGenerator:
                     candidate_context,
                     max_bullets=config["max_bullets"],
                 )
-            elif cached_cv_data is not None:
-                cv_data = copy.deepcopy(cached_cv_data)
             else:
+                # IMPORTANT: Toujours réassembler le fallback car le 'candidate_context' 
+                # a été tronqué selon config["max_pro_exp"] au début de la boucle !
                 cv_data = self._assemble_fallback_data(
                     candidate_context,
                     job_data,
                     max_bullets=config["max_bullets"],
                 )
-                cached_cv_data = copy.deepcopy(cv_data)
 
             # Hard-truncation logic for extreme shrink attempts
             if config["attempt"] >= 5 and "cv" in cv_data:
