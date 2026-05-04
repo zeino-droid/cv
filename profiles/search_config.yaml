@@ -1,52 +1,38 @@
 # ════════════════════════════════════════════════════════════════════════════
-# Configuration du sourcing France-First — V2 (Optimisée)
+# Configuration du sourcing France-First — V3 (Recentrée Calcul Structures)
 #
-# Ce fichier pilote 3 sources :
-#   • France Travail (codeROME + motsCles + département)
-#   • Adzuna         (keywords libres)
-#   • Companies Watcher (catégorie d'employeurs définie dans target_companies.yaml)
-#
-# Le scoring (heuristique V2 + Gemini) reste partagé entre toutes les sources.
+# DIAGNOSTIC V2 : Le sourcing ramenait trop d'offres CFD/Fluent/ENR alors
+# que le cœur de compétence du candidat est Abaqus + Calcul de Structures.
+# V3 recentre les keywords, codes ROME et premium scoring sur la réalité.
 # ════════════════════════════════════════════════════════════════════════════
 
 search:
-  # ── Codes ROME (France Travail) — référentiel métier officiel français ──
-  # STRATÉGIE V2 : Prioriser les 2 ROME cœur + garder les complémentaires
-  # H1206 — Management et ingénierie études, R&D industriel  ★ CORE
-  # H1210 — Animation d'activités de R&D                     ★ CORE
-  # H1402 — Management et ingénierie méthodes de production
-  # H1502 — Management et ingénierie qualité industrielle
-  # H1208 — Intervention technique en automatisme
-  # H2502 — Management et ingénierie de production
+  # ── Codes ROME — Recentrés sur le cœur de métier ──
+  # H1206 — Management et ingénierie études, R&D industriel    ★ CORE
+  # H1210 — Animation d'activités de R&D                       ★ CORE
+  # H1203 — Conception et dessin produits mécaniques (BE Méca)  ★ AJOUTÉ V3
   rome_codes:
     - "H1206"
     - "H1210"
-    - "H1402"
-    - "H1502"
-    - "H1208"
-    - "H2502"
+    - "H1203"
 
-  # ── Mots-clés (France Travail motsCles + Adzuna + Companies Watcher) ──
-  # STRATÉGIE V2 : Mots-clés PRÉCIS et VARIÉS pour couvrir tous les angles
-  # Ces mots-clés sont maintenant aussi envoyés à France Travail via le
-  # paramètre `motsCles` de l'API, en plus de la recherche ROME classique.
+  # ── Mots-clés — Recentrés sur Abaqus / FEA / Bureau d'Études ──
+  # V3 : Retiré "Ingénieur CFD", "CFD engineer", "Ingénieur ENR"
+  # V3 : Ajouté calcul structures, dimensionnement, bureau d'études mécanique
   keywords:
-    - "Ingénieur simulation numérique"
     - "Ingénieur calcul de structures"
-    - "Ingénieur CFD"
-    - "Ingénieur R&D mécanique"
     - "Ingénieur éléments finis"
-    - "Ingénieur thermique"
+    - "Ingénieur simulation numérique"
+    - "Ingénieur dimensionnement"
+    - "Ingénieur bureau d'études mécanique"
+    - "Ingénieur R&D mécanique"
+    - "Ingénieur calcul FEA"
     - "Ingénieur modélisation"
-    - "Simulation engineer"
-    - "CFD engineer"
     - "Ingénieur bureau d'études calcul"
-    - "Ingénieur énergies renouvelables"
+    - "Ingénieur thermique"
+    - "Simulation engineer"
 
-  # ── Régions / départements (France Travail) ──
-  # Codes département INSEE : 75=Paris, 69=Rhône, 31=Hte-Garonne, 33=Gironde,
-  # 38=Isère, 06=Alpes-Maritimes, 13=B-du-R, 92=Hauts-de-Seine, 78=Yvelines.
-  # Liste vide = recherche nationale.
+  # ── Régions / départements ──
   departments_options:
     - { code: "75", label: "Paris (75)" }
     - { code: "92", label: "Hauts-de-Seine (92)" }
@@ -61,11 +47,11 @@ search:
     - { code: "44", label: "Loire-Atlantique / Nantes (44)" }
     - { code: "54", label: "Meurthe-et-Moselle / Nancy (54)" }
 
-  publiee_depuis: 14      # V2: réduit de 31 à 14 jours pour des offres plus fraîches
-  max_per_query: 100      # cap pagination par département
+  publiee_depuis: 14
+  max_per_query: 100
 
 filters:
-  min_score: 15           # V2: réduit de 20 à 15 (le scoring est maintenant plus sélectif)
+  min_score: 15
   exclude_keywords:
     - "stage"
     - "stagiaire"
@@ -73,45 +59,55 @@ filters:
     - "apprenti"
 
 scoring:
-  base_score: 10          # V2: réduit de 20 à 10 pour plus de discrimination
+  base_score: 10
 
-  # V2: Scoring pondéré par position (titre vs description)
-  # Note: per_skill_match est maintenant ignoré par le scoring V2 qui utilise
-  # TITLE_MATCH_BONUS=15 et DESC_MATCH_BONUS=5 directement dans le code
-  per_skill_match: 5      # Fallback uniquement
+  per_skill_match: 5
 
+  # V3 : Premium keywords recalibrés selon le VRAI niveau du candidat
+  # Abaqus/Structures = cœur → scores max
+  # Fluent/CFD = TP uniquement → scores bas
   premium_keywords:
-    simulation: 6
-    modélisation: 5
-    thermique: 5
-    CFD: 7
-    énergie: 4
-    Python: 4
-    Abaqus: 8
-    Ansys: 7
-    Fluent: 7
-    mécanique: 3
-    thermomécanique: 6
-    décarbonation: 5
-    procédés: 3
-    Matlab: 4
+    # ── Cœur de métier (Abaqus / FEA / Structures) ──
+    Abaqus: 12
+    "éléments finis": 10
+    "FEA": 10
+    "FEM": 8
+    "calcul de structures": 10
+    "non-linéaire": 8
+    flambage: 8
     Metafor: 8
-    "finite element": 6
-    "numerical simulation": 5
-    "heat transfer": 5
-    "digital twin": 6
-    "FEM": 6
-    "FEA": 6
-    "éléments finis": 7
-    "calcul de structures": 7
-    "bureau d'études": 5
-    "jumeau numérique": 6
-    "transferts thermiques": 5
-    "non-linéaire": 5
-    "flambage": 5
-    "jeune diplômé": 3
-    "débutant accepté": 3
-    "junior": 2
+    RDM: 8
+    dimensionnement: 7
+    "bureau d'études": 7
+    simulation: 5
+    modélisation: 5
+    mécanique: 4
+    thermomécanique: 6
+    "tenue mécanique": 8
+    "notes de calcul": 7
+    "dossiers justificatifs": 6
+    composites: 5
+
+    # ── Compétences secondaires (thermique, Python) ──
+    thermique: 4
+    Python: 3
+    Matlab: 3
+    "transferts thermiques": 4
+    "jumeau numérique": 5
+    "digital twin": 5
+    "numerical simulation": 4
+    "finite element": 7
+    "heat transfer": 3
+
+    # ── CFD/Fluent = score BAS (pas ton point fort) ──
+    CFD: 2
+    Fluent: 2
+    Ansys: 5
+
+    # ── Bonus junior / jeune diplômé ──
+    "jeune diplômé": 4
+    "débutant accepté": 4
+    junior: 3
 
   preferred_locations:
     - paris

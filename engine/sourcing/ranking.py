@@ -28,7 +28,8 @@ LLM_CACHE_TTL_DAYS = 7
 SKILL_ALIASES: Dict[str, List[str]] = {
     "éléments finis": ["ef", "fem", "fea", "elements finis", "éléments-finis", "finite element"],
     "cfd": ["computational fluid dynamics", "fluide numérique", "simulation fluide"],
-    "ansys fluent": ["fluent", "ansys", "ansys cfd"],
+    "ansys fluent": ["fluent", "ansys cfd"],
+    "ansys workbench / apdl": ["ansys workbench", "workbench", "ansys apdl", "apdl", "ansys mechanical", "ansys structure"],
     "abaqus": ["abaqus/cae", "abaqus cae", "abaqus/explicit", "abaqus/standard"],
     "python": ["python3", "scripting python", "dev python"],
     "jumeau numérique": ["digital twin", "twin numérique", "modèle numérique temps réel"],
@@ -36,6 +37,8 @@ SKILL_ALIASES: Dict[str, List[str]] = {
     "matlab": ["matlab/simulink", "simulink", "matlab simulink"],
     "metafor": ["metafor fem"],
     "thermomécanique": ["thermo-mécanique", "thermomecanique", "couplage thermomécanique"],
+    "rdm": ["résistance des matériaux", "resistance des materiaux"],
+    "calcul de structures": ["calcul structure", "calculs de structures", "structural analysis"],
 }
 
 

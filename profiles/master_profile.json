@@ -261,7 +261,8 @@
     "hard_skills": [
       {"name": "Abaqus / Abaqus CAE", "level": "Intermédiaire", "context": "PFE Flambage, Composites S9"},
       {"name": "Metafor (ANM)", "level": "Initiation", "context": "PFE — benchmark comparatif"},
-      {"name": "Ansys Fluent", "level": "Intermédiaire", "context": "Projet S9 CFD NACA 23012"},
+      {"name": "Ansys Fluent", "level": "Initiation", "context": "TP S9 CFD NACA 23012 — quelques heures"},
+      {"name": "Ansys Workbench / APDL", "level": "Initiation", "context": "Écosystème Ansys ENSEM, Maillage structuré"},
       {"name": "Analyse par Éléments Finis (EF)", "level": "Intermédiaire", "context": "PFE, Composites, Couches limites"},
       {"name": "Python", "level": "Intermédiaire", "context": "ArcelorMittal — Automatisation et post-traitement de données"},
       {"name": "Matlab / Simulink", "level": "Intermédiaire", "context": "ENR, Turbomachines, Automatique"},
