@@ -24,6 +24,7 @@ ROOT = Path(__file__).parent
 sys.path.insert(0, str(ROOT))
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
 from engine.database import STATUS_EMOJI, JobDatabase
@@ -549,6 +550,34 @@ def render_pdf_viewer(pdf_path: str, height: int = 1000):
         st.error(f"Erreur d'affichage PDF : {e}")
 
 
+def render_ghost_badges(job: dict) -> str:
+    """Génère les badges pour les benefits détectés (Remote, Salary, etc.)."""
+    badges = []
+    
+    # Check for remote work
+    if job.get("remote"):
+        badges.append("🌍 Remote")
+    
+    # Check for salary information
+    if job.get("salary_min") or job.get("salary_max"):
+        min_sal = job.get("salary_min", "?")
+        max_sal = job.get("salary_max", "?")
+        if min_sal != "?" and max_sal != "?":
+            badges.append(f"💰 {min_sal}-{max_sal}k")
+        else:
+            badges.append("💰 Salary")
+    
+    # Check for immediate availability
+    if job.get("immediate"):
+        badges.append("⚡ Immédiat")
+    
+    if not badges:
+        return ""
+    
+    badge_html = " ".join([f'<span class="ghost-badge">{badge}</span>' for badge in badges])
+    return f'<div class="ghost-badges-container">{badge_html}</div>'
+
+
 def render_status_pipeline(job: dict) -> str:
     """Génère le HTML pour la barre de progression visuelle de la candidature."""
     has_cv = bool(job.get("cv_path"))
@@ -656,8 +685,8 @@ def generate_documents(job: dict, gen_cv: bool, gen_letter: bool, use_llm: bool,
     if gen_letter:
         if use_llm:
             try:
-                from Pipeline import generate_cover_letter_llm
                 from engine.cv_generator import PersonalCVGenerator as _CG
+                from Pipeline import generate_cover_letter_llm
                 letter_text = run_coroutine_sync(
                     generate_cover_letter_llm(_CG(), profile, job),
                     context="cover letter (LLM)",
@@ -749,7 +778,11 @@ def generate_documents(job: dict, gen_cv: bool, gen_letter: bool, use_llm: bool,
 # Ces fonctions sont de fines enveloppes qui injectent les dépendances globales.
 from engine.studio_service import (
     _init_gen_state,
+)
+from engine.studio_service import (
     mark_application_as_sent as _svc_mark_sent,
+)
+from engine.studio_service import (
     save_final_candidate_version as _svc_save_final,
 )
 
@@ -1270,7 +1303,11 @@ def studio_dialog(job_id: str):
 
     # === ONGLET 1 : ANALYSE =====================================
     with tab_analyse:
-        from engine.studio_analysis import build_skill_matrix, render_heatmap_html, render_radar_chart
+        from engine.studio_analysis import (
+            build_skill_matrix,
+            render_heatmap_html,
+            render_radar_chart,
+        )
         matrix = build_skill_matrix(profile, job)
         
         # Skill Heatmap & Radar Chart Side by Side
@@ -1850,8 +1887,8 @@ with tab_auto:
     base_keywords = (_cfg.get("search", {}) or {}).get("keywords") or []
 
     # État des credentials (juste pour l'info utilisateur)
-    from engine.sourcing import france_travail as _ft
     from engine.sourcing import adzuna as _adz
+    from engine.sourcing import france_travail as _ft
     ft_ok = _ft.has_credentials()
     adz_ok = _adz.has_credentials()
     has_gem = bool(os.getenv("GEMINI_API_KEY"))
@@ -2085,8 +2122,8 @@ with tab_manual:
 
     if m_desc.strip():
         with st.expander("🔍 **Analyse Flash : Keyword Gap**", expanded=True):
-            from engine.studio_analysis import analyze_keyword_gap
             from engine.cv_generator import PersonalCVGenerator
+            from engine.studio_analysis import analyze_keyword_gap
             
             # Initialisation légère du moteur (cache-friendly)
             @st.cache_resource
