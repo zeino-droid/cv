@@ -200,9 +200,11 @@ def _truncate_at_sentence(text: str, max_chars: int) -> str:
     last_period = max(candidate.rfind('.'), candidate.rfind('!'), candidate.rfind('?'))
     if last_period > max_chars * 0.5:  # au moins 50% conservé
         return text[:last_period + 1]
-    # Fallback : coupe au dernier espace
+    # Fallback : coupe au dernier espace et ferme proprement la phrase
     truncated = text[:max_chars].rsplit(' ', 1)[0]
-    return truncated + "…"
+    # Nettoyage de la dernière ponctuation éventuelle avant de mettre un point
+    truncated = __import__('re').sub(r'[^\w\s]$', '', truncated).strip()
+    return truncated + "."
 
 
 def _truncate_at_word(text: str, max_chars: int) -> str:
@@ -210,7 +212,8 @@ def _truncate_at_word(text: str, max_chars: int) -> str:
     if len(text) <= max_chars:
         return text
     truncated = text[:max_chars].rsplit(' ', 1)[0]
-    return truncated + "…"
+    truncated = __import__('re').sub(r'[^\w\s]$', '', truncated).strip()
+    return truncated + "."
 
 
 def validate_llm_output_constraints(cv_data: Dict, content_config: Optional[Dict] = None) -> Dict:

@@ -634,12 +634,12 @@ class PersonalCVGenerator:
                 # Truncate summary
                 summary = cv_data.get("summary", "")
                 if isinstance(summary, str) and len(summary) > 250:
-                    cv_data["summary"] = summary[:247].rsplit(" ", 1)[0] + "..."
+                    cv_data["summary"] = prompts._truncate_at_sentence(summary, 240)
                 
                 # Truncate bullets
                 for exp in cv_data.get("experiences", []):
                     exp["achievements"] = [
-                        ach[:110].rsplit(" ", 1)[0] + "..." if isinstance(ach, str) and len(ach) > 110 else ach
+                        prompts._truncate_at_sentence(ach, 110) if isinstance(ach, str) and len(ach) > 110 else ach
                         for ach in exp.get("achievements", [])
                     ]
                 
