@@ -631,19 +631,11 @@ class PersonalCVGenerator:
             
             # Since the structure is flat (cv_data['summary'] directly) after assemble
             if config["attempt"] >= 5:
-                # Truncate summary
-                summary = cv_data.get("summary", "")
-                if isinstance(summary, str) and len(summary) > 250:
-                    cv_data["summary"] = prompts._truncate_at_sentence(summary, 240)
+                # Au lieu de tronquer le texte (ce qui détruit la qualité sémantique),
+                # on se fie à la réduction drastique du nombre d'éléments (1 seule puce, 1 projet)
+                # définie par le dictionnaire config.
                 
-                # Truncate bullets
-                for exp in cv_data.get("experiences", []):
-                    exp["achievements"] = [
-                        prompts._truncate_at_sentence(ach, 110) if isinstance(ach, str) and len(ach) > 110 else ach
-                        for ach in exp.get("achievements", [])
-                    ]
-                
-                # Remove education modules to save vertical space
+                # On supprime les modules d'éducation pour gagner de l'espace vertical sans toucher au texte LLM
                 for edu in cv_data.get("education", []):
                     if "modules" in edu:
                         edu["modules"] = {}
